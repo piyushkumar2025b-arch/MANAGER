@@ -1,4 +1,4 @@
-name = "vaultapp"
+name = "manager"
 main = "src/index.js"
 compatibility_date = "2026-09-11"
 
