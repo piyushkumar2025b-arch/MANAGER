@@ -11,6 +11,7 @@
     "lint": "node --check server.js \"functions/api/[[route]].js\""
   },
   "dependencies": {
+    "@google/genai": "^2.22.0",
     "express": "^4.21.2"
   }
 }

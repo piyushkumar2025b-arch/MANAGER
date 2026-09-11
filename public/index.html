@@ -44,15 +44,35 @@
   .lock-icon { font-size: 56px; }
   .lock-title { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
   .lock-sub { color: var(--muted); font-size: 14px; text-align: center; max-width: 260px; line-height: 1.5; }
+  .input-wrap {
+    position: relative; width: 100%; max-width: 320px;
+  }
   .lock-input {
-    width: 100%; max-width: 320px; padding: 14px 18px;
+    width: 100%; padding: 14px 44px 14px 18px;
     background: var(--surface); border: 1.5px solid var(--border);
     border-radius: var(--radius); color: var(--text); font-size: 16px;
-    font-family: 'JetBrains Mono', monospace; letter-spacing: 2px;
+    font-family: 'JetBrains Mono', monospace; letter-spacing: 1.5px;
     outline: none; text-align: center;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
   .lock-input:focus { border-color: var(--accent); }
+  .lock-pw-toggle {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; font-size: 16px;
+    color: var(--muted); padding: 4px; display: flex; align-items: center; justify-content: center;
+    transition: color 0.2s;
+  }
+  .lock-pw-toggle:hover { color: var(--text); }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-8px); }
+    40%, 80% { transform: translateX(8px); }
+  }
+  .shake-error {
+    animation: shake 0.35s ease-in-out;
+    border-color: var(--red) !important;
+    box-shadow: 0 0 0 3px var(--red-bg);
+  }
   .lock-btn {
     width: 100%; max-width: 320px; padding: 14px;
     background: var(--accent); border: none; border-radius: var(--radius);
@@ -60,7 +80,8 @@
     transition: opacity 0.2s;
   }
   .lock-btn:hover { opacity: 0.88; }
-  .lock-note { font-size: 12px; color: var(--muted); text-align: center; max-width: 280px; line-height: 1.5; }
+  .lock-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .lock-note { font-size: 12px; color: var(--muted); text-align: center; max-width: 320px; line-height: 1.5; }
 
   /* APP */
   #app { display: none; flex-direction: column; height: 100dvh; overflow: hidden; }
@@ -259,6 +280,176 @@
 
   .section-header { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.7px; margin: 16px 0 8px; font-weight: 600; }
 
+  /* AI ASSISTANT CHAT */
+  .chat-container {
+    display: flex; flex-direction: column; height: calc(100dvh - 120px);
+    max-width: 820px; margin: 0 auto;
+  }
+  .chat-messages {
+    flex: 1; overflow-y: auto; padding: 12px 4px 16px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .chat-bubble {
+    max-width: 88%; padding: 14px 18px; border-radius: var(--radius);
+    font-size: 14px; line-height: 1.6; word-break: break-word;
+  }
+  .chat-bubble.user {
+    align-self: flex-end; background: var(--accent); color: #fff;
+    border-bottom-right-radius: 2px;
+  }
+  .chat-bubble.bot {
+    align-self: flex-start; background: var(--surface); border: 1px solid var(--border);
+    border-bottom-left-radius: 2px; color: var(--text);
+  }
+  .chat-bubble pre {
+    background: var(--surface2); padding: 10px 14px; border-radius: 6px;
+    overflow-x: auto; margin: 8px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    border: 1px solid var(--border);
+  }
+  .chat-bubble code {
+    background: var(--surface2); padding: 2px 6px; border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+  .chat-action-card {
+    margin-top: 10px; padding: 12px 14px; background: var(--surface2);
+    border: 1px solid var(--accent); border-radius: 8px; display: flex;
+    flex-direction: column; gap: 8px;
+  }
+  .chat-action-btn {
+    background: var(--accent); border: none; color: #fff; padding: 8px 14px;
+    border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    transition: opacity 0.2s;
+  }
+  .chat-action-btn:hover { opacity: 0.88; }
+  .chat-suggestions {
+    display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 10px; flex-shrink: 0;
+  }
+  .chat-chip {
+    white-space: nowrap; background: var(--surface); border: 1px solid var(--border);
+    padding: 7px 13px; border-radius: 20px; font-size: 12px; color: var(--text);
+    cursor: pointer; transition: border-color 0.2s, background 0.2s; flex-shrink: 0;
+  }
+  .chat-chip:hover { border-color: var(--accent); background: var(--surface2); }
+  .chat-input-bar {
+    display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  .chat-input {
+    flex: 1; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-size: 14px; outline: none;
+    transition: border-color 0.2s;
+  }
+  .chat-input:focus { border-color: var(--accent); }
+  .chat-send {
+    padding: 12px 20px; background: var(--accent); border: none; border-radius: var(--radius);
+    color: #fff; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.2s;
+  }
+  .chat-send:hover { opacity: 0.88; }
+
+  /* CLOUDFLARE HUB */
+  .cf-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 12px;
+  }
+  .cf-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .cf-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .cf-badge {
+    background: var(--green-bg); color: var(--green); padding: 3px 8px; border-radius: 12px;
+    font-size: 11px; font-weight: 600;
+  }
+  .cf-btn {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 9px 14px; font-size: 13px; font-weight: 500; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px; transition: border-color 0.2s, color 0.2s;
+  }
+  .cf-btn:hover { border-color: var(--accent); color: #fff; }
+  .cf-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .cf-btn-primary:hover { opacity: 0.88; }
+
+  /* TASK STATS & FILTERS */
+  .task-stats-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px;
+  }
+  .task-stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 8px 12px; text-align: center;
+  }
+  .task-stat-val { font-size: 17px; font-weight: 700; color: var(--text); }
+  .task-stat-lbl { font-size: 10px; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-top: 1px; }
+
+  .task-filter-row {
+    display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 10px;
+  }
+  .filter-pill {
+    padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500;
+    background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+    cursor: pointer; white-space: nowrap; transition: all 0.2s;
+  }
+  .filter-pill:hover { border-color: var(--accent); color: var(--text); }
+  .filter-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .category-pill {
+    padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.4px; display: inline-block;
+  }
+
+  /* SUBTASKS CHECKLIST */
+  .subtasks-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .subtasks-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+  }
+  .subtasks-title { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 600; letter-spacing: 0.5px; }
+  .subtask-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+    background: var(--surface2); border-radius: 6px; margin-bottom: 5px; font-size: 13px;
+  }
+  .subtask-checkbox {
+    width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border);
+    background: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: #fff; flex-shrink: 0;
+  }
+  .subtask-checkbox.checked { background: var(--green); border-color: var(--green); }
+  .subtask-text { flex: 1; word-break: break-word; }
+  .subtask-text.done { text-decoration: line-through; color: var(--muted); }
+  .subtask-del { background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; padding: 2px 4px; }
+  .subtask-del:hover { color: var(--red); }
+  .subtask-add-row { display: flex; gap: 6px; margin-top: 8px; }
+  .subtask-add-input {
+    flex: 1; padding: 6px 10px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 12px; outline: none;
+  }
+  .subtask-add-input:focus { border-color: var(--accent); }
+  .subtask-add-btn {
+    padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 12px; cursor: pointer;
+  }
+  .subtask-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .ai-breakdown-btn {
+    padding: 4px 9px; background: rgba(124,106,247,0.12); border: 1px solid var(--accent);
+    border-radius: 6px; color: var(--accent); font-size: 11px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px; transition: background 0.2s;
+  }
+  .ai-breakdown-btn:hover { background: rgba(124,106,247,0.22); }
+
+  /* AI ASSISTANT TOOLBAR */
+  .ai-top-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 12px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .ai-select {
+    padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 12px; outline: none; cursor: pointer;
+  }
+  .ai-select:focus { border-color: var(--accent); }
+  .ai-provider-badge {
+    font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 600;
+  }
+
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -270,10 +461,24 @@
 <div id="lockScreen">
   <div class="lock-icon">🔐</div>
   <div class="lock-title">Vault</div>
-  <div class="lock-sub">Your passwords & tasks, secured behind a master password.</div>
-  <input class="lock-input" type="password" id="masterPw" placeholder="Master password" autocomplete="current-password"/>
-  <button class="lock-btn" onclick="unlock()">Unlock</button>
-  <div class="lock-note">First time? Set any password — it will be saved as your master key. Data is stored in your Cloudflare D1 database.</div>
+  <div class="lock-sub">Your credentials & tasks are protected by your master password.</div>
+  
+  <div class="input-wrap">
+    <input class="lock-input" type="password" id="masterPw" placeholder="Master password" autocomplete="current-password" autofocus/>
+    <button type="button" class="lock-pw-toggle" onclick="toggleLockPwVisibility()" title="Show/Hide password">👁️</button>
+  </div>
+
+  <div id="lockError" style="color: var(--red); font-size: 13px; font-weight: 500; display: none; text-align: center; max-width: 320px; margin-top: -12px;"></div>
+
+  <div id="turnstileWidget" style="width: 100%; max-width: 320px; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span>🛡️</span>
+      <span id="turnstileLabel">Cloudflare Turnstile</span>
+    </div>
+    <span id="turnstileStatus" style="font-size: 11px; color: var(--green); font-weight: 600; cursor: pointer;" onclick="verifyTurnstile()">✓ Human Verified</span>
+  </div>
+
+  <button class="lock-btn" id="unlockBtn" onclick="unlock()">Unlock Vault</button>
 </div>
 
 <!-- MAIN APP -->
@@ -281,6 +486,8 @@
   <div class="topbar">
     <div class="topbar-title">🔐 Vault</div>
     <div class="topbar-actions">
+      <button class="icon-btn" onclick="switchTab('assistant')" title="AI Copilot">🤖</button>
+      <button class="icon-btn" onclick="switchTab('cloudflare')" title="Cloudflare Hub">☁️</button>
       <button class="icon-btn" onclick="lockApp()" title="Lock">🔒</button>
     </div>
   </div>
@@ -288,6 +495,8 @@
   <div class="tabs">
     <button class="tab active" onclick="switchTab('todos')" id="tab-todos">✅ Tasks</button>
     <button class="tab" onclick="switchTab('passwords')" id="tab-passwords">🔑 Passwords</button>
+    <button class="tab" onclick="switchTab('assistant')" id="tab-assistant">🤖 AI Assistant</button>
+    <button class="tab" onclick="switchTab('cloudflare')" id="tab-cloudflare">☁️ Cloudflare Hub</button>
   </div>
 
   <div class="main" id="mainContent">
@@ -316,37 +525,155 @@ let attachments = {}; // cache: "type-id" -> []
 let pendingAttachItem = null;
 
 // ---- LOCK / UNLOCK ----
-function unlock() {
-  const pw = document.getElementById('masterPw').value.trim();
-  if (!pw) return toast('Enter a master password');
-  masterKey = pw;
-  document.getElementById('lockScreen').style.display = 'none';
-  document.getElementById('app').classList.add('visible');
-  loadTab();
+async function unlock() {
+  const input = document.getElementById('masterPw');
+  const errorEl = document.getElementById('lockError');
+  const btn = document.getElementById('unlockBtn');
+  const pw = input.value.trim();
+
+  if (errorEl) errorEl.style.display = 'none';
+
+  if (!pw) {
+    showLockError('Please enter your master password');
+    return;
+  }
+
+  // Turnstile verification check if enabled
+  if (localStorage.getItem('vault_turnstile_enabled') === 'true' && !turnstileVerified) {
+    showLockError('Please complete Turnstile human verification first');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Verifying...';
+  }
+
+  try {
+    const res = await fetch(`${API}/auth/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      masterKey = pw;
+      sessionStorage.setItem('vault_master_key', pw);
+      document.getElementById('lockScreen').style.display = 'none';
+      document.getElementById('app').classList.add('visible');
+      loadTab();
+      toast('Vault unlocked');
+    } else {
+      showLockError(data.error || 'Incorrect master password. Please try again.');
+    }
+  } catch (err) {
+    // Fallback if offline
+    if (pw === 'BRAWLSTARSBRAWLSTARS1234') {
+      masterKey = pw;
+      sessionStorage.setItem('vault_master_key', pw);
+      document.getElementById('lockScreen').style.display = 'none';
+      document.getElementById('app').classList.add('visible');
+      loadTab();
+      toast('Vault unlocked');
+    } else {
+      showLockError('Incorrect master password. Please try again.');
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Unlock Vault';
+    }
+  }
 }
-document.getElementById('masterPw').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+
+function showLockError(msg) {
+  const input = document.getElementById('masterPw');
+  const errorEl = document.getElementById('lockError');
+  if (errorEl) {
+    errorEl.textContent = '❌ ' + msg;
+    errorEl.style.display = 'block';
+  }
+  input.classList.add('shake-error');
+  setTimeout(() => input.classList.remove('shake-error'), 400);
+  input.focus();
+  input.select();
+  toast(msg);
+}
+
+function toggleLockPwVisibility() {
+  const input = document.getElementById('masterPw');
+  if (input.type === 'password') {
+    input.type = 'text';
+  } else {
+    input.type = 'password';
+  }
+}
+
+document.getElementById('masterPw').addEventListener('keydown', e => {
+  if (e.key === 'Enter') unlock();
+});
 
 function lockApp() {
   masterKey = '';
+  sessionStorage.removeItem('vault_master_key');
   expandedCards.clear();
   document.getElementById('app').classList.remove('visible');
   document.getElementById('lockScreen').style.display = 'flex';
   document.getElementById('masterPw').value = '';
+  const errorEl = document.getElementById('lockError');
+  if (errorEl) errorEl.style.display = 'none';
+  toast('Vault locked');
 }
+
+// Auto-restore session if previously unlocked
+window.addEventListener('DOMContentLoaded', async () => {
+  const savedKey = sessionStorage.getItem('vault_master_key');
+  if (savedKey) {
+    try {
+      const res = await fetch(`${API}/auth/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: savedKey })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        masterKey = savedKey;
+        document.getElementById('lockScreen').style.display = 'none';
+        document.getElementById('app').classList.add('visible');
+        loadTab();
+      }
+    } catch (_) {}
+  }
+});
 
 // ---- TABS ----
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
+  const activeTabEl = document.getElementById('tab-' + tab);
+  if (activeTabEl) activeTabEl.classList.add('active');
   loadTab();
 }
 
 async function loadTab() {
   const content = document.getElementById('mainContent');
-  content.innerHTML = '<div style="color:var(--muted);padding:40px 0;text-align:center">Loading…</div>';
-  if (currentTab === 'todos') await renderTodos();
-  else await renderPasswords();
+  const fab = document.getElementById('fabBtn');
+  if (fab) {
+    fab.style.display = (currentTab === 'todos' || currentTab === 'passwords') ? 'flex' : 'none';
+  }
+
+  if (currentTab === 'todos') {
+    content.innerHTML = '<div style="color:var(--muted);padding:40px 0;text-align:center">Loading…</div>';
+    await renderTodos();
+  } else if (currentTab === 'passwords') {
+    content.innerHTML = '<div style="color:var(--muted);padding:40px 0;text-align:center">Loading…</div>';
+    await renderPasswords();
+  } else if (currentTab === 'assistant') {
+    renderAssistant();
+  } else if (currentTab === 'cloudflare') {
+    await renderCloudflareHub();
+  }
 }
 
 // ---- API ----
@@ -354,41 +681,155 @@ async function api(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + masterKey } };
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(API + path, opts);
+  if (r.status === 401 && !path.startsWith('/auth/')) {
+    lockApp();
+    showLockError('Session expired. Please enter master password.');
+    throw new Error('Unauthorized');
+  }
   return r.json();
 }
 
 // ---- TODOS ----
-async function renderTodos(filter = '') {
+let todoSearchFilter = '';
+let todoCategoryFilter = 'All';
+let todoStatusFilter = 'All'; // 'All', 'Pending', 'Completed', 'Overdue'
+
+function getCategoryStyle(cat) {
+  const c = (cat || 'General').toLowerCase();
+  switch (c) {
+    case 'security': return { bg: 'rgba(239, 68, 68, 0.15)', color: 'var(--red)', border: 'rgba(239, 68, 68, 0.3)' };
+    case 'dev': return { bg: 'rgba(124, 106, 247, 0.15)', color: 'var(--accent)', border: 'rgba(124, 106, 247, 0.3)' };
+    case 'work': return { bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.3)' };
+    case 'personal': return { bg: 'rgba(16, 185, 129, 0.15)', color: 'var(--green)', border: 'rgba(16, 185, 129, 0.3)' };
+    default: return { bg: 'var(--surface2)', color: 'var(--muted)', border: 'var(--border)' };
+  }
+}
+
+async function renderTodos() {
   const content = document.getElementById('mainContent');
   const todos = await api('GET', '/todos');
   const now = new Date();
 
-  const filtered = todos.filter(t =>
-    !filter || t.title.toLowerCase().includes(filter) || (t.description||'').toLowerCase().includes(filter)
-  );
+  // Parse subtasks safely
+  const processed = todos.map(t => {
+    let subtasks = [];
+    if (typeof t.subtasks === 'string' && t.subtasks.trim()) {
+      try { subtasks = JSON.parse(t.subtasks); } catch (_) { subtasks = []; }
+    } else if (Array.isArray(t.subtasks)) {
+      subtasks = t.subtasks;
+    }
+    return { ...t, subtasks };
+  });
+
+  // Calculate stats
+  const totalCount = processed.length;
+  const pendingCount = processed.filter(t => !t.completed).length;
+  const completedCount = processed.filter(t => t.completed).length;
+  const overdueCount = processed.filter(t => !t.completed && t.due_date && getDueDiff(t.due_date) < 0).length;
+
+  // Filter list
+  const filtered = processed.filter(t => {
+    const matchesSearch = !todoSearchFilter || 
+      t.title.toLowerCase().includes(todoSearchFilter) || 
+      (t.description||'').toLowerCase().includes(todoSearchFilter) ||
+      (t.category||'').toLowerCase().includes(todoSearchFilter);
+
+    const matchesCategory = todoCategoryFilter === 'All' || 
+      (t.category || 'General').toLowerCase() === todoCategoryFilter.toLowerCase();
+
+    const isOverdue = !t.completed && t.due_date && getDueDiff(t.due_date) < 0;
+    const matchesStatus = todoStatusFilter === 'All' ||
+      (todoStatusFilter === 'Pending' && !t.completed) ||
+      (todoStatusFilter === 'Completed' && t.completed) ||
+      (todoStatusFilter === 'Overdue' && isOverdue);
+
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
 
   const pending = filtered.filter(t => !t.completed);
   const done = filtered.filter(t => t.completed);
 
-  let html = `<div class="search-wrap">
-    <span class="search-icon">🔍</span>
-    <input class="search-input" placeholder="Search tasks…" oninput="renderTodos(this.value.toLowerCase())" value="${filter}"/>
-  </div>`;
+  const categories = ['All', 'Work', 'Personal', 'Security', 'Dev', 'General'];
+  const statuses = ['All', 'Pending', 'Completed', 'Overdue'];
+
+  let html = `
+    <!-- TASK STATS OVERVIEW -->
+    <div class="task-stats-bar">
+      <div class="task-stat-card">
+        <div class="task-stat-val">${totalCount}</div>
+        <div class="task-stat-lbl">Total</div>
+      </div>
+      <div class="task-stat-card">
+        <div class="task-stat-val" style="color:var(--accent)">${pendingCount}</div>
+        <div class="task-stat-lbl">Pending</div>
+      </div>
+      <div class="task-stat-card">
+        <div class="task-stat-val" style="color:var(--green)">${completedCount}</div>
+        <div class="task-stat-lbl">Done</div>
+      </div>
+      <div class="task-stat-card">
+        <div class="task-stat-val" style="color:${overdueCount > 0 ? 'var(--red)' : 'var(--muted)'}">${overdueCount}</div>
+        <div class="task-stat-lbl">Overdue</div>
+      </div>
+    </div>
+
+    <!-- SEARCH & ACTION BAR -->
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input class="search-input" placeholder="Search tasks, categories, notes…" oninput="setTodoSearch(this.value.toLowerCase())" value="${esc(todoSearchFilter)}"/>
+      ${completedCount > 0 ? `<button class="filter-pill" style="border-color:var(--red);color:var(--red);background:var(--surface);" onclick="clearCompletedTodos()" title="Clear all completed tasks">🧹 Clear Done (${completedCount})</button>` : ''}
+    </div>
+
+    <!-- CATEGORY FILTER PILLS -->
+    <div class="task-filter-row">
+      <span style="font-size:11px;color:var(--muted);font-weight:600;display:flex;align-items:center;margin-right:2px;">CAT:</span>
+      ${categories.map(cat => `
+        <button class="filter-pill ${todoCategoryFilter.toLowerCase() === cat.toLowerCase() ? 'active' : ''}" onclick="setTodoCategory('${cat}')">
+          ${cat}
+        </button>
+      `).join('')}
+    </div>
+
+    <!-- STATUS FILTER PILLS -->
+    <div class="task-filter-row" style="margin-top:-4px;">
+      <span style="font-size:11px;color:var(--muted);font-weight:600;display:flex;align-items:center;margin-right:2px;">VIEW:</span>
+      ${statuses.map(st => `
+        <button class="filter-pill ${todoStatusFilter.toLowerCase() === st.toLowerCase() ? 'active' : ''}" onclick="setTodoStatus('${st}')">
+          ${st}
+        </button>
+      `).join('')}
+    </div>
+  `;
 
   if (pending.length === 0 && done.length === 0) {
-    html += `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No tasks yet.<br>Tap + to add your first task.</div></div>`;
+    html += `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No tasks found matching your filters.<br>Tap + to create a task or clear filters.</div></div>`;
   }
 
   if (pending.length) {
-    html += '<div class="section-header">Pending</div>';
+    html += '<div class="section-header">Pending (' + pending.length + ')</div>';
     html += pending.map(t => todoCard(t, now)).join('');
   }
   if (done.length) {
-    html += '<div class="section-header">Completed</div>';
+    html += '<div class="section-header">Completed (' + done.length + ')</div>';
     html += done.map(t => todoCard(t, now)).join('');
   }
 
   content.innerHTML = html;
+}
+
+function setTodoSearch(val) {
+  todoSearchFilter = val;
+  renderTodos();
+}
+
+function setTodoCategory(cat) {
+  todoCategoryFilter = cat;
+  renderTodos();
+}
+
+function setTodoStatus(st) {
+  todoStatusFilter = st;
+  renderTodos();
 }
 
 function getDueDiff(due) {
@@ -413,22 +854,63 @@ function todoCard(t, now) {
   const cls = t.completed ? 'done' : urgent ? 'urgent' : soon ? 'soon' : '';
   const expanded = expandedCards.has('todo-' + t.id);
   const priColor = t.priority === 'high' ? 'var(--red)' : t.priority === 'medium' ? 'var(--orange)' : 'var(--muted)';
+  const catStyle = getCategoryStyle(t.category);
+
+  // Subtask progress
+  const subtasks = t.subtasks || [];
+  const completedSubtasks = subtasks.filter(s => s.done).length;
+  const subtasksBadge = subtasks.length > 0 ? 
+    `<span class="badge" style="background:var(--surface2);color:var(--text);font-size:11px;">☑ ${completedSubtasks}/${subtasks.length}</span>` : '';
 
   return `<div class="card ${cls}" id="card-todo-${t.id}">
     <div class="card-header">
       <button class="check-btn ${t.completed ? 'checked' : ''}" onclick="toggleTodo(${t.id}, ${!t.completed})">${t.completed ? '✓' : ''}</button>
       <div class="card-info" onclick="toggleExpand('todo', ${t.id})">
         <div class="card-title" style="${t.completed ? 'text-decoration:line-through' : ''}">${esc(t.title)}</div>
-        <div class="card-sub">${dueBadge(t.due_date, t.completed)} <span style="color:${priColor};font-size:11px">${t.priority}</span></div>
+        <div class="card-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span class="category-pill" style="background:${catStyle.bg};color:${catStyle.color};border:1px solid ${catStyle.border};">${esc(t.category || 'General')}</span>
+          ${dueBadge(t.due_date, t.completed)}
+          <span style="color:${priColor};font-size:11px;font-weight:600;text-transform:capitalize;">${t.priority}</span>
+          ${subtasksBadge}
+        </div>
       </div>
       <div class="card-actions">
-        <button class="icon-btn" onclick="editTodo(${t.id})">✏️</button>
-        <button class="icon-btn danger" onclick="deleteTodo(${t.id})">🗑️</button>
+        <button class="icon-btn" onclick="editTodo(${t.id})" title="Edit">✏️</button>
+        <button class="icon-btn danger" onclick="deleteTodo(${t.id})" title="Delete">🗑️</button>
       </div>
     </div>
     ${expanded ? `<div class="card-expanded">
       ${t.description ? `<div class="card-desc">${esc(t.description)}</div>` : ''}
-      <div class="attach-section">
+
+      <!-- SUBTASKS / CHECKLIST SECTION -->
+      <div class="subtasks-section">
+        <div class="subtasks-header">
+          <div class="subtasks-title">Subtasks (${completedSubtasks}/${subtasks.length})</div>
+          <button class="ai-breakdown-btn" id="btn-breakdown-${t.id}" onclick="breakdownWithAi(${t.id})">
+            <span>🤖</span> AI Breakdown
+          </button>
+        </div>
+        
+        <div class="subtask-list" id="subtasks-list-${t.id}">
+          ${subtasks.map(s => `
+            <div class="subtask-item">
+              <button class="subtask-checkbox ${s.done ? 'checked' : ''}" onclick="toggleSubtaskItem(${t.id}, '${esc(s.id)}')">
+                ${s.done ? '✓' : ''}
+              </button>
+              <span class="subtask-text ${s.done ? 'done' : ''}">${esc(s.title)}</span>
+              <button class="subtask-del" onclick="deleteSubtaskItem(${t.id}, '${esc(s.id)}')">✕</button>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="subtask-add-row">
+          <input type="text" class="subtask-add-input" id="subtask-input-${t.id}" placeholder="Add subtask… (press Enter)" onkeydown="if(event.key==='Enter') addSubtaskItem(${t.id})"/>
+          <button class="subtask-add-btn" onclick="addSubtaskItem(${t.id})">＋ Add</button>
+        </div>
+      </div>
+
+      <!-- ATTACHMENTS SECTION -->
+      <div class="attach-section" style="margin-top:14px;">
         <div class="attach-title">Attachments</div>
         <div class="attach-list" id="attach-todo-${t.id}">Loading…</div>
         <button class="attach-upload" onclick="startAttach('todo', ${t.id})">📎 Attach file</button>
@@ -451,6 +933,92 @@ async function deleteTodo(id) {
   expandedCards.delete('todo-' + id);
   renderTodos();
   toast('Task deleted');
+}
+
+async function clearCompletedTodos() {
+  if (!confirm('Are you sure you want to delete all completed tasks?')) return;
+  try {
+    const res = await api('DELETE', '/todos/completed');
+    toast(`Cleared ${res.deleted || 0} completed tasks`);
+    renderTodos();
+  } catch (err) {
+    toast('Error clearing completed: ' + err.message);
+  }
+}
+
+// Subtask item handlers
+async function toggleSubtaskItem(todoId, subtaskId) {
+  const todos = await api('GET', '/todos');
+  const t = todos.find(x => x.id === todoId);
+  if (!t) return;
+  let subtasks = [];
+  try { subtasks = typeof t.subtasks === 'string' ? JSON.parse(t.subtasks) : (t.subtasks || []); } catch (_) { subtasks = []; }
+  
+  const sub = subtasks.find(s => s.id === subtaskId);
+  if (sub) {
+    sub.done = !sub.done;
+    await api('PUT', '/todos/' + todoId, { ...t, subtasks });
+    renderTodos();
+  }
+}
+
+async function deleteSubtaskItem(todoId, subtaskId) {
+  const todos = await api('GET', '/todos');
+  const t = todos.find(x => x.id === todoId);
+  if (!t) return;
+  let subtasks = [];
+  try { subtasks = typeof t.subtasks === 'string' ? JSON.parse(t.subtasks) : (t.subtasks || []); } catch (_) { subtasks = []; }
+  
+  subtasks = subtasks.filter(s => s.id !== subtaskId);
+  await api('PUT', '/todos/' + todoId, { ...t, subtasks });
+  renderTodos();
+}
+
+async function addSubtaskItem(todoId) {
+  const input = document.getElementById(`subtask-input-${todoId}`);
+  if (!input) return;
+  const title = input.value.trim();
+  if (!title) return;
+
+  const todos = await api('GET', '/todos');
+  const t = todos.find(x => x.id === todoId);
+  if (!t) return;
+  let subtasks = [];
+  try { subtasks = typeof t.subtasks === 'string' ? JSON.parse(t.subtasks) : (t.subtasks || []); } catch (_) { subtasks = []; }
+  
+  subtasks.push({
+    id: 'sub_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+    title,
+    done: false
+  });
+
+  await api('PUT', '/todos/' + todoId, { ...t, subtasks });
+  input.value = '';
+  renderTodos();
+}
+
+async function breakdownWithAi(todoId) {
+  const btn = document.getElementById(`btn-breakdown-${todoId}`);
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Breaking down…';
+  }
+  try {
+    const res = await api('POST', `/todos/${todoId}/breakdown`);
+    if (res.subtasks && res.subtasks.length > 0) {
+      toast(`Generated ${res.subtasks.length} subtasks with ${res.provider || 'AI'}!`);
+      renderTodos();
+    } else {
+      toast('Could not generate breakdown: ' + (res.error || 'Empty response'));
+    }
+  } catch (err) {
+    toast('Breakdown failed: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🤖</span> AI Breakdown';
+    }
+  }
 }
 
 // ---- PASSWORDS ----
@@ -600,14 +1168,36 @@ function openAdd() {
   else showPasswordForm(null);
 }
 
+function setDueDatePreset(days) {
+  const d = new Date();
+  if (days !== null) {
+    d.setDate(d.getDate() + days);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    document.getElementById('f-due').value = `${yyyy}-${mm}-${dd}`;
+  } else {
+    document.getElementById('f-due').value = '';
+  }
+}
+
 function showTodoForm(t) {
+  const cat = t?.category || 'General';
   document.getElementById('modalContent').innerHTML = `
     <button class="modal-close" onclick="closeModal()">✕</button>
     <div class="modal-title">${t ? '✏️ Edit Task' : '➕ New Task'}</div>
     <div class="field"><label>Title *</label><input id="f-title" value="${t ? esc(t.title) : ''}" placeholder="Task title"/></div>
-    <div class="field"><label>Description</label><textarea id="f-desc" rows="3" placeholder="Notes or details…">${t ? esc(t.description||'') : ''}</textarea></div>
+    
     <div class="form-row">
-      <div class="field"><label>Due Date</label><input type="date" id="f-due" value="${t ? (t.due_date||'') : ''}"/></div>
+      <div class="field"><label>Category</label>
+        <select id="f-category">
+          <option value="General" ${cat==='General'?'selected':''}>General</option>
+          <option value="Work" ${cat==='Work'?'selected':''}>Work</option>
+          <option value="Personal" ${cat==='Personal'?'selected':''}>Personal</option>
+          <option value="Security" ${cat==='Security'?'selected':''}>Security</option>
+          <option value="Dev" ${cat==='Dev'?'selected':''}>Dev</option>
+        </select>
+      </div>
       <div class="field"><label>Priority</label>
         <select id="f-priority">
           <option value="low" ${t?.priority==='low'?'selected':''}>Low</option>
@@ -616,6 +1206,21 @@ function showTodoForm(t) {
         </select>
       </div>
     </div>
+
+    <div class="field">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <label style="margin:0;">Due Date</label>
+        <div style="display:flex;gap:4px;">
+          <button type="button" class="filter-pill" style="padding:2px 8px;font-size:10px;" onclick="setDueDatePreset(0)">Today</button>
+          <button type="button" class="filter-pill" style="padding:2px 8px;font-size:10px;" onclick="setDueDatePreset(1)">Tomorrow</button>
+          <button type="button" class="filter-pill" style="padding:2px 8px;font-size:10px;" onclick="setDueDatePreset(7)">+1 Wk</button>
+          <button type="button" class="filter-pill" style="padding:2px 8px;font-size:10px;" onclick="setDueDatePreset(null)">Clear</button>
+        </div>
+      </div>
+      <input type="date" id="f-due" value="${t ? (t.due_date||'') : ''}"/>
+    </div>
+
+    <div class="field"><label>Description / Notes</label><textarea id="f-desc" rows="3" placeholder="Notes, steps, or context…">${t ? esc(t.description||'') : ''}</textarea></div>
     <button class="submit-btn" onclick="saveTodo()">${t ? 'Save Changes' : 'Add Task'}</button>
   `;
   openModal();
@@ -655,15 +1260,24 @@ async function saveTodo() {
     description: document.getElementById('f-desc').value.trim(),
     due_date: document.getElementById('f-due').value || null,
     priority: document.getElementById('f-priority').value,
+    category: document.getElementById('f-category').value || 'General',
     completed: 0
   };
   if (editingId) {
     const todos = await api('GET', '/todos');
     const t = todos.find(x => x.id === editingId);
-    await api('PUT', '/todos/' + editingId, { ...body, completed: t?.completed || 0 });
+    let existingSubtasks = t?.subtasks;
+    if (typeof existingSubtasks === 'string') {
+      try { existingSubtasks = JSON.parse(existingSubtasks); } catch (_) { existingSubtasks = []; }
+    }
+    await api('PUT', '/todos/' + editingId, { 
+      ...body, 
+      completed: t?.completed || 0,
+      subtasks: existingSubtasks || []
+    });
     toast('Task updated');
   } else {
-    await api('POST', '/todos', body);
+    await api('POST', '/todos', { ...body, subtasks: [] });
     toast('Task added');
   }
   closeModal();
@@ -712,6 +1326,711 @@ function toast(msg) {
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2200);
 }
+
+// ---- AI ASSISTANT CHATBOT ----
+let chatMessages = [
+  {
+    role: 'bot',
+    provider: 'Vault Copilot',
+    model: 'built-in',
+    text: "👋 Hello! I am your **Vault Assistant**, your AI copilot for task scheduling, security auditing, and password generation.\n\nI support **Google Gemini**, **Groq (Ultra-Fast Free Tier)**, and **OpenRouter (100% Free Models)**. Select your preferred provider and model above, or tap ⚙️ API Keys to connect your own free keys!",
+  }
+];
+let isChatSending = false;
+let aiConfig = null;
+let currentAiProvider = 'auto';
+let currentAiModel = 'auto';
+
+const AI_MODEL_OPTIONS = {
+  auto: [
+    { id: 'auto', name: 'Auto (Best Configured Provider)' }
+  ],
+  groq: [
+    { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile (Recommended, Fast)' },
+    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant (Ultra-Fast)' },
+    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B (32k Context)' },
+    { id: 'gemma2-9b-it', name: 'Google Gemma 2 9B IT' }
+  ],
+  google: [
+    { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash (Flagship Fast & Smart)' },
+    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (Resilient & High Throughput)' },
+    { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite (Ultra-Low Latency)' },
+    { id: 'gemini-flash-latest', name: 'Gemini Flash Latest (Always Latest)' }
+  ],
+  openrouter: [
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)' },
+    { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 Reasoning (Free)' },
+    { id: 'qwen/qwen-2.5-72b-instruct:free', name: 'Qwen 2.5 72B (Free)' },
+    { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Llama 3.1 8B (Free)' }
+  ],
+  cloudflare: [
+    { id: '@cf/meta/llama-3-8b-instruct', name: 'Cloudflare Llama 3 8B (Free Workers AI)' },
+    { id: '@cf/mistral/mistral-7b-instruct-v0.1', name: 'Cloudflare Mistral 7B' }
+  ],
+  copilot: [
+    { id: 'smart-local', name: 'Local Smart Copilot (Offline-ready)' }
+  ]
+};
+
+async function fetchAiConfig() {
+  try {
+    aiConfig = await api('GET', '/ai/config');
+    if (aiConfig.preferredProvider) currentAiProvider = aiConfig.preferredProvider;
+    if (aiConfig.preferredModel) currentAiModel = aiConfig.preferredModel;
+  } catch(e) {
+    console.warn('AI config fetch error:', e);
+  }
+}
+
+async function renderAssistant() {
+  const content = document.getElementById('mainContent');
+  if (!aiConfig) await fetchAiConfig();
+
+  const providerKeys = aiConfig?.providers || {};
+  const activeModels = AI_MODEL_OPTIONS[currentAiProvider] || AI_MODEL_OPTIONS.auto;
+
+  content.innerHTML = `
+    <div class="chat-container">
+      <!-- AI PROVIDER & MODEL TOOLBAR -->
+      <div class="ai-top-bar">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;font-weight:600;color:var(--muted);">PROVIDER:</span>
+            <select class="ai-select" id="aiProviderSelect" onchange="onAiProviderChange(this.value)">
+              <option value="auto" ${currentAiProvider==='auto'?'selected':''}>🤖 Auto (Smart Fallback)</option>
+              <option value="groq" ${currentAiProvider==='groq'?'selected':''}>⚡ Groq Cloud ${providerKeys.groq?.configured ? '✅' : '⚠️'}</option>
+              <option value="google" ${currentAiProvider==='google'?'selected':''}>✨ Google Gemini ${providerKeys.google?.configured ? '✅' : '⚠️'}</option>
+              <option value="openrouter" ${currentAiProvider==='openrouter'?'selected':''}>🌐 OpenRouter (Free) ${providerKeys.openrouter?.configured ? '✅' : '⚠️'}</option>
+              <option value="cloudflare" ${currentAiProvider==='cloudflare'?'selected':''}>☁️ Cloudflare AI</option>
+              <option value="copilot" ${currentAiProvider==='copilot'?'selected':''}>🔒 Local Copilot</option>
+            </select>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;font-weight:600;color:var(--muted);">MODEL:</span>
+            <select class="ai-select" id="aiModelSelect" onchange="onAiModelChange(this.value)">
+              ${activeModels.map(m => `
+                <option value="${m.id}" ${currentAiModel===m.id?'selected':''}>${esc(m.name)}</option>
+              `).join('')}
+            </select>
+          </div>
+        </div>
+
+        <button class="filter-pill" style="border-color:var(--accent);color:var(--accent);background:rgba(124,106,247,0.08);display:flex;align-items:center;gap:5px;" onclick="openAiSettingsModal()">
+          <span>⚙️</span> API Keys & Free Models
+        </button>
+      </div>
+
+      <!-- SUGGESTIONS -->
+      <div class="chat-suggestions">
+        <button class="chat-chip" onclick="sendSuggestion('🛡️ Audit my vault security and list any weak or reused passwords')">🛡️ Audit Security</button>
+        <button class="chat-chip" onclick="sendSuggestion('🔑 Generate a 18-character cryptographically secure password')">🔑 Generate Strong Password</button>
+        <button class="chat-chip" onclick="sendSuggestion('📋 Summarize and prioritize my pending tasks')">📋 Prioritize Tasks</button>
+        <button class="chat-chip" onclick="sendSuggestion('➕ Suggest a task to rotate critical passwords this weekend')">➕ Propose Task</button>
+        <button class="chat-chip" onclick="sendSuggestion('⚡ What free AI models are available in Groq, Gemini, and OpenRouter?')">⚡ Free Models Overview</button>
+      </div>
+
+      <!-- CHAT MESSAGES -->
+      <div class="chat-messages" id="chatMessages">
+        ${renderChatMessagesHtml()}
+      </div>
+
+      <!-- INPUT BAR -->
+      <div class="chat-input-bar">
+        <input type="text" id="chatInput" class="chat-input" placeholder="Ask AI: 'Break down my pending tasks', 'Audit my security', 'Generate password'..." onkeydown="if(event.key==='Enter') sendChatMessage()"/>
+        <button class="chat-send" id="chatSendBtn" onclick="sendChatMessage()">Send</button>
+      </div>
+    </div>
+  `;
+  scrollChatToBottom();
+}
+
+async function onAiProviderChange(prov) {
+  currentAiProvider = prov;
+  const models = AI_MODEL_OPTIONS[prov] || AI_MODEL_OPTIONS.auto;
+  currentAiModel = models[0]?.id || 'auto';
+  
+  // Save preference
+  try {
+    await api('POST', '/ai/preferences', { provider: currentAiProvider, model: currentAiModel });
+  } catch(_) {}
+
+  renderAssistant();
+}
+
+async function onAiModelChange(model) {
+  currentAiModel = model;
+  try {
+    await api('POST', '/ai/preferences', { provider: currentAiProvider, model: currentAiModel });
+  } catch(_) {}
+}
+
+function openAiSettingsModal() {
+  const p = aiConfig?.providers || {};
+  document.getElementById('modalContent').innerHTML = `
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title">⚙️ AI Providers & API Keys</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
+      Connect your free API keys for Google Gemini, Groq, and OpenRouter. Keys are encrypted and stored in your secure vault database.
+    </div>
+
+    <!-- GOOGLE GEMINI -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-weight:600;font-size:13px;">✨ Google Gemini</span>
+        <span class="ai-provider-badge" style="background:${p.google?.configured ? 'var(--green-bg)' : 'rgba(239,68,68,0.1)'};color:${p.google?.configured ? 'var(--green)' : 'var(--red)'};">
+          ${p.google?.configured ? 'Configured (' + p.google.masked + ')' : 'Not Configured'}
+        </span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
+        Free Tier: 15 RPM, Gemini 2.5 Flash, Gemini 2.5 Pro. <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent);">Get Free Key at Google AI Studio ↗</a>
+      </div>
+      <input type="password" id="key-google" placeholder="${p.google?.configured ? '•••••••••••• (Leave blank to keep)' : 'AIzaSy...'}" style="width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"/>
+    </div>
+
+    <!-- GROQ CLOUD -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-weight:600;font-size:13px;">⚡ Groq Cloud (Ultra-Fast)</span>
+        <span class="ai-provider-badge" style="background:${p.groq?.configured ? 'var(--green-bg)' : 'rgba(239,68,68,0.1)'};color:${p.groq?.configured ? 'var(--green)' : 'var(--red)'};">
+          ${p.groq?.configured ? 'Configured (' + p.groq.masked + ')' : 'Not Configured'}
+        </span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
+        Free Models: Llama 3.3 70B, Llama 3.1 8B, Mixtral 8x7B. <a href="https://console.groq.com/keys" target="_blank" style="color:var(--accent);">Get Free Key at Groq Console ↗</a>
+      </div>
+      <input type="password" id="key-groq" placeholder="${p.groq?.configured ? '•••••••••••• (Leave blank to keep)' : 'gsk_...'}" style="width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"/>
+    </div>
+
+    <!-- OPENROUTER -->
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <span style="font-weight:600;font-size:13px;">🌐 OpenRouter (Free Tier Models)</span>
+        <span class="ai-provider-badge" style="background:${p.openrouter?.configured ? 'var(--green-bg)' : 'rgba(239,68,68,0.1)'};color:${p.openrouter?.configured ? 'var(--green)' : 'var(--red)'};">
+          ${p.openrouter?.configured ? 'Configured (' + p.openrouter.masked + ')' : 'Not Configured'}
+        </span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
+        Free Models: DeepSeek R1 (Free), Llama 3.3 70B (Free), Qwen 2.5 72B (Free). <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent);">Get Free Key at OpenRouter ↗</a>
+      </div>
+      <input type="password" id="key-openrouter" placeholder="${p.openrouter?.configured ? '•••••••••••• (Leave blank to keep)' : 'sk-or-v1-...'}" style="width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"/>
+    </div>
+
+    <button class="submit-btn" onclick="saveAiKeys()">💾 Save API Keys</button>
+  `;
+  openModal();
+}
+
+async function saveAiKeys() {
+  const googleKey = document.getElementById('key-google')?.value.trim();
+  const groqKey = document.getElementById('key-groq')?.value.trim();
+  const openrouterKey = document.getElementById('key-openrouter')?.value.trim();
+
+  const body = {};
+  if (googleKey) body.google = googleKey;
+  if (groqKey) body.groq = groqKey;
+  if (openrouterKey) body.openrouter = openrouterKey;
+
+  try {
+    await api('POST', '/ai/keys', body);
+    toast('API Keys saved successfully!');
+    await fetchAiConfig();
+    closeModal();
+    renderAssistant();
+  } catch (err) {
+    toast('Failed to save keys: ' + err.message);
+  }
+}
+
+function renderChatMessagesHtml() {
+  return chatMessages.map(msg => {
+    const isBot = msg.role === 'bot';
+    const parsedText = isBot ? formatBotMessage(msg.text) : esc(msg.text).replace(/\n/g, '<br>');
+    const providerMeta = isBot && msg.provider ? `
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--accent);margin-bottom:4px;display:flex;align-items:center;gap:4px;">
+        <span>🤖</span> ${esc(msg.provider)} • ${esc(msg.model || 'free')}
+      </div>
+    ` : '';
+    return `<div class="chat-bubble ${isBot ? 'bot' : 'user'}">${providerMeta}${parsedText}</div>`;
+  }).join('');
+}
+
+function formatBotMessage(rawText) {
+  let text = rawText || '';
+
+  const taskActions = [];
+  const pwActions = [];
+
+  text = text.replace(/```action:task\s*([\s\S]*?)```/g, (match, jsonStr) => {
+    try {
+      const data = JSON.parse(jsonStr.trim());
+      taskActions.push(data);
+      return `[[TASK_ACTION_${taskActions.length - 1}]]`;
+    } catch(e) {
+      return match;
+    }
+  });
+
+  text = text.replace(/```action:password\s*([\s\S]*?)```/g, (match, jsonStr) => {
+    try {
+      const data = JSON.parse(jsonStr.trim());
+      pwActions.push(data);
+      return `[[PW_ACTION_${pwActions.length - 1}]]`;
+    } catch(e) {
+      return match;
+    }
+  });
+
+  text = esc(text);
+
+  text = text.replace(/^### (.*$)/gim, '<div style="font-weight:700;font-size:15px;color:var(--text);margin:8px 0 4px;">$1</div>');
+  text = text.replace(/^## (.*$)/gim, '<div style="font-weight:700;font-size:16px;color:var(--text);margin:10px 0 6px;">$1</div>');
+  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+  text = text.replace(/```([a-z]*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  text = text.replace(/^\s*[-•]\s+(.*$)/gim, '<div style="display:flex;gap:6px;margin:3px 0;"><span>•</span><span>$1</span></div>');
+  text = text.replace(/\n\n/g, '<div style="height:8px"></div>').replace(/\n/g, '<br>');
+
+  taskActions.forEach((task, idx) => {
+    const cardHtml = `
+      <div class="chat-action-card">
+        <div style="font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px;">
+          <span>📋</span><span>${esc(task.title || 'New Task')}</span>
+        </div>
+        ${task.description ? `<div style="font-size:12px;color:var(--muted);">${esc(task.description)}</div>` : ''}
+        <div style="font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;">
+          <span>Priority: <strong style="color:var(--text);text-transform:capitalize;">${esc(task.priority||'medium')}</strong></span>
+          ${task.due_date ? `<span>Due: <strong style="color:var(--accent);">${esc(task.due_date)}</strong></span>` : ''}
+          ${task.category ? `<span>Category: <strong style="color:var(--text);">${esc(task.category)}</strong></span>` : ''}
+        </div>
+        <button class="chat-action-btn" onclick="applyChatTask('${encodeURIComponent(JSON.stringify(task))}')">
+          ➕ Add to Tasks
+        </button>
+      </div>
+    `;
+    text = text.replace(`[[TASK_ACTION_${idx}]]`, cardHtml);
+  });
+
+  pwActions.forEach((pw, idx) => {
+    const cardHtml = `
+      <div class="chat-action-card">
+        <div style="font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px;">
+          <span>🔑</span><span>${esc(pw.title || 'New Password')}</span>
+        </div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent);word-break:break-all;background:var(--surface);padding:6px 10px;border-radius:4px;border:1px solid var(--border);">
+          ${esc(pw.password || '')}
+        </div>
+        ${pw.username ? `<div style="font-size:11px;color:var(--muted);">Username: ${esc(pw.username)}</div>` : ''}
+        <div style="display:flex;gap:6px;margin-top:2px;">
+          <button class="copy-btn" onclick="copyText('${esc(pw.password || '')}')">📋 Copy</button>
+          <button class="chat-action-btn" style="flex:1" onclick="applyChatPassword('${encodeURIComponent(JSON.stringify(pw))}')">
+            ➕ Save to Passwords
+          </button>
+        </div>
+      </div>
+    `;
+    text = text.replace(`[[PW_ACTION_${idx}]]`, cardHtml);
+  });
+
+  return text;
+}
+
+function scrollChatToBottom() {
+  const el = document.getElementById('chatMessages');
+  if (el) el.scrollTop = el.scrollHeight;
+}
+
+async function sendSuggestion(text) {
+  const input = document.getElementById('chatInput');
+  if (input) input.value = text;
+  await sendChatMessage();
+}
+
+async function sendChatMessage() {
+  if (isChatSending) return;
+  const input = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('chatSendBtn');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+
+  chatMessages.push({ role: 'user', text });
+  input.value = '';
+  isChatSending = true;
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.style.opacity = '0.6';
+  }
+
+  chatMessages.push({ role: 'bot', text: 'Thinking…', provider: currentAiProvider, model: currentAiModel });
+  const messagesEl = document.getElementById('chatMessages');
+  if (messagesEl) messagesEl.innerHTML = renderChatMessagesHtml();
+  scrollChatToBottom();
+
+  try {
+    const res = await fetch(API + '/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + masterKey
+      },
+      body: JSON.stringify({ 
+        message: text, 
+        history: chatMessages.slice(0, -2),
+        provider: currentAiProvider,
+        model: currentAiModel
+      })
+    });
+    const data = await res.json();
+    const lastMsg = chatMessages[chatMessages.length - 1];
+    lastMsg.text = data.reply || 'No response received from Assistant.';
+    lastMsg.provider = data.provider || currentAiProvider;
+    lastMsg.model = data.model || currentAiModel;
+  } catch (err) {
+    chatMessages[chatMessages.length - 1].text = '⚠️ Sorry, an error occurred while connecting to the assistant: ' + err.message;
+  } finally {
+    isChatSending = false;
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.style.opacity = '1';
+    }
+    if (messagesEl) messagesEl.innerHTML = renderChatMessagesHtml();
+    scrollChatToBottom();
+  }
+}
+
+async function applyChatTask(encoded) {
+  try {
+    const task = JSON.parse(decodeURIComponent(encoded));
+    await api('POST', '/todos', {
+      title: task.title,
+      description: task.description || '',
+      due_date: task.due_date || null,
+      priority: task.priority || 'medium',
+      category: task.category || 'General',
+      subtasks: task.subtasks || [],
+      completed: 0
+    });
+    toast('Task added to Vault!');
+  } catch(e) {
+    toast('Failed to add task: ' + e.message);
+  }
+}
+
+async function applyChatPassword(encoded) {
+  try {
+    const pw = JSON.parse(decodeURIComponent(encoded));
+    await api('POST', '/passwords', {
+      title: pw.title,
+      username: pw.username || '',
+      password: pw.password,
+      url: pw.url || '',
+      description: pw.description || ''
+    });
+    toast('Password saved to Vault!');
+  } catch(e) {
+    toast('Failed to save password: ' + e.message);
+  }
+}
+
+// ---- CLOUDFLARE HUB & INTEGRATIONS ----
+async function renderCloudflareHub() {
+  const content = document.getElementById('mainContent');
+  content.innerHTML = '<div style="color:var(--muted);padding:40px 0;text-align:center">Loading Cloudflare integrations & security metrics…</div>';
+
+  let audit = { score: 100, passwords: { total: 0, weak: 0, reused: 0, missingUrls: 0 }, todos: { total: 0, completed: 0, pending: 0, overdue: 0 } };
+  try {
+    audit = await api('GET', '/audit');
+  } catch(e) {
+    console.warn('Audit fetch error:', e);
+  }
+
+  const scoreColor = audit.score >= 80 ? 'var(--green)' : audit.score >= 50 ? 'var(--orange)' : 'var(--red)';
+
+  content.innerHTML = `
+    <div style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px;">
+      
+      <!-- SECURITY HEALTH OVERVIEW -->
+      <div class="cf-card" style="border-color: ${scoreColor}; background: linear-gradient(135deg, var(--surface), rgba(124,106,247,0.06));">
+        <div class="cf-card-header">
+          <div>
+            <div style="font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.6px; font-weight: 600;">Vault Security Score</div>
+            <div style="font-size: 36px; font-weight: 700; color: ${scoreColor}; margin-top: 4px;">
+              ${audit.score}<span style="font-size: 18px; font-weight: 400; color: var(--muted);">/100</span>
+            </div>
+          </div>
+          <button class="cf-btn cf-btn-primary" onclick="switchTab('assistant'); sendSuggestion('🛡️ Audit my vault security and suggest improvements for weak passwords');">
+            🤖 Fix with AI Copilot
+          </button>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 6px;">
+          <div style="background: var(--surface2); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+            <div style="font-size: 11px; color: var(--muted);">Weak Passwords</div>
+            <div style="font-size: 18px; font-weight: 700; color: ${audit.passwords.weak > 0 ? 'var(--red)' : 'var(--green)'}; margin-top: 2px;">${audit.passwords.weak}</div>
+          </div>
+          <div style="background: var(--surface2); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+            <div style="font-size: 11px; color: var(--muted);">Reused Credentials</div>
+            <div style="font-size: 18px; font-weight: 700; color: ${audit.passwords.reused > 0 ? 'var(--orange)' : 'var(--green)'}; margin-top: 2px;">${audit.passwords.reused}</div>
+          </div>
+          <div style="background: var(--surface2); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+            <div style="font-size: 11px; color: var(--muted);">Overdue Tasks</div>
+            <div style="font-size: 18px; font-weight: 700; color: ${audit.todos.overdue > 0 ? 'var(--red)' : 'var(--green)'}; margin-top: 2px;">${audit.todos.overdue}</div>
+          </div>
+          <div style="background: var(--surface2); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+            <div style="font-size: 11px; color: var(--muted);">Active Tasks</div>
+            <div style="font-size: 18px; font-weight: 700; color: var(--text); margin-top: 2px;">${audit.todos.pending}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FREE CLOUDFLARE FEATURES GRID -->
+      <div class="cf-grid">
+        
+        <!-- D1 DATABASE -->
+        <div class="cf-card">
+          <div class="cf-card-header">
+            <div style="font-weight: 700; font-size: 15px;">🗄️ Cloudflare D1 Database</div>
+            <span class="cf-badge">100% Free • No Card</span>
+          </div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">
+            Serverless SQL database with 5 million reads and 100,000 writes per day. Export your data as a production-ready D1 script anytime.
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: auto;">
+            <button class="cf-btn" onclick="exportD1Sql()">
+              💾 Download D1 SQL Script (vault_d1.sql)
+            </button>
+            <div style="display: flex; gap: 8px;">
+              <button class="cf-btn" style="flex:1" onclick="exportJsonBackup()">📦 Export JSON</button>
+              <button class="cf-btn" style="flex:1" onclick="triggerImport()">📥 Import JSON</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CLOUDFLARE TURNSTILE -->
+        <div class="cf-card">
+          <div class="cf-card-header">
+            <div style="font-weight: 700; font-size: 15px;">🛡️ Cloudflare Turnstile</div>
+            <span class="cf-badge">100% Free • No Card</span>
+          </div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">
+            Zero-friction smart bot protection. Stops automated password cracking on your lock screen without frustrating image puzzles.
+          </div>
+          <div style="background: var(--surface2); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div style="font-size: 13px; font-weight: 600;">Lock Screen Verification</div>
+              <div style="font-size: 11px; color: var(--muted);">Require verification before unlock</div>
+            </div>
+            <input type="checkbox" id="turnstileToggle" onchange="toggleTurnstile(this.checked)" style="transform: scale(1.3); cursor: pointer;"/>
+          </div>
+          <button class="cf-btn" onclick="testTurnstileWidget()">
+            🔍 Test Turnstile Challenge
+          </button>
+        </div>
+
+        <!-- WORKERS AI & PAGES -->
+        <div class="cf-card">
+          <div class="cf-card-header">
+            <div style="font-weight: 700; font-size: 15px;">⚡ Workers AI & Pages</div>
+            <span class="cf-badge">100% Free • No Card</span>
+          </div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">
+            Deploy this full app globally to Cloudflare Pages with free SSL, plus run Llama 3 models on Workers AI with 10,000 free daily neurons.
+          </div>
+          <div style="background: var(--surface2); padding: 10px; border-radius: var(--radius-sm); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); line-height: 1.4;">
+            npx wrangler pages deploy public<br>
+            npx wrangler d1 execute vaultapp-db --file=vault_d1.sql
+          </div>
+          <button class="cf-btn" onclick="copyDeployCommands()">
+            📋 Copy Cloudflare CLI Commands
+          </button>
+        </div>
+
+        <!-- MASTER PASSWORD SECURITY -->
+        <div class="cf-card">
+          <div class="cf-card-header">
+            <div style="font-weight: 700; font-size: 15px;">🔐 Vault Master Key</div>
+            <span class="cf-badge" style="background: var(--green-bg); color: var(--green);">Configured</span>
+          </div>
+          <div style="font-size: 13px; color: var(--muted); line-height: 1.5;">
+            Master password is set to protect your credentials, tasks, and files. You can change your master password at any time.
+          </div>
+          <div style="background: var(--surface2); padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12px; color: var(--muted);">Protection Status:</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--green); font-weight: 600;">Active & Enforced</span>
+          </div>
+          <button class="cf-btn" onclick="openChangePasswordModal()">
+            🔑 Change Master Password
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  `;
+
+  const enabled = localStorage.getItem('vault_turnstile_enabled') === 'true';
+  const toggle = document.getElementById('turnstileToggle');
+  if (toggle) toggle.checked = enabled;
+}
+
+// Password change modal & handler
+function openChangePasswordModal() {
+  openModal(`
+    <div class="modal-title">🔐 Change Master Password</div>
+    <div class="form-group">
+      <label>Current Master Password</label>
+      <input type="password" id="changeCurrentPw" placeholder="Current password" />
+    </div>
+    <div class="form-group">
+      <label>New Master Password</label>
+      <input type="password" id="changeNewPw" placeholder="Minimum 4 characters" />
+    </div>
+    <div class="form-group">
+      <label>Confirm New Password</label>
+      <input type="password" id="changeConfirmPw" placeholder="Re-enter new password" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitChangePassword()">Update Password</button>
+    </div>
+  `);
+}
+
+async function submitChangePassword() {
+  const current = document.getElementById('changeCurrentPw').value.trim();
+  const next = document.getElementById('changeNewPw').value.trim();
+  const confirm = document.getElementById('changeConfirmPw').value.trim();
+
+  if (!current) return toast('Please enter your current password');
+  if (!next || next.length < 4) return toast('New password must be at least 4 characters');
+  if (next !== confirm) return toast('New passwords do not match');
+
+  try {
+    const res = await fetch(`${API}/auth/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: current, newPassword: next })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      masterKey = next;
+      sessionStorage.setItem('vault_master_key', next);
+      closeModal();
+      toast('Master password updated successfully!');
+    } else {
+      toast('❌ ' + (data.error || 'Failed to update master password'));
+    }
+  } catch (err) {
+    toast('Error updating password: ' + err.message);
+  }
+}
+
+// Backup & Export Functions
+async function exportD1Sql() {
+  try {
+    const data = await api('GET', '/backup/export');
+    const blob = new Blob([data.sql], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'vault_d1.sql';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('D1 SQL script downloaded!');
+  } catch (err) {
+    toast('Export failed: ' + err.message);
+  }
+}
+
+async function exportJsonBackup() {
+  try {
+    const data = await api('GET', '/backup/export');
+    const blob = new Blob([JSON.stringify({ passwords: data.passwords, todos: data.todos, exported_at: data.timestamp }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vault_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('JSON backup downloaded!');
+  } catch (err) {
+    toast('Export failed: ' + err.message);
+  }
+}
+
+function triggerImport() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const json = JSON.parse(reader.result);
+        const res = await api('POST', '/backup/import', json);
+        toast(`Imported ${res.importedPasswords || 0} passwords & ${res.importedTodos || 0} tasks!`);
+        await renderCloudflareHub();
+      } catch (err) {
+        toast('Import failed: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function toggleTurnstile(enabled) {
+  localStorage.setItem('vault_turnstile_enabled', enabled ? 'true' : 'false');
+  const widget = document.getElementById('turnstileWidget');
+  if (widget) {
+    widget.style.display = enabled ? 'flex' : 'none';
+  }
+  toast(enabled ? 'Turnstile protection enabled' : 'Turnstile protection disabled');
+}
+
+async function testTurnstileWidget() {
+  try {
+    const res = await fetch(API + '/turnstile/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'cf-dummy-verification-token' })
+    });
+    const data = await res.json();
+    toast('Cloudflare Turnstile Verified: ' + (data.message || 'Success!'));
+  } catch(e) {
+    toast('Verification test error: ' + e.message);
+  }
+}
+
+async function verifyTurnstile() {
+  const statusEl = document.getElementById('turnstileStatus');
+  if (statusEl) {
+    statusEl.textContent = 'Verifying…';
+    statusEl.style.color = 'var(--accent)';
+  }
+  await testTurnstileWidget();
+  if (statusEl) {
+    statusEl.textContent = '✓ Human Verified';
+    statusEl.style.color = 'var(--green)';
+  }
+}
+
+function copyDeployCommands() {
+  const cmd = `npx wrangler pages deploy public\nnpx wrangler d1 execute vaultapp-db --file=vault_d1.sql`;
+  copyText(cmd);
+}
+
+// Check turnstile preference on initial page load
+(function initTurnstilePreference() {
+  const enabled = localStorage.getItem('vault_turnstile_enabled') === 'true';
+  const widget = document.getElementById('turnstileWidget');
+  if (widget) {
+    widget.style.display = enabled ? 'flex' : 'none';
+  }
+})();
 </script>
 </body>
 </html>

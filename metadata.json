@@ -1,6 +1,6 @@
 {
   "name": "Vault",
-  "description": "Secure vault for managing passwords, tasks, and attachments with a master password.",
+  "description": "Secure vault for passwords, tasks, and attachments with an AI assistant and Cloudflare integrations.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
