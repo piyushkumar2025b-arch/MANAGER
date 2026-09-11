@@ -9,4 +9,4 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "vaultapp-db"
-database_id = "YOUR_DATABASE_ID_HERE"
+database_id = "db4f140a-0711-46a0-87f2-c4bec6dc2af8"
