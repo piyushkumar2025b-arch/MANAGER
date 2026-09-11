@@ -84,7 +84,7 @@ export async function onRequest(context) {
     if (path.startsWith('/passwords/') && method === 'DELETE') {
       const id = path.split('/')[2];
       await env.DB.prepare('DELETE FROM passwords WHERE id=?').bind(id).run();
-      await env.DB.prepare('DELETE FROM attachments WHERE item_type="password" AND item_id=?').bind(id).run();
+      await env.DB.prepare("DELETE FROM attachments WHERE item_type='password' AND item_id=?").bind(id).run();
       return new Response(JSON.stringify({ success: true }), { headers });
     }
 
@@ -116,7 +116,7 @@ export async function onRequest(context) {
     if (path.startsWith('/todos/') && method === 'DELETE') {
       const id = path.split('/')[2];
       await env.DB.prepare('DELETE FROM todos WHERE id=?').bind(id).run();
-      await env.DB.prepare('DELETE FROM attachments WHERE item_type="todo" AND item_id=?').bind(id).run();
+      await env.DB.prepare("DELETE FROM attachments WHERE item_type='todo' AND item_id=?").bind(id).run();
       return new Response(JSON.stringify({ success: true }), { headers });
     }
 

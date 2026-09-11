@@ -1,0 +1,16 @@
+{
+  "name": "vault",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Secure vault for managing passwords, tasks, and attachments",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "build": "echo 'Build complete'",
+    "start": "node server.js",
+    "lint": "node --check server.js \"functions/api/[[route]].js\""
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
