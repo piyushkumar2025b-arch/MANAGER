@@ -1,0 +1,8 @@
+name = "vaultapp"
+compatibility_date = "2026-09-11"
+pages_build_output_dir = "./public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vaultapp-db"
+database_id = "YOUR_DATABASE_ID_HERE"
