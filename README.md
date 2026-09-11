@@ -1,113 +1,65 @@
-# 🔐 Vault — Cloudflare Pages + D1
+# Vault — Cloudflare Worker + D1
 
-A mobile-first password manager and task tracker using:
-
-- Cloudflare Pages
-- Cloudflare Pages Functions
-- Cloudflare D1
-- GitHub automatic deployments
-
-## Project structure
+## Repository structure
 
 ```text
-vaultapp/
-├── public/
-│   └── index.html
+MANAGER/
 ├── functions/
 │   └── api/
 │       └── [[route]].js
+├── public/
+│   └── index.html
+├── src/
+│   └── index.js
 ├── wrangler.toml
+├── .gitignore
 └── README.md
 ```
 
-## 1. Create the D1 database
+## Cloudflare Workers Builds settings
 
-Install Wrangler:
+Repository: `piyushkumar2025b-arch/MANAGER`
 
-```bash
-npm install -g wrangler
-wrangler login
+Root directory: `/`
+
+Build command: leave empty
+
+Deploy command:
+
+```text
+npx wrangler deploy
 ```
 
-Create the database:
+The project is now Worker-native. `src/index.js` is the Worker entry point, `/api/*` is routed to the existing API handler, and all other requests are served from `public/` through the `ASSETS` binding.
 
-```bash
-wrangler d1 create vaultapp-db
+## D1
+
+Replace `YOUR_DATABASE_ID_HERE` in `wrangler.toml` with the real D1 database ID.
+
+The D1 binding name must remain:
+
+```text
+DB
 ```
 
-Copy the returned `database_id` into `wrangler.toml`:
-
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "vaultapp-db"
-database_id = "YOUR_REAL_DATABASE_ID"
-```
-
-Do not commit API tokens or other secrets to GitHub.
-
-## 2. Push this project to GitHub
-
-From the project directory:
-
-```bash
-git init
-git add .
-git commit -m "Initial Vault deployment"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/vaultapp.git
-git push -u origin main
-```
-
-## 3. Connect GitHub to Cloudflare
-
-In Cloudflare:
-
-**Workers & Pages → Create application → Pages → Connect to Git**
-
-Select this GitHub repository.
-
-Build settings:
-
-- Framework preset: None
-- Build command: leave empty
-- Build output directory: `public`
-- Root directory: `/`
-
-Do NOT use the Cloudflare drag-and-drop Direct Upload for this project. The repository contains a `functions` directory and `wrangler.toml`, so use Git integration or Wrangler.
-
-## 4. Add the D1 binding
-
-In the Cloudflare project settings, add:
-
-- Binding type: D1 database
-- Variable name: `DB`
-- Database: `vaultapp-db`
-
-The API uses `env.DB`, so the binding name must remain exactly `DB`.
-
-## 5. Deploy
-
-Push any change to GitHub:
+## GitHub workflow
 
 ```bash
 git add .
-git commit -m "Deploy Vault"
+git commit -m "Convert Vault to Cloudflare Worker"
 git push
 ```
 
-Cloudflare will build/deploy the repository automatically.
+Cloudflare Workers Builds will run `npx wrangler deploy`.
 
-## Important security note
+## Important
 
-This source version is suitable for deployment testing, but the current application stores password values directly in D1 and its master-password mechanism is not a complete cryptographic authentication system. Do not use it for real sensitive credentials until the authentication and encryption layer has been hardened.
+Do not use the old Pages `pages_build_output_dir` setting with this Worker deployment. This configuration uses:
 
-## Local Wrangler deployment (alternative)
+```toml
+main = "src/index.js"
 
-After replacing `YOUR_DATABASE_ID_HERE`:
-
-```bash
-wrangler pages deploy public --project-name=vaultapp
+[assets]
+directory = "./public"
+binding = "ASSETS"
 ```
-
-For GitHub automatic deployment, prefer the Cloudflare Git integration described above.
