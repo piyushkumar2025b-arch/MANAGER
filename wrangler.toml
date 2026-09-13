@@ -13,3 +13,13 @@ database_id = "db4f140a-0711-46a0-87f2-c4bec6dc2af8"
 
 [ai]
 binding = "AI"
+
+# Cloudflare R2 Object Storage (10 GB/month Free, $0 Egress)
+[[r2_buckets]]
+binding = "ATTACHMENTS_BUCKET"
+bucket_name = "vault-attachments"
+
+# Cloudflare KV Key-Value Storage (100,000 reads/day Free for Edge Rate Limiting)
+[[kv_namespaces]]
+binding = "VAULT_KV"
+id = "vault_kv_namespace"

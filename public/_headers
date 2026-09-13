@@ -1,0 +1,8 @@
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(self), geolocation=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://fonts.gstatic.com https://image.pollinations.ai https://challenges.cloudflare.com https://cdnjs.cloudflare.com https://api.qrserver.com data: blob:; img-src 'self' data: blob: https://image.pollinations.ai https://api.qrserver.com https://*.radio-browser.info; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; media-src 'self' blob: data: https: http:; connect-src 'self' blob: data: https://challenges.cloudflare.com https://api.dictionaryapi.dev https://*.api.radio-browser.info https://*.radio-browser.info http://*.radio-browser.info; frame-src 'self' https://challenges.cloudflare.com;

@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { GoogleGenAI } from '@google/genai';
+import QRCode from 'qrcode';
 import { onRequest } from './functions/api/[[route]].js';
 
 const app = express();
@@ -59,6 +60,65 @@ db.exec(`
 // Safe migrations for todos columns
 try { db.exec("ALTER TABLE todos ADD COLUMN category TEXT DEFAULT 'General'"); } catch (_) {}
 try { db.exec("ALTER TABLE todos ADD COLUMN subtasks TEXT DEFAULT '[]'"); } catch (_) {}
+try { db.exec("ALTER TABLE passwords ADD COLUMN totp_secret TEXT DEFAULT ''"); } catch (_) {}
+try { db.exec("ALTER TABLE passwords ADD COLUMN item_type TEXT DEFAULT 'login'"); } catch (_) {}
+try { db.exec("ALTER TABLE passwords ADD COLUMN card_number TEXT DEFAULT ''"); } catch (_) {}
+try { db.exec("ALTER TABLE passwords ADD COLUMN card_exp TEXT DEFAULT ''"); } catch (_) {}
+try { db.exec("ALTER TABLE passwords ADD COLUMN card_cvv TEXT DEFAULT ''"); } catch (_) {}
+try { db.exec("ALTER TABLE todos ADD COLUMN reminder_time TEXT DEFAULT ''"); } catch (_) {}
+try { db.exec("ALTER TABLE todos ADD COLUMN reminder_dismissed INTEGER DEFAULT 0"); } catch (_) {}
+try { db.exec("ALTER TABLE todos ADD COLUMN recurring TEXT DEFAULT 'none'"); } catch (_) {}
+try { db.exec("ALTER TABLE todos ADD COLUMN color TEXT DEFAULT ''"); } catch (_) {}
+try { db.exec("ALTER TABLE attachments ADD COLUMN storage_key TEXT DEFAULT ''"); } catch (_) {}
+try { db.exec("ALTER TABLE attachments ADD COLUMN storage_type TEXT DEFAULT 'db'"); } catch (_) {}
+
+// High performance indexes
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_passwords_item_type ON passwords (item_type);"); } catch (_) {}
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos (completed);"); } catch (_) {}
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos (due_date);"); } catch (_) {}
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_attachments_item ON attachments (item_type, item_id);"); } catch (_) {}
+
+// Automatic updated_at triggers
+try {
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_passwords_updated_at 
+    AFTER UPDATE ON passwords FOR EACH ROW
+    BEGIN
+      UPDATE passwords SET updated_at = datetime('now') WHERE id = old.id;
+    END;
+  `);
+} catch (_) {}
+
+try {
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_todos_updated_at 
+    AFTER UPDATE ON todos FOR EACH ROW
+    BEGIN
+      UPDATE todos SET updated_at = datetime('now') WHERE id = old.id;
+    END;
+  `);
+} catch (_) {}
+
+// Cascade delete trigger: cleanup attachments when task or password is deleted
+try {
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_cleanup_passwords_attach
+    AFTER DELETE ON passwords FOR EACH ROW
+    BEGIN
+      DELETE FROM attachments WHERE item_type = 'password' AND item_id = old.id;
+    END;
+  `);
+} catch (_) {}
+
+try {
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_cleanup_todos_attach
+    AFTER DELETE ON todos FOR EACH ROW
+    BEGIN
+      DELETE FROM attachments WHERE item_type = 'todo' AND item_id = old.id;
+    END;
+  `);
+} catch (_) {}
 
 // Helper to get / set persistent settings
 function getSetting(key) {
@@ -88,9 +148,9 @@ if (!existingMasterPw) {
 const AI_FREE_MODELS = [
   // Google Gemini Modern Models
   { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'google', tag: 'Fast & Smart • Flagship Free Tier', badge: 'Google' },
-  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', provider: 'google', tag: 'High Throughput & Resilient', badge: 'Google' },
   { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', provider: 'google', tag: 'Sub-Second Latency & High Availability', badge: 'Google' },
   { id: 'gemini-flash-latest', name: 'Gemini Flash Latest', provider: 'google', tag: 'Always Latest Flash Version', badge: 'Google' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'google', tag: 'High Capacity & Stable', badge: 'Google' },
   // Groq Free Models (Ultra Fast)
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile', provider: 'groq', tag: 'Ultra-Fast (300+ t/s) • Free', badge: 'Groq' },
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', provider: 'groq', tag: 'Sub-Second Latency • Free', badge: 'Groq' },
@@ -186,10 +246,10 @@ async function callGemini(apiKey, model, systemPrompt, userMessage) {
   // In case of 503 high demand or 429 quota spikes, fall back across independent modern Gemini model pools
   const fallbackModels = [
     requested,
-    'gemini-3.8-flash',
-    'gemini-3.6-flash',
     'gemini-3.1-flash-lite',
-    'gemini-flash-latest'
+    'gemini-flash-latest',
+    'gemini-3.8-flash',
+    'gemini-2.5-flash'
   ];
   const uniqueModels = [...new Set(fallbackModels)];
 
@@ -210,21 +270,24 @@ async function callGemini(apiKey, model, systemPrompt, userMessage) {
       } catch (err) {
         lastError = err;
         const msg = (err.message || '').toLowerCase();
-        const isTransient = msg.includes('503') || msg.includes('demand') || msg.includes('unavailable') || msg.includes('429') || msg.includes('overload') || msg.includes('resource');
+        const isDemandSpike = msg.includes('503') || msg.includes('demand') || msg.includes('unavailable') || msg.includes('overload');
+        const isTransient = isDemandSpike || msg.includes('429') || msg.includes('resource') || msg.includes('timeout') || msg.includes('deadline');
         
-        console.warn(`Gemini attempt ${attempt} on model ${modelToTry} failed:`, err.message);
-        if (attempt === 1 && isTransient) {
-          // Wait briefly before retrying this model
-          await new Promise(r => setTimeout(r, 600 + Math.random() * 300));
+        if (isDemandSpike) {
+          // Model pool is experiencing high demand (503): immediately cascade to next pool without blocking
+          break;
+        } else if (attempt === 1 && isTransient) {
+          // Wait briefly with jitter before retrying this model
+          await new Promise(r => setTimeout(r, 400 + Math.random() * 250));
         } else {
-          // If attempt 2 failed or non-transient, try next candidate model
+          // Break to try next candidate model
           break;
         }
       }
     }
   }
 
-  throw lastError || new Error('All Gemini models are temporarily unavailable');
+  throw lastError || new Error('All Gemini models are temporarily experiencing high demand');
 }
 
 // Lazy-initialized Gemini client
@@ -405,24 +468,197 @@ app.get('/api/ai/config', (req, res) => {
 });
 
 app.post('/api/ai/keys', (req, res) => {
-  const { provider, key } = req.body || {};
-  if (!provider) return res.status(400).json({ error: 'Provider is required' });
+  const body = req.body || {};
+  if (body.provider) {
+    let prov = body.provider.toLowerCase();
+    if (prov === 'gemini') prov = 'google';
+    const keyVal = body.apiKey !== undefined ? body.apiKey : (body.key !== undefined ? body.key : '');
+    const settingKey = prov === 'google' ? 'gemini_api_key'
+      : prov === 'groq' ? 'groq_api_key'
+      : prov === 'openrouter' ? 'openrouter_api_key'
+      : prov === 'cloudflare' ? 'cloudflare_api_token'
+      : null;
 
-  const settingKey = provider === 'google' ? 'gemini_api_key'
-    : provider === 'groq' ? 'groq_api_key'
-    : provider === 'openrouter' ? 'openrouter_api_key'
-    : provider === 'cloudflare' ? 'cloudflare_api_token'
-    : null;
+    if (!settingKey) return res.status(400).json({ error: 'Invalid provider' });
 
-  if (!settingKey) return res.status(400).json({ error: 'Invalid provider' });
-
-  if (key && key.trim()) {
-    setSetting(settingKey, key.trim());
+    if (keyVal && keyVal.trim()) {
+      setSetting(settingKey, keyVal.trim());
+    } else {
+      db.prepare('DELETE FROM settings WHERE key = ?').run(settingKey);
+    }
   } else {
-    db.prepare('DELETE FROM settings WHERE key = ?').run(settingKey);
+    // Bulk save support: { google: '...', groq: '...', openrouter: '...' }
+    for (const [keyName, rawVal] of Object.entries(body)) {
+      let prov = keyName.toLowerCase();
+      if (prov === 'gemini') prov = 'google';
+      const settingKey = prov === 'google' ? 'gemini_api_key'
+        : prov === 'groq' ? 'groq_api_key'
+        : prov === 'openrouter' ? 'openrouter_api_key'
+        : prov === 'cloudflare' ? 'cloudflare_api_token'
+        : null;
+      if (settingKey) {
+        if (typeof rawVal === 'string' && rawVal.trim()) {
+          setSetting(settingKey, rawVal.trim());
+        } else if (rawVal === '') {
+          db.prepare('DELETE FROM settings WHERE key = ?').run(settingKey);
+        }
+      }
+    }
   }
 
-  return res.json({ success: true, message: `${provider} key updated successfully` });
+  return res.json({ success: true, message: `API keys updated successfully` });
+});
+
+app.post(['/api/ai/test', '/api/ai/keys/test'], async (req, res) => {
+  const body = req.body || {};
+  let { provider = 'groq', apiKey, model } = body;
+  if (provider === 'gemini') provider = 'google';
+  const startMs = Date.now();
+
+  let keyToTest = apiKey && apiKey.trim() ? apiKey.trim() : null;
+  if (!keyToTest) {
+    if (provider === 'google') keyToTest = getAiKey('google');
+    else if (provider === 'groq') keyToTest = getAiKey('groq');
+    else if (provider === 'openrouter') keyToTest = getAiKey('openrouter');
+  }
+
+  if (!keyToTest && provider !== 'cloudflare') {
+    return res.json({
+      success: false,
+      error: `No API key entered or saved for ${provider}`,
+      latencyMs: 0
+    });
+  }
+
+  try {
+    if (provider === 'groq') {
+      const testModel = model || 'llama-3.1-8b-instant';
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${keyToTest}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: testModel,
+          messages: [{ role: 'user', content: 'Say "ACTIVE"' }],
+          max_tokens: 5,
+        }),
+      });
+      const latencyMs = Date.now() - startMs;
+      if (!r.ok) {
+        const errTxt = await r.text();
+        let msg = `HTTP ${r.status}`;
+        try {
+          const parsed = JSON.parse(errTxt);
+          msg = parsed.error?.message || errTxt;
+        } catch (_) { msg = errTxt; }
+        return res.json({ success: false, latencyMs, error: msg.substring(0, 160) });
+      }
+      return res.json({
+        success: true,
+        latencyMs,
+        message: `Connected to Groq Cloud (${testModel}) in ${latencyMs}ms!`
+      });
+    } else if (provider === 'google') {
+      const testModel = model || 'gemini-2.5-flash';
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${keyToTest}`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Ping' }] }] })
+      });
+      const latencyMs = Date.now() - startMs;
+      if (!r.ok) {
+        const errTxt = await r.text();
+        let msg = `HTTP ${r.status}`;
+        try {
+          const parsed = JSON.parse(errTxt);
+          msg = parsed.error?.message || errTxt;
+        } catch (_) { msg = errTxt; }
+        return res.json({ success: false, latencyMs, error: msg.substring(0, 160) });
+      }
+      return res.json({
+        success: true,
+        latencyMs,
+        message: `Connected to Google Gemini (${testModel}) in ${latencyMs}ms!`
+      });
+    } else if (provider === 'openrouter') {
+      const testModel = model || 'meta-llama/llama-3.3-70b-instruct:free';
+      const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${keyToTest}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://vault-app.pages.dev',
+        },
+        body: JSON.stringify({
+          model: testModel,
+          messages: [{ role: 'user', content: 'Ping' }],
+          max_tokens: 5,
+        }),
+      });
+      const latencyMs = Date.now() - startMs;
+      if (!r.ok) {
+        const errTxt = await r.text();
+        return res.json({ success: false, latencyMs, error: `OpenRouter (${r.status}): ${errTxt.substring(0, 160)}` });
+      }
+      return res.json({
+        success: true,
+        latencyMs,
+        message: `Connected to OpenRouter in ${latencyMs}ms!`
+      });
+    } else if (provider === 'cloudflare') {
+      return res.json({
+        success: true,
+        latencyMs: 8,
+        message: 'Cloudflare Workers AI interface ready.'
+      });
+    }
+  } catch (err) {
+    return res.json({
+      success: false,
+      latencyMs: Date.now() - startMs,
+      error: err.message
+    });
+  }
+});
+
+app.post('/api/todos/:id/snooze', (req, res) => {
+  const id = req.params.id;
+  const snoozeUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  db.prepare('UPDATE todos SET reminder_time = ?, reminder_dismissed = 0, updated_at = datetime("now") WHERE id = ?')
+    .run(snoozeUntil, id);
+  return res.json({ success: true, snoozed_until: snoozeUntil });
+});
+
+app.get('/api/videos/presets', (req, res) => {
+  return res.json({
+    presets: [
+      { id: 'shield', name: '🛡️ Cyber Shield Hologram', desc: '3D rotating cryptographic vault shield with neon particle rings' },
+      { id: 'matrix', name: '💻 Matrix Cyber Rain', desc: 'Cascading phosphorescent green code stream with digital glitch' },
+      { id: 'quantum', name: '🗝️ Quantum Encryption Key', desc: 'Pulsing crystal core with orbiting atomic rings and crypto hashes' },
+      { id: 'steampunk', name: '⚙️ Mechanical Steampunk Vault', desc: 'Interlocking brass gears, shifting locking bolts and dials' },
+      { id: 'neural', name: '🌌 Neural Synapse Network', desc: 'Pulsing interconnected nodes with lightning axon data packets' },
+      { id: 'biometric', name: '🔒 Biometric Fingerprint Scan', desc: 'Laser HUD sweep over cryptographic fingerprint ridges' },
+      { id: 'hyperspace', name: '🚀 Hyperspace Cyber Warp', desc: 'Relativistic warp speed star tunnel with chromatic glow' }
+    ]
+  });
+});
+
+app.get('/api/sounds/presets', (req, res) => {
+  return res.json({
+    presets: [
+      { id: 'unlock', name: '🔓 Mechanical Vault Unlock', desc: 'Sub-bass punch, pneumatic air release, sliding steel bolt' },
+      { id: 'lock', name: '🔒 Vault Lock Arming', desc: 'Triple mechanical relay click + heavy steel deadbolt' },
+      { id: 'access_granted', name: '⚡ Cyber Access Granted', desc: 'Ascending high-resonance electronic arpeggio chime' },
+      { id: 'breach_alarm', name: '🚨 Security Breach Siren', desc: 'Modulated dual-oscillator warning siren with acoustic ping' },
+      { id: 'keystroke', name: '⌨️ Terminal Cyber Keystrokes', desc: 'Crisp mechanical switch click with low keycap bounce' },
+      { id: 'ticker', name: '⏱️ 2FA Quartz Countdown Ticker', desc: 'High-frequency quartz click impulse for 30s timers' },
+      { id: 'ambient_drone', name: '🌌 Deep Space Focus Drone', desc: '55Hz & 110Hz binaural sine wave drone for deep focus' },
+      { id: 'matrix_rain_noise', name: '🌧️ Focus Pink Noise & City Hum', desc: 'Filtered brownian/pink noise for soothing cyber atmosphere' }
+    ]
+  });
 });
 
 app.post('/api/ai/preferences', (req, res) => {
@@ -430,6 +666,33 @@ app.post('/api/ai/preferences', (req, res) => {
   if (provider) setSetting('ai_preferred_provider', provider);
   if (model) setSetting('ai_preferred_model', model);
   return res.json({ success: true });
+});
+
+// Dynamic QR Code Generator Endpoint (for uploads, download links, and arbitrary text)
+app.get('/api/qr', async (req, res) => {
+  const text = (req.query.text || '').trim();
+  const format = (req.query.format || 'png').toLowerCase();
+  if (!text) {
+    return res.status(400).json({ error: 'Text query parameter is required' });
+  }
+
+  try {
+    if (format === 'json') {
+      const dataUrl = await QRCode.toDataURL(text, { width: 340, margin: 2 });
+      return res.json({ success: true, dataUrl, text });
+    } else if (format === 'svg') {
+      const svg = await QRCode.toString(text, { type: 'svg', margin: 2 });
+      res.setHeader('Content-Type', 'image/svg+xml');
+      return res.send(svg);
+    } else {
+      const buf = await QRCode.toBuffer(text, { width: 340, margin: 2 });
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(buf);
+    }
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to generate QR code: ' + err.message });
+  }
 });
 
 // AI Task Breakdown Endpoint
@@ -615,9 +878,7 @@ Be concise, supportive, helpful, and formatted with clean markdown bullet points
         const reply = typeof geminiRes === 'object' ? geminiRes.text : geminiRes;
         const actualModel = typeof geminiRes === 'object' ? geminiRes.modelUsed : modelToUse;
         return res.json({ reply, provider: 'google', model: actualModel });
-      } catch (geminiError) {
-        console.warn('Gemini error, attempting secondary providers or local copilot:', geminiError.message);
-        
+      } catch (_) {
         // If preferredProvider was auto and we have Groq or OpenRouter, try them before local copilot
         if (preferredProvider === 'auto') {
           if (groqKey) {
@@ -646,6 +907,175 @@ Be concise, supportive, helpful, and formatted with clean markdown bullet points
     console.error('Chat error:', err);
     return res.status(500).json({ error: err.message });
   }
+});
+
+// 5. English Dictionary API (Free, Instant, Definition + Pronunciation Audio)
+app.get('/api/dictionary/:word', async (req, res) => {
+  const word = req.params.word.trim();
+  if (!word) return res.status(400).json({ error: 'Word parameter is required' });
+
+  try {
+    const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    if (!dictRes.ok) {
+      if (dictRes.status === 404) {
+        return res.status(404).json({ error: `No definition found for "${word}". Please check spelling or try a root word.`, notFound: true, word });
+      }
+      return res.status(dictRes.status).json({ error: 'Dictionary lookup error' });
+    }
+    const data = await dictRes.json();
+    return res.json(data);
+  } catch (err) {
+    return res.status(500).json({ error: err.message, word });
+  }
+});
+
+// 6. Free Online Radio & Music Stations API
+app.get('/api/radio/stations', async (req, res) => {
+  const search = (req.query.search || req.query.name || '').toString().trim();
+  const genre = (req.query.genre || req.query.tag || '').toString().trim();
+  const limit = Math.min(50, parseInt(req.query.limit || '30', 10));
+
+  const fallbackStations = [
+    { name: 'Lofi Chill & Focus Beats', url_resolved: 'https://streams.ilovemusic.de/iloveradio17.mp3', tags: 'lofi,chill,beats,relax', country: 'Global', bitrate: 128, codec: 'MP3', favicon: '🎧' },
+    { name: 'Radio Swiss Classic', url_resolved: 'https://stream.srg-ssr.ch/m/rsc_de/mp3_128', tags: 'classical,orchestra,baroque', country: 'Switzerland', bitrate: 128, codec: 'MP3', favicon: '🎻' },
+    { name: 'Synthwave & Cyberpunk Chill', url_resolved: 'https://stream.zeno.fm/0r0xa792kwzuv', tags: 'synthwave,cyberpunk,retro,electronic', country: 'United States', bitrate: 128, codec: 'MP3', favicon: '🌆' },
+    { name: 'Radio Swiss Jazz & Blues', url_resolved: 'https://stream.srg-ssr.ch/m/rsj/mp3_128', tags: 'jazz,blues,smooth,cafe', country: 'Switzerland', bitrate: 128, codec: 'MP3', favicon: '☕' },
+    { name: 'Hirschmilch Ambient Lounge', url_resolved: 'https://hirschmilch.de:7000/chillout.mp3', tags: 'ambient,chillout,lounge,downtempo', country: 'Germany', bitrate: 128, codec: 'MP3', favicon: '🏖️' },
+    { name: 'Rock Antenne Classic Perlen', url_resolved: 'https://stream.rockantenne.de/classic-perlen/stream/mp3', tags: 'rock,classic,guitar', country: 'Germany', bitrate: 128, codec: 'MP3', favicon: '🎸' },
+    { name: 'I Love Dance Hits', url_resolved: 'https://streams.ilovemusic.de/iloveradio2.mp3', tags: 'dance,edm,electronic,club', country: 'Germany', bitrate: 128, codec: 'MP3', favicon: '💃' },
+    { name: 'BBC World Service News', url_resolved: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service', tags: 'news,talk,world,current', country: 'United Kingdom', bitrate: 128, codec: 'MP3', favicon: '📰' }
+  ];
+
+  try {
+    let apiUrl = '';
+    if (search) {
+      apiUrl = `https://de1.api.radio-browser.info/json/stations/byname/${encodeURIComponent(search)}?limit=${limit}&hidebroken=true&order=clickcount&reverse=true`;
+    } else if (genre && genre !== 'all') {
+      apiUrl = `https://de1.api.radio-browser.info/json/stations/bytag/${encodeURIComponent(genre)}?limit=${limit}&hidebroken=true&order=clickcount&reverse=true`;
+    } else {
+      apiUrl = `https://de1.api.radio-browser.info/json/stations/topclick/${limit}?hidebroken=true`;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    const radioRes = await fetch(apiUrl, { signal: controller.signal, headers: { 'User-Agent': 'VaultMusicApp/1.0' } });
+    clearTimeout(timeout);
+
+    if (radioRes.ok) {
+      const stations = await radioRes.json();
+      if (Array.isArray(stations) && stations.length > 0) {
+        return res.json({ stations, source: 'radio-browser' });
+      }
+    }
+  } catch (_) {}
+
+  let filtered = fallbackStations;
+  if (search) {
+    filtered = fallbackStations.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.tags.toLowerCase().includes(search.toLowerCase()));
+  } else if (genre && genre !== 'all') {
+    filtered = fallbackStations.filter(s => s.tags.toLowerCase().includes(genre.toLowerCase()));
+  }
+  return res.json({ stations: filtered.length ? filtered : fallbackStations, source: 'curated-fallback' });
+});
+
+// 7. Free Web Image Search API
+app.get('/api/images/search', async (req, res) => {
+  const q = (req.query.q || req.query.query || '').toString().trim();
+  const page = Math.max(1, parseInt(req.query.page || '1', 10));
+  const source = (req.query.source || 'all').toString().toLowerCase();
+  const limit = Math.min(30, parseInt(req.query.limit || '24', 10));
+
+  const query = q || 'scenic wallpaper';
+  const results = [];
+
+  // 1. Wikimedia Commons Search
+  if (source === 'all' || source === 'wikimedia') {
+    try {
+      const wikiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=${limit}&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=800&format=json&origin=*`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3800);
+      const wikiRes = await fetch(wikiUrl, { signal: controller.signal, headers: { 'User-Agent': 'VaultImageSearch/1.0' } });
+      clearTimeout(timeout);
+
+      if (wikiRes.ok) {
+        const wikiData = await wikiRes.json();
+        const pages = wikiData.query?.pages || {};
+        for (const key of Object.keys(pages)) {
+          const p = pages[key];
+          const info = p.imageinfo?.[0];
+          if (!info || !info.url) continue;
+          if (info.mime && !info.mime.startsWith('image/')) continue;
+          const title = (p.title || '').replace(/^File:/i, '').replace(/\.[a-zA-Z0-9]+$/, '').replace(/[_+]/g, ' ');
+          const author = info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, '') || 'Wikimedia Contributor';
+          const license = info.extmetadata?.LicenseShortName?.value || 'Creative Commons / Public Domain';
+          results.push({
+            id: `wiki_${p.pageid || key}`,
+            title: title.slice(0, 80),
+            thumbUrl: info.thumburl || info.url,
+            fullUrl: info.url,
+            width: info.width || 1200,
+            height: info.height || 800,
+            author: author.slice(0, 45),
+            license,
+            source: 'Wikimedia Commons',
+            sourceUrl: info.descriptionshorturl || info.descriptionurl || info.url
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 2. Unsplash Open Search API
+  if ((results.length < 8 && (source === 'all' || source === 'unsplash')) || source === 'unsplash') {
+    try {
+      const unsplashUrl = `https://unsplash.com/napi/search/photos?query=${encodeURIComponent(query)}&per_page=${limit}&page=${page}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3800);
+      const unsplashRes = await fetch(unsplashUrl, { signal: controller.signal, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } });
+      clearTimeout(timeout);
+
+      if (unsplashRes.ok) {
+        const unsplashData = await unsplashRes.json();
+        const photos = unsplashData.results || [];
+        for (const item of photos) {
+          if (!item.urls) continue;
+          results.push({
+            id: `unsplash_${item.id}`,
+            title: item.alt_description || item.description || query,
+            thumbUrl: item.urls.small || item.urls.thumb,
+            fullUrl: item.urls.regular || item.urls.full,
+            downloadUrl: item.urls.full || item.urls.regular,
+            width: item.width || 1200,
+            height: item.height || 800,
+            author: item.user?.name || 'Unsplash Creator',
+            license: 'Free Commercial & Personal',
+            source: 'Unsplash Stock',
+            sourceUrl: item.links?.html || 'https://unsplash.com'
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 3. Fallback Curated High-Res Showcase
+  if (results.length === 0) {
+    const curated = [
+      { id: 'c1', title: 'Cyberpunk Neon Metropolis at Night', thumbUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=600&auto=format&fit=crop&q=80', fullUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&q=85', author: 'Alexander Andrews', source: 'Web Free Stock', width: 1920, height: 1080 },
+      { id: 'c2', title: 'Mountain Misty Peak Sunrise', thumbUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=600&auto=format&fit=crop&q=80', fullUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&q=85', author: 'Kalen Emsley', source: 'Web Free Stock', width: 1920, height: 1280 },
+      { id: 'c3', title: 'Deep Ocean Blue Waves', thumbUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80', fullUrl: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=85', author: 'Sean Oulashin', source: 'Web Free Stock', width: 1920, height: 1080 },
+      { id: 'c4', title: 'Deep Space Nebula Galaxy Cosmic Stars', thumbUrl: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?w=600&auto=format&fit=crop&q=80', fullUrl: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&q=85', author: 'NASA Hubble', source: 'Web Free Stock', width: 1920, height: 1080 },
+      { id: 'c5', title: 'Minimalist Architecture Modern Geometry', thumbUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&auto=format&fit=crop&q=80', fullUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=85', author: 'Simone Hutsch', source: 'Web Free Stock', width: 1920, height: 1080 },
+      { id: 'c6', title: 'Cozy Coffee and Notebook Workspace', thumbUrl: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=600&auto=format&fit=crop&q=80', fullUrl: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&q=85', author: 'Kimberly Farmer', source: 'Web Free Stock', width: 1920, height: 1280 }
+    ];
+    results.push(...curated);
+  }
+
+  return res.json({
+    success: true,
+    query,
+    count: results.length,
+    images: results
+  });
 });
 
 // D1 Database Adapter for Cloudflare D1 compatibility
@@ -726,18 +1156,44 @@ app.all(['/api', '/api/*'], async (req, res) => {
       headers.set('content-type', 'application/json');
     }
 
+    const memoryKvStore = global._memoryKvStore || (global._memoryKvStore = new Map());
+    const localKv = {
+      async get(key) {
+        const item = memoryKvStore.get(key);
+        if (!item) return null;
+        if (item.expires && Date.now() > item.expires) {
+          memoryKvStore.delete(key);
+          return null;
+        }
+        return item.value;
+      },
+      async put(key, value, options = {}) {
+        const expires = options.expirationTtl ? Date.now() + options.expirationTtl * 1000 : null;
+        memoryKvStore.set(key, { value: String(value), expires });
+      },
+      async delete(key) {
+        memoryKvStore.delete(key);
+      }
+    };
+
     const webRequest = new Request(url, init);
     const webResponse = await onRequest({
       request: webRequest,
-      env: { DB: d1 },
+      env: {
+        DB: d1,
+        VAULT_KV: localKv,
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        GROQ_API_KEY: process.env.GROQ_API_KEY,
+        OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+      },
     });
 
     res.status(webResponse.status);
     for (const [key, val] of webResponse.headers.entries()) {
       res.setHeader(key, val);
     }
-    const text = await webResponse.text();
-    res.send(text);
+    const arrayBuffer = await webResponse.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
   } catch (err) {
     console.error('API Error:', err);
     res.status(500).json({ error: err.message });

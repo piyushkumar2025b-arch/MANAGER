@@ -1,6 +1,6 @@
 {
   "name": "Vault",
-  "description": "Secure vault for passwords, tasks, and attachments with an AI assistant and Cloudflare integrations.",
-  "requestFramePermissions": [],
+  "description": "Secure vault for credentials, tasks, ZIP-compressed Cloudflare Drive storage, QR file sharing, voice conversation, English dictionary, creative story writer, music/radio streaming, web image search, and YouTube video player with Picture-in-Picture.",
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
