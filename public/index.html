@@ -1212,6 +1212,128 @@
     font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
+  /* YOUTUBE SEARCH & SONG SEARCH COMPONENTS */
+  .yt-search-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;
+  }
+  .yt-search-card {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    overflow: hidden; display: flex; flex-direction: column; transition: all 0.2s ease;
+  }
+  .yt-search-card:hover {
+    border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  .yt-thumb-wrap {
+    position: relative; width: 100%; height: 160px; background: #000; overflow: hidden; cursor: pointer;
+  }
+  .yt-thumb {
+    width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease;
+  }
+  .yt-search-card:hover .yt-thumb {
+    transform: scale(1.05);
+  }
+  .yt-duration-badge {
+    position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.85);
+    color: #fff; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  .yt-live-badge {
+    position: absolute; top: 8px; left: 8px; background: #ef4444; color: #fff;
+    font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;
+  }
+  .yt-card-body {
+    padding: 12px; display: flex; flex-direction: column; gap: 6px; flex: 1;
+  }
+  .yt-card-title {
+    font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .yt-card-channel {
+    font-size: 11px; color: var(--muted); display: flex; align-items: center; justify-content: space-between;
+  }
+  .yt-card-actions {
+    display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+  }
+
+  /* REAL SONGS & TRACKS CATALOG */
+  .song-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px;
+  }
+  .song-card {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px; display: flex; gap: 12px; align-items: center; transition: all 0.18s ease;
+  }
+  .song-card:hover {
+    border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(124,106,247,0.12);
+  }
+  .song-card.previewing {
+    border-color: #10b981; background: rgba(16, 185, 129, 0.08);
+  }
+  .song-artwork {
+    width: 64px; height: 64px; border-radius: 8px; object-fit: cover; background: #111; flex-shrink: 0;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  }
+  .song-details {
+    overflow: hidden; flex: 1; display: flex; flex-direction: column; gap: 2px;
+  }
+  .song-title {
+    font-size: 13px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .song-artist {
+    font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .song-album {
+    font-size: 10px; color: var(--muted); opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .song-actions {
+    display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap;
+  }
+  .btn-play-full-yt {
+    background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.35);
+    padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; cursor: pointer;
+    transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .btn-play-full-yt:hover {
+    background: var(--red); color: #fff; border-color: var(--red);
+  }
+  .btn-preview-audio {
+    background: rgba(16, 185, 129, 0.15); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.35);
+    padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; cursor: pointer;
+    transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .btn-preview-audio:hover {
+    background: var(--green); color: #fff; border-color: var(--green);
+  }
+  .btn-add-queue {
+    background: rgba(124, 106, 247, 0.12); color: var(--accent); border: 1px solid rgba(124, 106, 247, 0.3);
+    padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; display: inline-flex; align-items: center; gap: 3px;
+  }
+  .btn-add-queue:hover {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+
+  /* YOUTUBE PLAYBACK QUEUE */
+  .yt-queue-item {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: var(--radius-sm); transition: background 0.15s;
+  }
+  .yt-queue-item:hover { background: var(--surface); border-color: var(--accent); }
+  .yt-queue-item.active { border-color: var(--red); background: rgba(239, 68, 68, 0.08); }
+  .yt-queue-thumb { width: 52px; height: 36px; border-radius: 4px; object-fit: cover; background: #000; flex-shrink: 0; }
+
+  /* YOUTUBE COMMENTS MODAL & DRAWER */
+  .yt-comment-item {
+    display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .yt-comment-avatar {
+    width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: var(--surface2); flex-shrink: 0;
+  }
+  .yt-comment-body { flex: 1; min-width: 0; }
+  .yt-comment-author { font-weight: 700; font-size: 12px; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .yt-comment-text { font-size: 13px; color: var(--text); margin-top: 4px; line-height: 1.45; word-break: break-word; }
+  .yt-comment-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -3977,14 +4099,43 @@ function confirmImportDirectImg() {
 
 
 // ==========================================
-// 1.6 YOUTUBE VIDEO PLAYER STUDIO & FLOATING PiP
+// 1.6 YOUTUBE VIDEO PLAYER STUDIO & FLOATING PiP (FULL SEARCH & REAL SONGS)
 // ==========================================
 let currentYtVideoId = 'jfKfPfyJRdk'; // Lofi Girl default
 let currentYtTitle = 'Lofi Hip Hop Radio - Beats to Relax/Study to';
 let currentYtChannel = 'Lofi Girl';
 let isYtPlaying = true;
 let ytFilterCategory = 'all';
+let ytActiveMode = 'search'; // 'search' | 'songs' | 'presets' | 'direct'
 let ytHistory = [];
+
+// YouTube Search State
+let ytSearchQuery = '';
+let ytSearchResults = [];
+let isSearchingYt = false;
+let ytSearchMusicOnly = false;
+let ytSearchOrder = 'relevance'; // 'relevance' | 'viewCount' | 'date'
+
+// Real Songs Catalog State (iTunes + Full YouTube resolve)
+let songSearchQuery = '';
+let songSearchResults = [];
+let isSearchingSongs = false;
+let currentPreviewAudio = null;
+let currentPreviewTrackId = null;
+let isPreviewPlaying = false;
+
+// YouTube Trending & Top Charts State
+let ytTrendingCategory = 'all'; // 'all' | 'music' | 'gaming' | 'tech' | 'news' | 'entertainment'
+let ytTrendingRegion = 'US';
+let ytTrendingResults = [];
+let isSearchingTrending = false;
+
+// YouTube Queue & Autoplay Engine State
+let ytQueue = []; // Array of { id, title, channel, channelId, thumbnail, duration }
+let isYtLooping = false;
+
+// YouTube Channel Metadata State
+let currentYtChannelId = '';
 
 // Load saved YouTube history from localStorage
 try {
@@ -4030,15 +4181,15 @@ function renderYouTubeStudio() {
   content.innerHTML = `
     ${renderStudioSubNav('ytplayer')}
     <div class="yt-container">
-      <!-- HEADER & INPUT CARD -->
+      <!-- HEADER CARD -->
       <div class="yt-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
           <div>
             <div style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;">
-              <span>📺</span> YouTube Video Player Studio
+              <span>📺</span> YouTube Studio & Full Song Player
             </div>
             <div style="font-size:13px;color:var(--muted);margin-top:2px;">
-              Play any YouTube video, documentary, music stream, podcast, or tutorial with Picture-in-Picture & mobile QR sharing.
+              Search any YouTube video, search real songs by track name, play official full tracks, or enjoy 24/7 focus streams with Picture-in-Picture.
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -4046,28 +4197,189 @@ function renderYouTubeStudio() {
               📌 Float to Mini-Player (PiP)
             </button>
             <span class="badge" style="background:rgba(239,68,68,0.15);color:var(--red);border:1px solid var(--red);font-size:11px;">
-              ● HD Embed Ready
+              ● YouTube Data API v3 Active
             </span>
           </div>
         </div>
 
-        <!-- SEARCH / URL INPUT BAR -->
-        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:260px;position:relative;">
-            <input id="ytVideoUrlInput" style="width:100%;padding:11px 14px;padding-left:36px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;" placeholder="Paste any YouTube URL or Video ID (e.g. https://www.youtube.com/watch?v=...)" onkeydown="if(event.key==='Enter') loadYtVideoFromInput()"/>
-            <span style="position:absolute;left:12px;top:11px;font-size:14px;color:var(--muted);pointer-events:none;">🔗</span>
-          </div>
-          <button class="btn btn-primary" style="padding:10px 22px;font-weight:700;white-space:nowrap;" onclick="loadYtVideoFromInput()">
-            ▶ Play Video
+        <!-- MODE SELECTOR TABS -->
+        <div style="display:flex;gap:8px;margin-top:8px;border-bottom:1px solid var(--border);padding-bottom:10px;flex-wrap:wrap;">
+          <button class="filter-pill ${ytActiveMode === 'search' ? 'active' : ''}" onclick="switchYtMode('search')">
+            🔍 YouTube Search
           </button>
-          <button class="btn btn-secondary" style="padding:10px 14px;" onclick="document.getElementById('ytVideoUrlInput').value='';">
-            Clear
+          <button class="filter-pill ${ytActiveMode === 'trending' ? 'active' : ''}" onclick="switchYtMode('trending')">
+            🔥 Trending & Top Charts
+          </button>
+          <button class="filter-pill ${ytActiveMode === 'songs' ? 'active' : ''}" onclick="switchYtMode('songs')">
+            🎵 Real Songs & Full Tracks
+          </button>
+          <button class="filter-pill ${ytActiveMode === 'presets' ? 'active' : ''}" onclick="switchYtMode('presets')">
+            ⭐ Focus Streams & Presets
+          </button>
+          <button class="filter-pill ${ytActiveMode === 'queue' ? 'active' : ''}" id="ytQueueTabBtn" onclick="switchYtMode('queue')">
+            📋 Up Next Queue ${ytQueue.length > 0 ? `(${ytQueue.length})` : ''}
+          </button>
+          <button class="filter-pill ${ytActiveMode === 'direct' ? 'active' : ''}" onclick="switchYtMode('direct')">
+            🔗 Direct URL / Video ID
           </button>
         </div>
 
-        <div style="font-size:11px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;">
-          <span>💡 Supports: Standard URLs, youtu.be shortlinks, Shorts, Live Streams, or raw 11-char Video IDs</span>
-        </div>
+        <!-- SUB-PANEL: YOUTUBE SEARCH -->
+        ${ytActiveMode === 'search' ? `
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:260px;position:relative;">
+                <input id="ytSearchQueryInput" 
+                  value="${esc(ytSearchQuery)}"
+                  style="width:100%;padding:11px 14px;padding-left:36px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;" 
+                  placeholder="Search YouTube (e.g., Queen Bohemian Rhapsody, Lofi Girl, Verve Pipe, Tech tutorials)…" 
+                  onkeydown="if(event.key==='Enter') executeYtSearch()"
+                />
+                <span style="position:absolute;left:12px;top:11px;font-size:14px;color:var(--muted);pointer-events:none;">🔍</span>
+              </div>
+              <button class="btn btn-primary" style="padding:10px 22px;font-weight:700;white-space:nowrap;" onclick="executeYtSearch()">
+                ${isSearchingYt ? 'Searching…' : 'Search YouTube'}
+              </button>
+              <button class="btn btn-secondary" style="padding:10px 14px;" onclick="document.getElementById('ytSearchQueryInput').value=''; ytSearchQuery='';">
+                Clear
+              </button>
+            </div>
+
+            <!-- SEARCH FILTERS & QUICK CHIPS -->
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <span style="font-size:11px;color:var(--muted);font-weight:600;">POPULAR:</span>
+                ${['Queen Bohemian Rhapsody', 'Lofi Hip Hop Radio', 'Synthwave Beats', 'The Weeknd Blinding Lights', 'Interstellar Soundtrack', 'Billie Eilish'].map(s => `
+                  <button class="filter-pill" style="font-size:11px;padding:3px 8px;" onclick="triggerQuickYtSearch('${esc(s)}')">${esc(s)}</button>
+                `).join('')}
+              </div>
+
+              <div style="display:flex;gap:8px;align-items:center;">
+                <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;">
+                  <input type="checkbox" id="ytMusicOnlyCheckbox" ${ytSearchMusicOnly ? 'checked' : ''} onchange="ytSearchMusicOnly=this.checked; executeYtSearch();"/>
+                  Music Only
+                </label>
+                <select id="ytOrderSelect" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 8px;font-size:12px;" onchange="ytSearchOrder=this.value; executeYtSearch();">
+                  <option value="relevance" ${ytSearchOrder==='relevance'?'selected':''}>Relevance</option>
+                  <option value="viewCount" ${ytSearchOrder==='viewCount'?'selected':''}>Most Viewed</option>
+                  <option value="date" ${ytSearchOrder==='date'?'selected':''}>Latest</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- SUB-PANEL: YOUTUBE TRENDING -->
+        ${ytActiveMode === 'trending' ? `
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="font-size:13px;color:var(--muted);">
+              Browse real-time trending videos, top music charts, and viral hits powered by YouTube Data API v3.
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <div class="filter-pills">
+                <button class="filter-pill ${ytTrendingCategory === 'all' ? 'active' : ''}" onclick="executeYtTrending('all')">🔥 All Trending</button>
+                <button class="filter-pill ${ytTrendingCategory === 'music' ? 'active' : ''}" onclick="executeYtTrending('music')">🎵 Top Music Charts</button>
+                <button class="filter-pill ${ytTrendingCategory === 'gaming' ? 'active' : ''}" onclick="executeYtTrending('gaming')">🎮 Gaming</button>
+                <button class="filter-pill ${ytTrendingCategory === 'tech' ? 'active' : ''}" onclick="executeYtTrending('tech')">💡 Tech & Science</button>
+                <button class="filter-pill ${ytTrendingCategory === 'news' ? 'active' : ''}" onclick="executeYtTrending('news')">📰 News</button>
+                <button class="filter-pill ${ytTrendingCategory === 'entertainment' ? 'active' : ''}" onclick="executeYtTrending('entertainment')">🍿 Entertainment</button>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <span style="font-size:11px;color:var(--muted);font-weight:600;">REGION:</span>
+                <select id="ytRegionSelect" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 8px;font-size:12px;" onchange="ytTrendingRegion=this.value; executeYtTrending(ytTrendingCategory, this.value);">
+                  <option value="US" ${ytTrendingRegion==='US'?'selected':''}>🇺🇸 United States</option>
+                  <option value="GB" ${ytTrendingRegion==='GB'?'selected':''}>🇬🇧 United Kingdom</option>
+                  <option value="CA" ${ytTrendingRegion==='CA'?'selected':''}>🇨🇦 Canada</option>
+                  <option value="AU" ${ytTrendingRegion==='AU'?'selected':''}>🇦🇺 Australia</option>
+                  <option value="DE" ${ytTrendingRegion==='DE'?'selected':''}>🇩🇪 Germany</option>
+                  <option value="JP" ${ytTrendingRegion==='JP'?'selected':''}>🇯🇵 Japan</option>
+                  <option value="FR" ${ytTrendingRegion==='FR'?'selected':''}>🇫🇷 France</option>
+                  <option value="BR" ${ytTrendingRegion==='BR'?'selected':''}>🇧🇷 Brazil</option>
+                </select>
+                <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" onclick="executeYtTrending(ytTrendingCategory, ytTrendingRegion)">
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- SUB-PANEL: REAL SONGS CATALOG -->
+        ${ytActiveMode === 'songs' ? `
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="font-size:13px;color:var(--muted);">
+              Lookup official tracks by song name or artist. Listen to a 30s HD audio preview or click <strong>Stream Full Song</strong> to instantly resolve and play the full track via the YouTube player!
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:260px;position:relative;">
+                <input id="songSearchQueryInput" 
+                  value="${esc(songSearchQuery)}"
+                  style="width:100%;padding:11px 14px;padding-left:36px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;" 
+                  placeholder="Enter song name or artist (e.g., Bohemian Rhapsody, Blinding Lights, Hotel California, Viva La Vida)…" 
+                  onkeydown="if(event.key==='Enter') executeSongSearch()"
+                />
+                <span style="position:absolute;left:12px;top:11px;font-size:14px;color:var(--muted);pointer-events:none;">🎵</span>
+              </div>
+              <button class="btn btn-primary" style="padding:10px 22px;font-weight:700;white-space:nowrap;" onclick="executeSongSearch()">
+                ${isSearchingSongs ? 'Searching…' : 'Search Songs'}
+              </button>
+              <button class="btn btn-secondary" style="padding:10px 14px;" onclick="document.getElementById('songSearchQueryInput').value=''; songSearchQuery='';">
+                Clear
+              </button>
+            </div>
+
+            <!-- TRENDING HITS CHIPS -->
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <span style="font-size:11px;color:var(--muted);font-weight:600;">TOP TRACKS:</span>
+              ${['Bohemian Rhapsody', 'Blinding Lights', 'Shape of You', 'Billie Jean', 'Hotel California', 'Viva La Vida', 'As It Was', 'Starboy'].map(s => `
+                <button class="filter-pill" style="font-size:11px;padding:3px 8px;" onclick="triggerQuickSongSearch('${esc(s)}')">${esc(s)}</button>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- SUB-PANEL: PLAYBACK QUEUE -->
+        ${ytActiveMode === 'queue' ? `
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <div>
+              <div style="font-size:13px;color:var(--muted);">
+                Videos and songs in this queue play continuously one after another.
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="filter-pill ${isYtLooping ? 'active' : ''}" onclick="toggleYtLoop()">
+                🔁 ${isYtLooping ? 'Loop: ON' : 'Loop: OFF'}
+              </button>
+              <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" onclick="shuffleYtQueue()">
+                🔀 Shuffle
+              </button>
+              <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" onclick="clearYtQueue()">
+                🗑️ Clear Queue
+              </button>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- SUB-PANEL: DIRECT URL / VIDEO ID -->
+        ${ytActiveMode === 'direct' ? `
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:260px;position:relative;">
+                <input id="ytVideoUrlInput" style="width:100%;padding:11px 14px;padding-left:36px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;" placeholder="Paste any YouTube URL or Video ID (e.g. https://www.youtube.com/watch?v=...)" onkeydown="if(event.key==='Enter') loadYtVideoFromInput()"/>
+                <span style="position:absolute;left:12px;top:11px;font-size:14px;color:var(--muted);pointer-events:none;">🔗</span>
+              </div>
+              <button class="btn btn-primary" style="padding:10px 22px;font-weight:700;white-space:nowrap;" onclick="loadYtVideoFromInput()">
+                ▶ Play Video
+              </button>
+              <button class="btn btn-secondary" style="padding:10px 14px;" onclick="document.getElementById('ytVideoUrlInput').value='';">
+                Clear
+              </button>
+            </div>
+            <div style="font-size:11px;color:var(--muted);">
+              💡 Supports standard URLs, youtu.be shortlinks, YouTube Shorts, Live streams, or raw 11-character Video IDs.
+            </div>
+          </div>
+        ` : ''}
       </div>
 
       <!-- ACTIVE EMBEDDED VIDEO CARD -->
@@ -4081,78 +4393,155 @@ function renderYouTubeStudio() {
           ` : `
             <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--muted);gap:10px;">
               <div style="font-size:48px;">📺</div>
-              <div style="font-size:14px;">Paste a YouTube link above or choose a preset below</div>
+              <div style="font-size:14px;">Search a video or pick a song below to start playing</div>
             </div>
           `}
         </div>
 
         <!-- VIDEO DETAILS & ACTIONS BAR -->
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-          <div>
-            <div style="font-size:15px;font-weight:700;color:var(--text);" id="ytDisplayTitle">
+          <div style="max-width:60%;">
+            <div style="font-size:15px;font-weight:700;color:var(--text);word-break:break-word;" id="ytDisplayTitle">
               ${esc(currentYtTitle || 'Active YouTube Video')}
             </div>
             <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="ytDisplayChannel">
-              Channel: ${esc(currentYtChannel || 'YouTube')} • ID: <code>${esc(currentYtVideoId)}</code>
+              Channel: <span style="color:var(--accent);font-weight:600;cursor:pointer;text-decoration:underline;" onclick="openYtChannelModal('${esc(currentYtChannelId)}', '${esc(currentYtChannel)}')" title="View Channel Profile & Statistics">${esc(currentYtChannel || 'YouTube')}</span> • ID: <code>${esc(currentYtVideoId || 'None')}</code>
             </div>
           </div>
 
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <button class="filter-pill" style="border-color:var(--accent);color:var(--accent);background:rgba(124,106,247,0.08);" onclick="floatYtToMini()" title="Float as Picture-in-Picture while browsing Vault">
               📌 Float PiP
             </button>
+            <button class="filter-pill ${isYtLooping ? 'active' : ''}" onclick="toggleYtLoop()" title="Loop / Repeat Current Video">
+              🔁 ${isYtLooping ? 'Loop ON' : 'Loop'}
+            </button>
+            <button class="filter-pill" onclick="playNextInQueue()" title="Play next video in queue">
+              ⏭️ Next (${ytQueue.length})
+            </button>
+            <button class="filter-pill" onclick="openYtCommentsModal('${esc(currentYtVideoId)}', '${esc(currentYtTitle)}')" title="View YouTube community comments">
+              💬 Comments
+            </button>
+            <button class="filter-pill" onclick="openYtChannelModal('${esc(currentYtChannelId)}', '${esc(currentYtChannel)}')" title="View channel profile & uploads">
+              👤 Channel
+            </button>
             <button class="filter-pill" onclick="saveYtToVaultNotes()" title="Bookmark video notes to Vault">
-              💾 Save to Notes
+              💾 Save
             </button>
             <button class="filter-pill" onclick="shareYtQrCode()" title="Download or open on mobile">
-              📱 Mobile QR
+              📱 QR
             </button>
             <button class="filter-pill" onclick="copyYtLink()" title="Copy clean youtu.be link">
-              📋 Copy Link
+              📋 Link
             </button>
           </div>
         </div>
       </div>
 
-      <!-- CURATED PRESETS -->
-      <div class="yt-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-          <div>
+      <!-- MAIN CONTENT AREA DEPENDING ON ACTIVE MODE -->
+      ${ytActiveMode === 'search' ? `
+        <div class="yt-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
             <div style="font-size:14px;font-weight:700;color:var(--text);">
-              Curated Streams & Focus Presets
+              YouTube Search Results ${ytSearchResults.length > 0 ? `(${ytSearchResults.length})` : ''}
+            </div>
+            ${ytSearchQuery ? `<span style="font-size:12px;color:var(--muted);">Query: "${esc(ytSearchQuery)}"</span>` : ''}
+          </div>
+
+          <div id="ytSearchResultsWrap" style="margin-top:8px;">
+            ${renderYtSearchResultsGrid()}
+          </div>
+        </div>
+      ` : ''}
+
+      ${ytActiveMode === 'trending' ? `
+        <div class="yt-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:14px;font-weight:700;color:var(--text);">
+              🔥 Top Trending (${ytTrendingCategory.toUpperCase()}) ${ytTrendingResults.length > 0 ? `(${ytTrendingResults.length})` : ''}
+            </div>
+            <span style="font-size:12px;color:var(--muted);">● Live YouTube Most Popular Charts (${esc(ytTrendingRegion)})</span>
+          </div>
+
+          <div id="ytTrendingResultsWrap" style="margin-top:8px;">
+            ${renderYtTrendingGrid()}
+          </div>
+        </div>
+      ` : ''}
+
+      ${ytActiveMode === 'queue' ? `
+        <div class="yt-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:14px;font-weight:700;color:var(--text);">
+              📋 Up Next Playback Queue (${ytQueue.length})
             </div>
             <div style="font-size:12px;color:var(--muted);">
-              Instant 24/7 lofi, deep focus ambience, synthwave, and coding channels:
+              ${ytQueue.length > 0 ? 'Queued tracks play in order' : 'Queue is empty'}
             </div>
           </div>
 
-          <!-- CATEGORY FILTERS -->
-          <div class="filter-pills">
-            <button class="filter-pill ${ytFilterCategory==='all'?'active':''}" onclick="ytFilterCategory='all';renderYouTubeStudio();">All</button>
-            <button class="filter-pill ${ytFilterCategory==='lofi'?'active':''}" onclick="ytFilterCategory='lofi';renderYouTubeStudio();">🎧 Lofi</button>
-            <button class="filter-pill ${ytFilterCategory==='focus'?'active':''}" onclick="ytFilterCategory='focus';renderYouTubeStudio();">🌌 Focus</button>
-            <button class="filter-pill ${ytFilterCategory==='tech'?'active':''}" onclick="ytFilterCategory='tech';renderYouTubeStudio();">💻 Tech</button>
-            <button class="filter-pill ${ytFilterCategory==='nature'?'active':''}" onclick="ytFilterCategory='nature';renderYouTubeStudio();">🌲 Nature</button>
+          <div id="ytQueueWrap" style="margin-top:12px;">
+            ${renderYtQueueList()}
           </div>
         </div>
+      ` : ''}
 
-        <div class="yt-presets-grid" style="margin-top:8px;">
-          ${filteredPresets.map(p => `
-            <div class="yt-preset-card ${currentYtVideoId===p.id?'active':''}" onclick="playYtPreset('${p.id}', '${esc(p.title)}', '${esc(p.channel)}')">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:20px;">${p.icon}</span>
-                <div style="font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
-                  ${esc(p.title)}
+      ${ytActiveMode === 'songs' ? `
+        <div class="yt-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:14px;font-weight:700;color:var(--text);">
+              Real Songs & Music Tracks ${songSearchResults.length > 0 ? `(${songSearchResults.length})` : ''}
+            </div>
+            ${songSearchQuery ? `<span style="font-size:12px;color:var(--muted);">Search: "${esc(songSearchQuery)}"</span>` : ''}
+          </div>
+
+          <div id="songSearchResultsWrap" style="margin-top:8px;">
+            ${renderSongSearchResultsGrid()}
+          </div>
+        </div>
+      ` : ''}
+
+      ${(ytActiveMode === 'presets' || ytActiveMode === 'direct') ? `
+        <!-- CURATED PRESETS -->
+        <div class="yt-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--text);">
+                Curated Streams & Focus Presets
+              </div>
+              <div style="font-size:12px;color:var(--muted);">
+                Instant 24/7 lofi, deep focus ambience, synthwave, and coding channels:
+              </div>
+            </div>
+
+            <!-- CATEGORY FILTERS -->
+            <div class="filter-pills">
+              <button class="filter-pill ${ytFilterCategory==='all'?'active':''}" onclick="ytFilterCategory='all';renderYouTubeStudio();">All</button>
+              <button class="filter-pill ${ytFilterCategory==='lofi'?'active':''}" onclick="ytFilterCategory='lofi';renderYouTubeStudio();">🎧 Lofi</button>
+              <button class="filter-pill ${ytFilterCategory==='focus'?'active':''}" onclick="ytFilterCategory='focus';renderYouTubeStudio();">🌌 Focus</button>
+              <button class="filter-pill ${ytFilterCategory==='tech'?'active':''}" onclick="ytFilterCategory='tech';renderYouTubeStudio();">💻 Tech</button>
+              <button class="filter-pill ${ytFilterCategory==='nature'?'active':''}" onclick="ytFilterCategory='nature';renderYouTubeStudio();">🌲 Nature</button>
+            </div>
+          </div>
+
+          <div class="yt-presets-grid" style="margin-top:8px;">
+            ${filteredPresets.map(p => `
+              <div class="yt-preset-card ${currentYtVideoId===p.id?'active':''}" onclick="playYtPreset('${p.id}', '${esc(p.title)}', '${esc(p.channel)}')">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="font-size:20px;">${p.icon}</span>
+                  <div style="font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
+                    ${esc(p.title)}
+                  </div>
+                </div>
+                <div style="font-size:11px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
+                  <span>${esc(p.channel)}</span>
+                  <span style="color:var(--accent);font-weight:600;">▶ Play</span>
                 </div>
               </div>
-              <div style="font-size:11px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
-                <span>${esc(p.channel)}</span>
-                <span style="color:var(--accent);font-weight:600;">▶ Play</span>
-              </div>
-            </div>
-          `).join('')}
+            `).join('')}
+          </div>
         </div>
-      </div>
+      ` : ''}
 
       <!-- RECENT HISTORY -->
       ${ytHistory.length > 0 ? `
@@ -4180,6 +4569,329 @@ function renderYouTubeStudio() {
       ` : ''}
     </div>
   `;
+
+  // Auto-search default popular tracks if results empty on initial view
+  if (ytActiveMode === 'search' && ytSearchResults.length === 0 && !isSearchingYt) {
+    executeYtSearch('Queen Bohemian Rhapsody');
+  } else if (ytActiveMode === 'trending' && ytTrendingResults.length === 0 && !isSearchingTrending) {
+    executeYtTrending('all', ytTrendingRegion);
+  } else if (ytActiveMode === 'songs' && songSearchResults.length === 0 && !isSearchingSongs) {
+    executeSongSearch('Bohemian Rhapsody');
+  }
+}
+
+function switchYtMode(mode) {
+  ytActiveMode = mode;
+  renderYouTubeStudio();
+}
+
+function triggerQuickYtSearch(query) {
+  const input = document.getElementById('ytSearchQueryInput');
+  if (input) input.value = query;
+  executeYtSearch(query);
+}
+
+async function executeYtSearch(customQuery) {
+  const input = document.getElementById('ytSearchQueryInput');
+  const query = (customQuery || (input ? input.value : ytSearchQuery) || '').trim();
+  if (!query) return toast('Please enter a YouTube search query');
+
+  ytSearchQuery = query;
+  isSearchingYt = true;
+
+  const wrap = document.getElementById('ytSearchResultsWrap');
+  if (wrap) {
+    wrap.innerHTML = `<div style="text-align:center;padding:30px 0;color:var(--muted);">🔍 Searching YouTube for "${esc(query)}"…</div>`;
+  }
+
+  try {
+    const res = await fetch(`${API}/youtube/search?q=${encodeURIComponent(query)}&musicOnly=${ytSearchMusicOnly}&order=${ytSearchOrder}&limit=24`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || `Search failed with status ${res.status}`);
+    }
+    ytSearchResults = data.items || [];
+  } catch (err) {
+    toast('YouTube search error: ' + err.message);
+    if (wrap) {
+      wrap.innerHTML = `<div style="text-align:center;padding:24px 0;color:var(--red);">Search error: ${esc(err.message)}</div>`;
+    }
+    isSearchingYt = false;
+    return;
+  }
+
+  isSearchingYt = false;
+  if (currentTab === 'ytplayer' && ytActiveMode === 'search') {
+    const freshWrap = document.getElementById('ytSearchResultsWrap');
+    if (freshWrap) freshWrap.innerHTML = renderYtSearchResultsGrid();
+  }
+}
+
+function renderYtSearchResultsGrid() {
+  if (isSearchingYt) {
+    return `<div style="text-align:center;padding:30px 0;color:var(--muted);">🔍 Searching YouTube…</div>`;
+  }
+  if (!ytSearchResults || ytSearchResults.length === 0) {
+    return `
+      <div style="text-align:center;padding:36px 0;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <span style="font-size:36px;">📺</span>
+        <div>No YouTube results found. Try searching for an artist, song name, or tutorial.</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="yt-search-grid">
+      ${ytSearchResults.map(item => `
+        <div class="yt-search-card ${currentYtVideoId === item.id ? 'active' : ''}">
+          <div class="yt-thumb-wrap" onclick="playYouTubeVideo('${item.id}', '${esc(item.title)}', '${esc(item.channelTitle)}', '${esc(item.channelId)}')">
+            <img class="yt-thumb" src="${esc(item.thumbnail)}" alt="Thumbnail" loading="lazy" onerror="this.src='https://img.youtube.com/vi/${item.id}/hqdefault.jpg'"/>
+            ${item.isLive ? `<span class="yt-live-badge">● LIVE</span>` : ''}
+            ${item.duration ? `<span class="yt-duration-badge">${esc(item.duration)}</span>` : ''}
+          </div>
+          <div class="yt-card-body">
+            <div class="yt-card-title" title="${esc(item.title)}">
+              ${esc(item.title)}
+            </div>
+            <div class="yt-card-channel">
+              <span style="cursor:pointer;text-decoration:underline;" onclick="openYtChannelModal('${esc(item.channelId)}', '${esc(item.channelTitle)}')">${esc(item.channelTitle)}</span>
+              ${item.views ? `<span>${esc(item.views)}</span>` : ''}
+            </div>
+            <div class="yt-card-actions">
+              <button class="btn btn-primary" style="padding:4px 10px;font-size:11px;font-weight:700;" onclick="playYouTubeVideo('${item.id}', '${esc(item.title)}', '${esc(item.channelTitle)}', '${esc(item.channelId)}')">
+                ▶ Play
+              </button>
+              <button class="btn-add-queue" onclick="addToYtQueue('${item.id}', '${esc(item.title)}', '${esc(item.channelTitle)}', '${esc(item.thumbnail)}', '${esc(item.duration)}', '${esc(item.channelId)}')">
+                ➕ Queue
+              </button>
+              <button class="filter-pill" style="font-size:11px;padding:3px 7px;" onclick="openYtCommentsModal('${item.id}', '${esc(item.title)}')">
+                💬 Comments
+              </button>
+              <button class="filter-pill" style="font-size:11px;padding:3px 7px;" onclick="playYtInMini('${item.id}', '${esc(item.title)}', '${esc(item.channelTitle)}', '${esc(item.channelId)}')">
+                📌 PiP
+              </button>
+              <button class="filter-pill" style="font-size:11px;padding:3px 7px;" onclick="saveSpecificYtToNotes('${item.id}', '${esc(item.title)}', '${esc(item.channelTitle)}')">
+                💾 Save
+              </button>
+              <button class="filter-pill" style="font-size:11px;padding:3px 7px;" onclick="shareSpecificYtQr('${item.id}', '${esc(item.title)}')">
+                📱 QR
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function triggerQuickSongSearch(query) {
+  const input = document.getElementById('songSearchQueryInput');
+  if (input) input.value = query;
+  executeSongSearch(query);
+}
+
+async function executeSongSearch(customQuery) {
+  const input = document.getElementById('songSearchQueryInput');
+  const query = (customQuery || (input ? input.value : songSearchQuery) || '').trim();
+  if (!query) return toast('Please enter a song name or artist');
+
+  songSearchQuery = query;
+  isSearchingSongs = true;
+
+  const wrap = document.getElementById('songSearchResultsWrap');
+  if (wrap) {
+    wrap.innerHTML = `<div style="text-align:center;padding:30px 0;color:var(--muted);">🎵 Searching official songs catalog for "${esc(query)}"…</div>`;
+  }
+
+  try {
+    const res = await fetch(`${API}/music/songs?q=${encodeURIComponent(query)}&limit=30`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || `Song search failed (${res.status})`);
+    }
+    songSearchResults = data.songs || [];
+  } catch (err) {
+    toast('Song search error: ' + err.message);
+    if (wrap) {
+      wrap.innerHTML = `<div style="text-align:center;padding:24px 0;color:var(--red);">Search error: ${esc(err.message)}</div>`;
+    }
+    isSearchingSongs = false;
+    return;
+  }
+
+  isSearchingSongs = false;
+  if (currentTab === 'ytplayer' && ytActiveMode === 'songs') {
+    const freshWrap = document.getElementById('songSearchResultsWrap');
+    if (freshWrap) freshWrap.innerHTML = renderSongSearchResultsGrid();
+  }
+}
+
+function renderSongSearchResultsGrid() {
+  if (isSearchingSongs) {
+    return `<div style="text-align:center;padding:30px 0;color:var(--muted);">🎵 Searching real songs…</div>`;
+  }
+  if (!songSearchResults || songSearchResults.length === 0) {
+    return `
+      <div style="text-align:center;padding:36px 0;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <span style="font-size:36px;">🎵</span>
+        <div>No songs found. Try typing a track title like "Bohemian Rhapsody", "Blinding Lights", or "Shape of You".</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="song-grid">
+      ${songSearchResults.map(song => {
+        const isThisPreviewing = (currentPreviewTrackId === song.trackId && isPreviewPlaying);
+        return `
+          <div class="song-card ${isThisPreviewing ? 'previewing' : ''}" id="songCard-${song.trackId}">
+            <img class="song-artwork" src="${esc(song.artworkUrl)}" alt="Cover" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&auto=format&fit=crop'"/>
+            <div class="song-details">
+              <div class="song-title" title="${esc(song.trackName)}">${esc(song.trackName)}</div>
+              <div class="song-artist">${esc(song.artistName)}</div>
+              <div class="song-album">${esc(song.collectionName)} • ${esc(song.genre)} • ${esc(song.durationFormatted || '')}</div>
+              <div class="song-actions">
+                ${song.previewUrl ? `
+                  <button class="btn-preview-audio" onclick="toggleSongPreview('${song.trackId}', '${esc(song.previewUrl)}', '${esc(song.trackName)}', '${esc(song.artistName)}')">
+                    ${isThisPreviewing ? '⏸ Pause' : '🎧 30s Audio'}
+                  </button>
+                ` : ''}
+                <button class="btn-play-full-yt" onclick="streamSongOnYouTube('${esc(song.trackName)}', '${esc(song.artistName)}')">
+                  ▶ Full YouTube Song
+                </button>
+                <button class="btn-add-queue" onclick="queueSongToYouTube('${esc(song.trackName)}', '${esc(song.artistName)}')">
+                  ➕ Queue
+                </button>
+                <button class="filter-pill" style="font-size:11px;padding:3px 6px;" onclick="saveSongToVault('${esc(song.trackName)}', '${esc(song.artistName)}', '${esc(song.collectionName)}')">
+                  💾
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function toggleSongPreview(trackId, previewUrl, trackTitle, artistName) {
+  if (currentPreviewTrackId === trackId && isPreviewPlaying) {
+    pauseSongPreview();
+    return;
+  }
+
+  // Stop any active radio stream
+  if (typeof isRadioPlaying !== 'undefined' && isRadioPlaying && typeof pauseRadio === 'function') {
+    pauseRadio();
+  }
+
+  if (currentPreviewAudio) {
+    currentPreviewAudio.pause();
+    currentPreviewAudio = null;
+  }
+
+  currentPreviewTrackId = trackId;
+  currentPreviewAudio = new Audio(previewUrl);
+  currentPreviewAudio.volume = typeof radioVolume !== 'undefined' ? radioVolume : 0.85;
+
+  toast(`🎧 Playing preview: ${trackTitle} - ${artistName}`);
+  currentPreviewAudio.play().then(() => {
+    isPreviewPlaying = true;
+    updateSongPreviewUi();
+  }).catch(err => {
+    isPreviewPlaying = false;
+    toast(`Preview playback failed: ${err.message}`);
+    updateSongPreviewUi();
+  });
+
+  currentPreviewAudio.onended = () => {
+    isPreviewPlaying = false;
+    currentPreviewTrackId = null;
+    updateSongPreviewUi();
+  };
+  currentPreviewAudio.onpause = () => {
+    isPreviewPlaying = false;
+    updateSongPreviewUi();
+  };
+}
+
+function pauseSongPreview() {
+  if (currentPreviewAudio) {
+    currentPreviewAudio.pause();
+  }
+  isPreviewPlaying = false;
+  updateSongPreviewUi();
+}
+
+function updateSongPreviewUi() {
+  document.querySelectorAll('.song-card').forEach(c => c.classList.remove('previewing'));
+  if (currentPreviewTrackId && isPreviewPlaying) {
+    const el = document.getElementById(`songCard-${currentPreviewTrackId}`);
+    if (el) el.classList.add('previewing');
+  }
+}
+
+async function streamSongOnYouTube(songName, artistName) {
+  toast(`🔍 Resolving official full song: "${songName}" by ${artistName}…`);
+  try {
+    const res = await fetch(`${API}/music/song-to-yt?song=${encodeURIComponent(songName)}&artist=${encodeURIComponent(artistName)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Full song not found on YouTube');
+    }
+
+    // Stop 30s preview audio if active
+    pauseSongPreview();
+
+    // Play official full YouTube video
+    playYouTubeVideo(data.videoId, `${songName} - ${artistName}`, data.channelTitle || 'Official Music');
+    toast(`✓ Now streaming full track: ${songName}!`);
+  } catch (err) {
+    toast(`Failed to resolve full song: ${err.message}`);
+  }
+}
+
+async function saveSongToVault(trackName, artistName, album) {
+  try {
+    await api('POST', '/passwords', {
+      title: `Song: ${trackName}`,
+      username: artistName,
+      password: 'Music Track',
+      url: `https://www.youtube.com/results?search_query=${encodeURIComponent(trackName + ' ' + artistName)}`,
+      description: `Track: ${trackName}\nArtist: ${artistName}\nAlbum: ${album}\nSaved: ${new Date().toLocaleString()}`,
+      item_type: 'note'
+    });
+    toast('✓ Song bookmarked to Vault Cards & Notes!');
+  } catch (err) {
+    toast('Error bookmarking song: ' + err.message);
+  }
+}
+
+function playYtInMini(id, title, channel) {
+  playYouTubeVideo(id, title, channel);
+  floatYtToMini();
+}
+
+async function saveSpecificYtToNotes(id, title, channel) {
+  const link = `https://youtu.be/${id}`;
+  try {
+    await api('POST', '/passwords', {
+      title: `YouTube: ${title}`,
+      username: channel || 'YouTube',
+      password: id,
+      url: link,
+      description: `Saved Video: ${title}\nChannel: ${channel}\nWatch Link: ${link}\nSaved on: ${new Date().toLocaleString()}`,
+      item_type: 'note'
+    });
+    toast('✓ Video bookmarked to Vault Cards & Notes!');
+  } catch (err) {
+    toast('Error saving video note: ' + err.message);
+  }
+}
+
+function shareSpecificYtQr(id, title) {
+  const link = `https://youtu.be/${id}`;
+  openQrCodeModal(link, title, 'YouTube Video Link');
 }
 
 function loadYtVideoFromInput() {
@@ -4199,10 +4911,11 @@ function playYtPreset(id, title, channel) {
   playYouTubeVideo(id, title, channel);
 }
 
-function playYouTubeVideo(id, title = 'YouTube Video', channel = 'YouTube') {
+function playYouTubeVideo(id, title = 'YouTube Video', channel = 'YouTube', channelId = '') {
   currentYtVideoId = id;
   currentYtTitle = title;
   currentYtChannel = channel;
+  if (channelId) currentYtChannelId = channelId;
   isYtPlaying = true;
 
   // Pause audio radio stream if currently active to avoid clashing sound
@@ -4217,6 +4930,7 @@ function playYouTubeVideo(id, title = 'YouTube Video', channel = 'YouTube') {
     id,
     title,
     channel,
+    channelId: channelId || '',
     playedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   });
   if (ytHistory.length > 20) ytHistory.pop();
@@ -4233,6 +4947,441 @@ function playYouTubeVideo(id, title = 'YouTube Video', channel = 'YouTube') {
   }
 
   toast(`▶ Now playing: ${title}`);
+}
+
+async function executeYtTrending(category = 'all', region = 'US') {
+  ytTrendingCategory = category;
+  ytTrendingRegion = region || ytTrendingRegion || 'US';
+  isSearchingTrending = true;
+
+  const wrap = document.getElementById('ytTrendingResultsWrap');
+  if (wrap) {
+    wrap.innerHTML = `<div style="text-align:center;padding:36px 0;color:var(--muted);">🔥 Loading trending charts (${ytTrendingCategory.toUpperCase()} - ${ytTrendingRegion})…</div>`;
+  }
+
+  try {
+    const res = await fetch(`${API}/youtube/trending?category=${encodeURIComponent(category)}&region=${encodeURIComponent(ytTrendingRegion)}&limit=24`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || `Failed to fetch trending videos (${res.status})`);
+    }
+    ytTrendingResults = data.items || [];
+  } catch (err) {
+    toast('Trending feed error: ' + err.message);
+    if (wrap) {
+      wrap.innerHTML = `<div style="text-align:center;padding:24px 0;color:var(--red);">Error loading trending videos: ${esc(err.message)}</div>`;
+    }
+    isSearchingTrending = false;
+    return;
+  }
+
+  isSearchingTrending = false;
+  if (currentTab === 'ytplayer' && ytActiveMode === 'trending') {
+    const freshWrap = document.getElementById('ytTrendingResultsWrap');
+    if (freshWrap) freshWrap.innerHTML = renderYtTrendingGrid();
+  }
+}
+
+function renderYtTrendingGrid() {
+  if (isSearchingTrending) {
+    return `<div style="text-align:center;padding:36px 0;color:var(--muted);">🔥 Loading live trending videos…</div>`;
+  }
+  if (!ytTrendingResults || ytTrendingResults.length === 0) {
+    return `
+      <div style="text-align:center;padding:36px 0;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <span style="font-size:36px;">🔥</span>
+        <div>No trending videos found for this category and region. Try switching category or region above.</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="yt-search-grid">
+      ${ytTrendingResults.map(item => `
+        <div class="yt-search-card ${currentYtVideoId === item.id ? 'active' : ''}">
+          <div class="yt-thumb-wrap" onclick="playYouTubeVideo('${item.id}', '${esc(item.title)}', '${esc(item.channelTitle)}', '${esc(item.channelId)}')">
+            <img class="yt-thumb" src="${esc(item.thumbnail)}" alt="Thumbnail" loading="lazy" onerror="this.src='https://img.youtube.com/vi/${item.id}/hqdefault.jpg'"/>
+            ${item.isLive ? `<span class="yt-live-badge">● LIVE</span>` : ''}
+            ${item.duration ? `<span class="yt-duration-badge">${esc(item.duration)}</span>` : ''}
+          </div>
+          <div class="yt-card-body">
+            <div class="yt-card-title" title="${esc(item.title)}">
+              ${esc(item.title)}
+            </div>
+            <div class="yt-card-channel">
+              <span style="cursor:pointer;text-decoration:underline;" onclick="openYtChannelModal('${esc(item.channelId)}', '${esc(item.channelTitle)}')">${esc(item.channelTitle)}</span>
+              ${item.views ? `<span>${esc(item.views)}</span>` : ''}
+            </div>
+            <div class="yt-card-actions">
+              <button class="btn btn-primary" style="padding:4px 10px;font-size:11px;font-weight:700;" onclick="playYouTubeVideo('${item.id}', '${esc(item.title)}', '${esc(item.channelTitle)}', '${esc(item.channelId)}')">
+                ▶ Play
+              </button>
+              <button class="btn-add-queue" onclick="addToYtQueue('${item.id}', '${esc(item.title)}', '${esc(item.channelTitle)}', '${esc(item.thumbnail)}', '${esc(item.duration)}', '${esc(item.channelId)}')">
+                ➕ Queue
+              </button>
+              <button class="filter-pill" style="font-size:11px;padding:3px 7px;" onclick="openYtCommentsModal('${item.id}', '${esc(item.title)}')">
+                💬 Comments
+              </button>
+              <button class="filter-pill" style="font-size:11px;padding:3px 7px;" onclick="playYtInMini('${item.id}', '${esc(item.title)}', '${esc(item.channelTitle)}', '${esc(item.channelId)}')">
+                📌 PiP
+              </button>
+              <button class="filter-pill" style="font-size:11px;padding:3px 7px;" onclick="saveSpecificYtToNotes('${item.id}', '${esc(item.title)}', '${esc(item.channelTitle)}')">
+                💾 Save
+              </button>
+              <button class="filter-pill" style="font-size:11px;padding:3px 7px;" onclick="shareSpecificYtQr('${item.id}', '${esc(item.title)}')">
+                📱 QR
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function addToYtQueue(id, title, channel, thumbnail, duration, channelId) {
+  ytQueue.push({
+    id,
+    title,
+    channel,
+    thumbnail: thumbnail || `https://img.youtube.com/vi/${id}/mqdefault.jpg`,
+    duration: duration || '',
+    channelId: channelId || ''
+  });
+
+  const tabBtn = document.getElementById('ytQueueTabBtn');
+  if (tabBtn) {
+    tabBtn.textContent = `📋 Up Next Queue (${ytQueue.length})`;
+  }
+
+  if (currentTab === 'ytplayer' && ytActiveMode === 'queue') {
+    const wrap = document.getElementById('ytQueueWrap');
+    if (wrap) wrap.innerHTML = renderYtQueueList();
+  }
+
+  toast(`✓ Added to playback queue: ${title}`);
+}
+
+async function queueSongToYouTube(songName, artistName) {
+  toast(`🔍 Adding "${songName}" by ${artistName} to queue…`);
+  try {
+    const res = await fetch(`${API}/music/song-to-yt?song=${encodeURIComponent(songName)}&artist=${encodeURIComponent(artistName)}`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Full song not found on YouTube');
+    }
+    addToYtQueue(data.videoId, `${songName} - ${artistName}`, data.channelTitle || 'Official Music', `https://img.youtube.com/vi/${data.videoId}/mqdefault.jpg`, '', '');
+  } catch (err) {
+    toast(`Failed to queue song: ${err.message}`);
+  }
+}
+
+function renderYtQueueList() {
+  if (ytQueue.length === 0) {
+    return `
+      <div style="text-align:center;padding:36px 0;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:10px;">
+        <span style="font-size:36px;">📋</span>
+        <div>Your playback queue is currently empty.</div>
+        <div style="font-size:12px;">Click <strong>➕ Queue</strong> on any search result, trending video, or music track to build your continuous playlist!</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="yt-queue-list">
+      ${ytQueue.map((item, idx) => `
+        <div class="yt-queue-item">
+          <div class="yt-queue-item-index">#${idx + 1}</div>
+          <img class="yt-queue-item-thumb" src="${esc(item.thumbnail)}" alt="Thumb" onerror="this.src='https://img.youtube.com/vi/${item.id}/mqdefault.jpg'"/>
+          <div class="yt-queue-item-info">
+            <div class="yt-queue-item-title" title="${esc(item.title)}">${esc(item.title)}</div>
+            <div class="yt-queue-item-channel">${esc(item.channel)}${item.duration ? ` • ${esc(item.duration)}` : ''}</div>
+          </div>
+          <div class="yt-queue-item-actions">
+            <button class="btn btn-primary" style="padding:4px 10px;font-size:11px;" onclick="playQueueItemAt(${idx})" title="Play this video immediately">
+              ▶ Play Now
+            </button>
+            <button class="filter-pill" style="font-size:11px;padding:3px 7px;" onclick="removeFromYtQueue(${idx})" title="Remove from queue">
+              ✕ Remove
+            </button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function playNextInQueue() {
+  if (ytQueue.length === 0) {
+    return toast('Queue is empty');
+  }
+  const nextItem = ytQueue.shift();
+  playYouTubeVideo(nextItem.id, nextItem.title, nextItem.channel, nextItem.channelId);
+
+  const tabBtn = document.getElementById('ytQueueTabBtn');
+  if (tabBtn) {
+    tabBtn.textContent = `📋 Up Next Queue ${ytQueue.length > 0 ? `(${ytQueue.length})` : ''}`;
+  }
+
+  if (currentTab === 'ytplayer' && ytActiveMode === 'queue') {
+    const wrap = document.getElementById('ytQueueWrap');
+    if (wrap) wrap.innerHTML = renderYtQueueList();
+  }
+}
+
+function playQueueItemAt(index) {
+  if (index < 0 || index >= ytQueue.length) return;
+  const item = ytQueue.splice(index, 1)[0];
+  playYouTubeVideo(item.id, item.title, item.channel, item.channelId);
+
+  const tabBtn = document.getElementById('ytQueueTabBtn');
+  if (tabBtn) {
+    tabBtn.textContent = `📋 Up Next Queue ${ytQueue.length > 0 ? `(${ytQueue.length})` : ''}`;
+  }
+
+  if (currentTab === 'ytplayer' && ytActiveMode === 'queue') {
+    const wrap = document.getElementById('ytQueueWrap');
+    if (wrap) wrap.innerHTML = renderYtQueueList();
+  }
+}
+
+function removeFromYtQueue(index) {
+  if (index < 0 || index >= ytQueue.length) return;
+  ytQueue.splice(index, 1);
+
+  const tabBtn = document.getElementById('ytQueueTabBtn');
+  if (tabBtn) {
+    tabBtn.textContent = `📋 Up Next Queue ${ytQueue.length > 0 ? `(${ytQueue.length})` : ''}`;
+  }
+
+  if (currentTab === 'ytplayer' && ytActiveMode === 'queue') {
+    const wrap = document.getElementById('ytQueueWrap');
+    if (wrap) wrap.innerHTML = renderYtQueueList();
+  }
+  toast('Item removed from queue');
+}
+
+function clearYtQueue() {
+  if (ytQueue.length === 0) return;
+  ytQueue = [];
+  const tabBtn = document.getElementById('ytQueueTabBtn');
+  if (tabBtn) {
+    tabBtn.textContent = '📋 Up Next Queue';
+  }
+  if (currentTab === 'ytplayer' && ytActiveMode === 'queue') {
+    const wrap = document.getElementById('ytQueueWrap');
+    if (wrap) wrap.innerHTML = renderYtQueueList();
+  }
+  toast('Queue cleared');
+}
+
+function shuffleYtQueue() {
+  if (ytQueue.length <= 1) return toast('Queue needs at least 2 videos to shuffle');
+  for (let i = ytQueue.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [ytQueue[i], ytQueue[j]] = [ytQueue[j], ytQueue[i]];
+  }
+  if (currentTab === 'ytplayer' && ytActiveMode === 'queue') {
+    const wrap = document.getElementById('ytQueueWrap');
+    if (wrap) wrap.innerHTML = renderYtQueueList();
+  }
+  toast('🔀 Queue shuffled!');
+}
+
+function toggleYtLoop() {
+  isYtLooping = !isYtLooping;
+  toast(`Loop mode: ${isYtLooping ? 'ENABLED (Video will repeat on finish)' : 'DISABLED'}`);
+  if (currentTab === 'ytplayer') {
+    renderYouTubeStudio();
+  }
+}
+
+// Open YouTube Comments Modal
+async function openYtCommentsModal(videoId, videoTitle) {
+  const vid = videoId || currentYtVideoId;
+  const title = videoTitle || currentYtTitle || 'YouTube Video';
+  if (!vid) return toast('No video selected to view comments');
+
+  openModal(`
+    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:12px;">
+        💬 Comments: ${esc(title)}
+      </div>
+      <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" onclick="closeModal()">Close</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+      Live community discussion thread from YouTube Data API v3 (Video ID: <code>${esc(vid)}</code>)
+    </div>
+    <div id="ytCommentsModalBody" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;">
+      <div style="text-align:center;padding:30px 0;color:var(--muted);">
+        💬 Fetching YouTube comments…
+      </div>
+    </div>
+  `);
+
+  try {
+    const res = await fetch(`${API}/youtube/comments?videoId=${encodeURIComponent(vid)}&maxResults=30`);
+    const data = await res.json();
+    const container = document.getElementById('ytCommentsModalBody');
+    if (!container) return;
+
+    if (!res.ok || !data.success) {
+      container.innerHTML = `
+        <div style="text-align:center;padding:24px 0;color:var(--muted);">
+          ⚠️ ${esc(data.error || 'Comments are disabled or unavailable for this video.')}
+        </div>
+      `;
+      return;
+    }
+
+    const comments = data.comments || [];
+    if (comments.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center;padding:24px 0;color:var(--muted);">
+          💬 No comments found for this video yet.
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="yt-comments-list">
+        ${comments.map(c => `
+          <div class="yt-comment-item">
+            <img class="yt-comment-avatar" src="${esc(c.authorProfileImageUrl)}" alt="Avatar" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=50&auto=format&fit=crop'"/>
+            <div class="yt-comment-content">
+              <div class="yt-comment-header">
+                <span class="yt-comment-author">${esc(c.authorDisplayName)}</span>
+                <span class="yt-comment-date">${esc(c.publishedAtFormatted || '')}</span>
+              </div>
+              <div class="yt-comment-text">${esc(c.textDisplay)}</div>
+              ${c.likeCount > 0 ? `
+                <div class="yt-comment-likes">
+                  👍 ${c.likeCount.toLocaleString()} likes
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (err) {
+    const container = document.getElementById('ytCommentsModalBody');
+    if (container) {
+      container.innerHTML = `<div style="text-align:center;padding:20px;color:var(--red);">Error loading comments: ${esc(err.message)}</div>`;
+    }
+  }
+}
+
+// Open YouTube Channel Details Modal
+async function openYtChannelModal(channelId, channelTitle) {
+  const cId = channelId || currentYtChannelId || '';
+  const cTitle = channelTitle || currentYtChannel || 'Channel Details';
+
+  openModal(`
+    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center;">
+      <div>👤 YouTube Channel Profile</div>
+      <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px;" onclick="closeModal()">Close</button>
+    </div>
+    <div id="ytChannelModalBody" style="max-height:65vh;overflow-y:auto;">
+      <div style="text-align:center;padding:36px 0;color:var(--muted);">
+        👤 Fetching YouTube channel statistics and uploads…
+      </div>
+    </div>
+  `);
+
+  try {
+    const res = await fetch(`${API}/youtube/channel?id=${encodeURIComponent(cId)}&name=${encodeURIComponent(cTitle)}`);
+    const data = await res.json();
+    const container = document.getElementById('ytChannelModalBody');
+    if (!container) return;
+
+    if (!res.ok || !data.success || !data.channel) {
+      container.innerHTML = `
+        <div style="text-align:center;padding:24px 0;color:var(--muted);">
+          ⚠️ ${esc(data.error || 'Channel details could not be retrieved.')}
+        </div>
+      `;
+      return;
+    }
+
+    const ch = data.channel;
+    const uploads = data.recentUploads || [];
+
+    container.innerHTML = `
+      <div class="yt-channel-details">
+        <div class="yt-channel-header">
+          <img class="yt-channel-avatar" src="${esc(ch.thumbnail)}" alt="Avatar" onerror="this.src='https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&auto=format&fit=crop'"/>
+          <div style="flex:1;">
+            <div class="yt-channel-name">${esc(ch.title)}</div>
+            ${ch.customUrl ? `<div style="font-size:12px;color:var(--accent);">${esc(ch.customUrl)}</div>` : ''}
+            <div class="yt-channel-stats">
+              <div class="yt-stat-pill">
+                <strong>${esc(ch.subscriberCountFormatted || '0')}</strong> Subscribers
+              </div>
+              <div class="yt-stat-pill">
+                <strong>${esc(ch.videoCountFormatted || '0')}</strong> Videos
+              </div>
+              <div class="yt-stat-pill">
+                <strong>${esc(ch.viewCountFormatted || '0')}</strong> Total Views
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${ch.description ? `
+          <div class="yt-channel-desc">
+            ${esc(ch.description)}
+          </div>
+        ` : ''}
+
+        <div style="margin-top:16px;">
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:10px;">
+            Recent Channel Uploads (${uploads.length})
+          </div>
+          <div class="yt-channel-uploads-grid">
+            ${uploads.map(u => `
+              <div class="yt-channel-upload-card" onclick="closeModal(); playYouTubeVideo('${u.id}', '${esc(u.title)}', '${esc(ch.title)}', '${esc(ch.id)}')">
+                <img class="yt-channel-upload-thumb" src="${esc(u.thumbnail)}" alt="Thumb" loading="lazy" onerror="this.src='https://img.youtube.com/vi/${u.id}/mqdefault.jpg'"/>
+                <div class="yt-channel-upload-title" title="${esc(u.title)}">${esc(u.title)}</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px;">${esc(u.publishedAtFormatted || '')}</div>
+                <button class="btn btn-primary" style="margin-top:6px;width:100%;padding:4px 0;font-size:11px;font-weight:700;">
+                  ▶ Play Video
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    const container = document.getElementById('ytChannelModalBody');
+    if (container) {
+      container.innerHTML = `<div style="text-align:center;padding:20px;color:var(--red);">Error loading channel details: ${esc(err.message)}</div>`;
+    }
+  }
+}
+
+// Listen for YouTube Iframe player state events (for queue autoplay & loop)
+if (typeof window !== 'undefined') {
+  window.addEventListener('message', (event) => {
+    if (typeof event.data !== 'string') return;
+    try {
+      const data = JSON.parse(event.data);
+      if (data && data.event === 'onStateChange') {
+        // State 0 = ended
+        if (data.info === 0) {
+          if (isYtLooping) {
+            toast('🔁 Repeating video (Loop mode active)…');
+            playYouTubeVideo(currentYtVideoId, currentYtTitle, currentYtChannel, currentYtChannelId);
+          } else if (ytQueue.length > 0) {
+            toast('⏭️ Playing next queued track…');
+            playNextInQueue();
+          }
+        }
+      }
+    } catch (_) {}
+  });
 }
 
 function floatYtToMini() {
@@ -6784,6 +7933,7 @@ let radioVolume = 0.8;
 let isRadioMuted = false;
 let radioVisualizerAnim = null;
 let radioStationsCache = [];
+let radioSubTab = 'stations'; // 'stations' | 'songs'
 
 const CURATED_RADIO_STATIONS = [
   { id: 'lofi', name: 'Lofi Chill & Focus Beats', url_resolved: 'https://streams.ilovemusic.de/iloveradio17.mp3', tags: 'lofi,chill,focus,relax', country: 'Global', bitrate: 128, favicon: '🎧', desc: 'Continuous calm instrumental beats for coding, reading, and deep focus' },
@@ -6807,12 +7957,12 @@ async function renderRadioTab() {
             <span>📻</span> Live Radio & Music Streamer
           </div>
           <div style="font-size:13px;color:var(--muted);margin-top:2px;">
-            Listen to 30,000+ free online radio stations and curated focus music while you manage your vault.
+            Listen to 30,000+ free online radio stations, or search real songs by name to stream full tracks and previews.
           </div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
           <span class="badge" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);font-size:11px;">
-            ● 30,000+ Free Community Stations
+            ● 30,000+ Stations & Song APIs
           </span>
         </div>
       </div>
@@ -6822,63 +7972,156 @@ async function renderRadioTab() {
         ${renderRadioNowPlayingInner()}
       </div>
 
-      <!-- CURATED POPULAR CHANNELS -->
-      <div>
-        <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
-          <span>⭐</span> Curated Focus & Productivity Stations
-        </div>
-        <div class="radio-station-grid">
-          ${CURATED_RADIO_STATIONS.map(s => `
-            <div class="radio-station-card ${currentStation?.url_resolved === s.url_resolved ? 'playing' : ''}" onclick="playRadioStation('${esc(s.url_resolved)}', '${esc(s.name)}', '${esc(s.tags)}')">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                <span style="font-size:24px;">${s.favicon || '📻'}</span>
-                ${currentStation?.url_resolved === s.url_resolved && isRadioPlaying ? `<span class="radio-live-dot" title="Streaming Live"></span>` : ''}
-              </div>
-              <div style="font-weight:700;font-size:13px;color:var(--text);margin-top:4px;">${esc(s.name)}</div>
-              <div style="font-size:11px;color:var(--muted);line-height:1.4;">${esc(s.desc)}</div>
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:10px;color:var(--muted);">
-                <span>${esc(s.country)} • ${s.bitrate}k</span>
-                <span style="color:var(--accent);font-weight:600;">${currentStation?.url_resolved === s.url_resolved && isRadioPlaying ? '▶ PLAYING' : '▶ LISTEN'}</span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
+      <!-- SUB-NAVIGATION BAR (RADIO VS REAL SONGS) -->
+      <div style="display:flex;gap:8px;border-bottom:1px solid var(--border);padding-bottom:10px;flex-wrap:wrap;">
+        <button class="filter-pill ${radioSubTab === 'stations' ? 'active' : ''}" onclick="radioSubTab='stations';renderRadioTab();">
+          📻 30,000+ Online Radio Stations
+        </button>
+        <button class="filter-pill ${radioSubTab === 'songs' ? 'active' : ''}" onclick="radioSubTab='songs';renderRadioTab();">
+          🎵 Real Songs & Full Tracks (by Song Name)
+        </button>
+        <button class="filter-pill" onclick="switchStudioSubtab('ytplayer');" style="border-color:rgba(239,68,68,0.4);color:var(--red);">
+          📺 YouTube Player Studio ↗
+        </button>
       </div>
 
-      <!-- SEARCH 30,000+ COMMUNITY STATIONS -->
-      <div class="story-config-card" style="margin-top:6px;">
-        <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px;">
-          <span>🌐</span> Explore Global Radio Stations (Radio Browser Community)
-        </div>
-        
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
-          <input 
-            type="text" 
-            id="radioSearchInput" 
-            placeholder="Search stations by name or genre (e.g. Jazz, BBC, Classical, Chill, France, Rock)…" 
-            style="flex:1;min-width:240px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none;"
-            onkeydown="if(event.key==='Enter') executeRadioSearch()"
-          />
-          <button class="btn btn-primary" onclick="executeRadioSearch()">
-            🔍 Search Stations
-          </button>
-        </div>
-
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;">
-          <span style="font-size:11px;color:var(--muted);font-weight:600;">POPULAR GENRES:</span>
-          ${['Lofi', 'Classical', 'Jazz', 'Ambient', 'Synthwave', 'Rock', 'Electronic', 'Pop', 'News', 'Reggae'].map(g => `
-            <button class="filter-pill" onclick="searchRadioByGenre('${g.toLowerCase()}')">${g}</button>
-          `).join('')}
+      ${radioSubTab === 'stations' ? `
+        <!-- CURATED POPULAR CHANNELS -->
+        <div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            <span>⭐</span> Curated Focus & Productivity Stations
+          </div>
+          <div class="radio-station-grid">
+            ${CURATED_RADIO_STATIONS.map(s => `
+              <div class="radio-station-card ${currentStation?.url_resolved === s.url_resolved ? 'playing' : ''}" onclick="playRadioStation('${esc(s.url_resolved)}', '${esc(s.name)}', '${esc(s.tags)}')">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                  <span style="font-size:24px;">${s.favicon || '📻'}</span>
+                  ${currentStation?.url_resolved === s.url_resolved && isRadioPlaying ? `<span class="radio-live-dot" title="Streaming Live"></span>` : ''}
+                </div>
+                <div style="font-weight:700;font-size:13px;color:var(--text);margin-top:4px;">${esc(s.name)}</div>
+                <div style="font-size:11px;color:var(--muted);line-height:1.4;">${esc(s.desc)}</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:10px;color:var(--muted);">
+                  <span>${esc(s.country)} • ${s.bitrate}k</span>
+                  <span style="color:var(--accent);font-weight:600;">${currentStation?.url_resolved === s.url_resolved && isRadioPlaying ? '▶ PLAYING' : '▶ LISTEN'}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
         </div>
 
-        <div id="radioSearchResults" style="margin-top:12px;">
-          <!-- dynamic search stations -->
+        <!-- SEARCH 30,000+ COMMUNITY STATIONS -->
+        <div class="story-config-card" style="margin-top:6px;">
+          <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px;">
+            <span>🌐</span> Explore Global Radio Stations (Radio Browser Community)
+          </div>
+          
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+            <input 
+              type="text" 
+              id="radioSearchInput" 
+              placeholder="Search stations by name or genre (e.g. Jazz, BBC, Classical, Chill, France, Rock)…" 
+              style="flex:1;min-width:240px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none;"
+              onkeydown="if(event.key==='Enter') executeRadioSearch()"
+            />
+            <button class="btn btn-primary" onclick="executeRadioSearch()">
+              🔍 Search Stations
+            </button>
+          </div>
+
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;">
+            <span style="font-size:11px;color:var(--muted);font-weight:600;">POPULAR GENRES:</span>
+            ${['Lofi', 'Classical', 'Jazz', 'Ambient', 'Synthwave', 'Rock', 'Electronic', 'Pop', 'News', 'Reggae'].map(g => `
+              <button class="filter-pill" onclick="searchRadioByGenre('${g.toLowerCase()}')">${g}</button>
+            `).join('')}
+          </div>
+
+          <div id="radioSearchResults" style="margin-top:12px;">
+            <!-- dynamic search stations -->
+          </div>
         </div>
-      </div>
+      ` : `
+        <!-- REAL SONGS & FULL TRACKS SECTION IN RADIO TAB -->
+        <div class="story-config-card" style="margin-top:6px;">
+          <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px;">
+            <span>🎵</span> Search Real Songs by Name & Play Full Tracks
+          </div>
+          <div style="font-size:12px;color:var(--muted);">
+            Lookup any official song or artist to hear high-fidelity 30s previews or stream the complete official song via YouTube.
+          </div>
+          
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+            <input 
+              type="text" 
+              id="radioSongSearchInput" 
+              value="${esc(songSearchQuery)}"
+              placeholder="Enter song title or artist (e.g. Bohemian Rhapsody, Blinding Lights, Hotel California, Viva La Vida)…" 
+              style="flex:1;min-width:240px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none;"
+              onkeydown="if(event.key==='Enter') executeRadioSongSearch()"
+            />
+            <button class="btn btn-primary" onclick="executeRadioSongSearch()">
+              🔍 Search Songs
+            </button>
+          </div>
+
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;">
+            <span style="font-size:11px;color:var(--muted);font-weight:600;">POPULAR TRACKS:</span>
+            ${['Bohemian Rhapsody', 'Blinding Lights', 'Shape of You', 'Billie Jean', 'Hotel California', 'Viva La Vida', 'As It Was', 'Starboy'].map(s => `
+              <button class="filter-pill" onclick="triggerRadioSongSearch('${esc(s)}')">${esc(s)}</button>
+            `).join('')}
+          </div>
+
+          <div id="radioSongSearchResults" style="margin-top:12px;">
+            ${renderSongSearchResultsGrid()}
+          </div>
+        </div>
+      `}
     </div>
   `;
 
   initRadioVisualizer();
+
+  if (radioSubTab === 'songs' && songSearchResults.length === 0 && !isSearchingSongs) {
+    executeRadioSongSearch('Bohemian Rhapsody');
+  }
+}
+
+function triggerRadioSongSearch(query) {
+  const input = document.getElementById('radioSongSearchInput');
+  if (input) input.value = query;
+  executeRadioSongSearch(query);
+}
+
+async function executeRadioSongSearch(customQuery) {
+  const input = document.getElementById('radioSongSearchInput');
+  const query = (customQuery || (input ? input.value : songSearchQuery) || '').trim();
+  if (!query) return toast('Please enter a song name or artist');
+
+  songSearchQuery = query;
+  isSearchingSongs = true;
+
+  const wrap = document.getElementById('radioSongSearchResults');
+  if (wrap) {
+    wrap.innerHTML = `<div style="text-align:center;padding:24px 0;color:var(--muted);">🎵 Searching songs catalog for "${esc(query)}"…</div>`;
+  }
+
+  try {
+    const res = await fetch(`${API}/music/songs?q=${encodeURIComponent(query)}&limit=30`);
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || `Search failed (${res.status})`);
+    }
+    songSearchResults = data.songs || [];
+  } catch (err) {
+    toast('Song search error: ' + err.message);
+    if (wrap) wrap.innerHTML = `<div style="text-align:center;padding:20px 0;color:var(--red);">Search error: ${esc(err.message)}</div>`;
+    isSearchingSongs = false;
+    return;
+  }
+
+  isSearchingSongs = false;
+  if (wrap) {
+    wrap.innerHTML = renderSongSearchResultsGrid();
+  }
 }
 
 function renderRadioNowPlayingInner() {

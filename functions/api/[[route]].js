@@ -1029,6 +1029,502 @@ export async function onRequest(context) {
       }), { headers });
     }
 
+    // 5f. YouTube Data API v3 Search & Custom Player API
+    if (path === '/youtube/search' && method === 'GET') {
+      const q = (url.searchParams.get('q') || url.searchParams.get('query') || '').trim();
+      const type = (url.searchParams.get('type') || 'video').toLowerCase(); // 'video' | 'playlist' | 'channel'
+      const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') || url.searchParams.get('maxResults') || '20', 10)));
+      const musicOnly = url.searchParams.get('musicOnly') === 'true' || url.searchParams.get('music') === 'true';
+      const order = url.searchParams.get('order') || 'relevance'; // 'relevance' | 'viewCount' | 'date' | 'rating'
+
+      const ytApiKey = env?.YOUTUBE_API_KEY || (typeof process !== 'undefined' ? process.env?.YOUTUBE_API_KEY : '');
+      if (!ytApiKey) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'YOUTUBE_API_KEY is not configured in environment'
+        }), { headers, status: 400 });
+      }
+
+      if (!q) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Search query parameter "q" is required'
+        }), { headers, status: 400 });
+      }
+
+      try {
+        let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=${limit}&q=${encodeURIComponent(q)}&type=${encodeURIComponent(type)}&order=${encodeURIComponent(order)}&key=${ytApiKey}`;
+        if (musicOnly && type === 'video') {
+          searchUrl += '&videoCategoryId=10';
+        }
+
+        const searchRes = await fetch(searchUrl);
+        if (!searchRes.ok) {
+          const errData = await searchRes.json().catch(() => ({}));
+          return new Response(JSON.stringify({
+            success: false,
+            error: errData.error?.message || `YouTube API error (${searchRes.status})`
+          }), { headers, status: searchRes.status });
+        }
+
+        const searchData = await searchRes.json();
+        const rawItems = searchData.items || [];
+        const videoIds = rawItems
+          .map(item => item.id?.videoId)
+          .filter(Boolean);
+
+        // Fetch video details (duration, viewCount, etc.) if video items exist
+        let detailsMap = {};
+        if (videoIds.length > 0) {
+          try {
+            const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&id=${videoIds.join(',')}&key=${ytApiKey}`;
+            const detailsRes = await fetch(detailsUrl);
+            if (detailsRes.ok) {
+              const detailsData = await detailsRes.json();
+              for (const v of detailsData.items || []) {
+                detailsMap[v.id] = v;
+              }
+            }
+          } catch (_) {}
+        }
+
+        function parseDuration(iso) {
+          if (!iso) return '';
+          const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+          if (!match) return '';
+          const h = parseInt(match[1] || 0, 10);
+          const m = parseInt(match[2] || 0, 10);
+          const s = parseInt(match[3] || 0, 10);
+          const ss = s < 10 ? '0' + s : s;
+          if (h > 0) {
+            const mm = m < 10 ? '0' + m : m;
+            return `${h}:${mm}:${ss}`;
+          }
+          return `${m}:${ss}`;
+        }
+
+        function parseViews(v) {
+          const n = parseInt(v || 0, 10);
+          if (isNaN(n) || n === 0) return '';
+          if (n >= 1000000000) return (n / 1000000000).toFixed(1) + 'B views';
+          if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M views';
+          if (n >= 1000) return (n / 1000).toFixed(1) + 'K views';
+          return n.toLocaleString() + ' views';
+        }
+
+        const results = rawItems.map(item => {
+          const vId = item.id?.videoId || item.id?.playlistId || item.id?.channelId || '';
+          const detail = detailsMap[vId];
+          const duration = parseDuration(detail?.contentDetails?.duration);
+          const views = parseViews(detail?.statistics?.viewCount);
+          const highThumb = detail?.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.medium?.url;
+
+          return {
+            id: vId,
+            videoId: item.id?.videoId || null,
+            playlistId: item.id?.playlistId || null,
+            channelId: item.snippet?.channelId || null,
+            title: item.snippet?.title || '',
+            description: item.snippet?.description || '',
+            channelTitle: item.snippet?.channelTitle || '',
+            publishedAt: item.snippet?.publishedAt || '',
+            thumbnail: highThumb || `https://img.youtube.com/vi/${vId}/hqdefault.jpg`,
+            duration: duration || (item.snippet?.liveBroadcastContent === 'live' ? 'LIVE' : ''),
+            durationRaw: detail?.contentDetails?.duration || '',
+            views: views || '',
+            viewCount: detail?.statistics?.viewCount || null,
+            likes: detail?.statistics?.likeCount || null,
+            isLive: item.snippet?.liveBroadcastContent === 'live',
+            type: item.id?.kind?.replace('youtube#', '') || type
+          };
+        });
+
+        return new Response(JSON.stringify({
+          success: true,
+          query: q,
+          totalResults: searchData.pageInfo?.totalResults || results.length,
+          count: results.length,
+          items: results
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'YouTube search failed: ' + err.message
+        }), { headers, status: 500 });
+      }
+    }
+
+    // 5f-2. YouTube Trending & Top Charts
+    if (path === '/youtube/trending' && method === 'GET') {
+      const ytApiKey = env?.YOUTUBE_API_KEY || (typeof process !== 'undefined' ? process.env?.YOUTUBE_API_KEY : '');
+      if (!ytApiKey) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'YOUTUBE_API_KEY is not configured in environment'
+        }), { headers, status: 400 });
+      }
+
+      const category = (url.searchParams.get('category') || 'all').toLowerCase();
+      const region = (url.searchParams.get('region') || 'US').toUpperCase();
+      const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') || '24', 10)));
+
+      const categoryMap = {
+        music: '10',
+        gaming: '20',
+        news: '25',
+        tech: '28',
+        entertainment: '24',
+        sports: '17'
+      };
+
+      try {
+        let apiUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&chart=mostPopular&regionCode=${encodeURIComponent(region)}&maxResults=${limit}&key=${ytApiKey}`;
+        if (category && categoryMap[category]) {
+          apiUrl += `&videoCategoryId=${categoryMap[category]}`;
+        }
+
+        const res = await fetch(apiUrl);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          return new Response(JSON.stringify({
+            success: false,
+            error: errData.error?.message || `YouTube API error (${res.status})`
+          }), { headers, status: res.status });
+        }
+
+        const data = await res.json();
+        const rawItems = data.items || [];
+
+        function parseDuration(iso) {
+          if (!iso) return '';
+          const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+          if (!match) return '';
+          const h = parseInt(match[1] || 0, 10);
+          const m = parseInt(match[2] || 0, 10);
+          const s = parseInt(match[3] || 0, 10);
+          const ss = s < 10 ? '0' + s : s;
+          if (h > 0) {
+            const mm = m < 10 ? '0' + m : m;
+            return `${h}:${mm}:${ss}`;
+          }
+          return `${m}:${ss}`;
+        }
+
+        function parseViews(v) {
+          const n = parseInt(v || 0, 10);
+          if (isNaN(n) || n === 0) return '';
+          if (n >= 1000000000) return (n / 1000000000).toFixed(1) + 'B views';
+          if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M views';
+          if (n >= 1000) return (n / 1000).toFixed(1) + 'K views';
+          return n.toLocaleString() + ' views';
+        }
+
+        const items = rawItems.map(item => {
+          const vId = item.id;
+          const duration = parseDuration(item.contentDetails?.duration);
+          const views = parseViews(item.statistics?.viewCount);
+          const highThumb = item.snippet?.thumbnails?.maxres?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.medium?.url;
+
+          return {
+            id: vId,
+            videoId: vId,
+            title: item.snippet?.title || '',
+            description: item.snippet?.description || '',
+            channelTitle: item.snippet?.channelTitle || '',
+            channelId: item.snippet?.channelId || '',
+            publishedAt: item.snippet?.publishedAt || '',
+            thumbnail: highThumb || `https://img.youtube.com/vi/${vId}/hqdefault.jpg`,
+            duration,
+            views,
+            viewCount: item.statistics?.viewCount || null,
+            likes: item.statistics?.likeCount || null,
+            commentCount: item.statistics?.commentCount || null,
+            category
+          };
+        });
+
+        return new Response(JSON.stringify({
+          success: true,
+          category,
+          region,
+          count: items.length,
+          items
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Trending fetch failed: ' + err.message
+        }), { headers, status: 500 });
+      }
+    }
+
+    // 5f-3. YouTube Video Comments & Discussion Explorer
+    if (path === '/youtube/comments' && method === 'GET') {
+      const ytApiKey = env?.YOUTUBE_API_KEY || (typeof process !== 'undefined' ? process.env?.YOUTUBE_API_KEY : '');
+      if (!ytApiKey) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'YOUTUBE_API_KEY is not configured in environment'
+        }), { headers, status: 400 });
+      }
+
+      const videoId = (url.searchParams.get('videoId') || url.searchParams.get('id') || '').trim();
+      const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') || '20', 10)));
+      const order = url.searchParams.get('order') || 'relevance'; // 'relevance' | 'time'
+
+      if (!videoId) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'videoId parameter is required'
+        }), { headers, status: 400 });
+      }
+
+      try {
+        const apiUrl = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${encodeURIComponent(videoId)}&maxResults=${limit}&order=${encodeURIComponent(order)}&key=${ytApiKey}`;
+        const res = await fetch(apiUrl);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          return new Response(JSON.stringify({
+            success: false,
+            error: errData.error?.message || `YouTube API error (${res.status})`
+          }), { headers, status: res.status });
+        }
+
+        const data = await res.json();
+        const comments = (data.items || []).map(item => {
+          const top = item.snippet?.topLevelComment?.snippet;
+          return {
+            id: item.id,
+            authorName: top?.authorDisplayName || 'Anonymous',
+            authorProfileImageUrl: top?.authorProfileImageUrl || '',
+            authorChannelUrl: top?.authorChannelUrl || '',
+            textDisplay: top?.textDisplay || '',
+            textOriginal: top?.textOriginal || '',
+            likeCount: top?.likeCount || 0,
+            publishedAt: top?.publishedAt || '',
+            totalReplyCount: item.snippet?.totalReplyCount || 0
+          };
+        });
+
+        return new Response(JSON.stringify({
+          success: true,
+          videoId,
+          count: comments.length,
+          comments
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Comments fetch failed: ' + err.message
+        }), { headers, status: 500 });
+      }
+    }
+
+    // 5f-4. YouTube Channel Profile & Recent Uploads
+    if (path === '/youtube/channel' && method === 'GET') {
+      const ytApiKey = env?.YOUTUBE_API_KEY || (typeof process !== 'undefined' ? process.env?.YOUTUBE_API_KEY : '');
+      if (!ytApiKey) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'YOUTUBE_API_KEY is not configured in environment'
+        }), { headers, status: 400 });
+      }
+
+      const channelId = (url.searchParams.get('channelId') || url.searchParams.get('id') || '').trim();
+      const handle = (url.searchParams.get('handle') || '').trim().replace(/^@/, '');
+
+      if (!channelId && !handle) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'channelId or handle parameter is required'
+        }), { headers, status: 400 });
+      }
+
+      try {
+        let channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,brandingSettings&key=${ytApiKey}`;
+        if (channelId) {
+          channelUrl += `&id=${encodeURIComponent(channelId)}`;
+        } else {
+          channelUrl += `&forHandle=${encodeURIComponent(handle)}`;
+        }
+
+        const res = await fetch(channelUrl);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          return new Response(JSON.stringify({
+            success: false,
+            error: errData.error?.message || `YouTube API error (${res.status})`
+          }), { headers, status: res.status });
+        }
+
+        const data = await res.json();
+        const channelItem = data.items?.[0];
+        if (!channelItem) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Channel not found'
+          }), { headers, status: 404 });
+        }
+
+        const chId = channelItem.id;
+
+        // Fetch recent 6 uploads from this channel
+        let recentVideos = [];
+        try {
+          const uploadsRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(chId)}&maxResults=6&order=date&type=video&key=${ytApiKey}`);
+          if (uploadsRes.ok) {
+            const uploadsData = await uploadsRes.json();
+            recentVideos = (uploadsData.items || []).map(v => ({
+              videoId: v.id?.videoId,
+              title: v.snippet?.title,
+              publishedAt: v.snippet?.publishedAt,
+              thumbnail: v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.medium?.url
+            }));
+          }
+        } catch (_) {}
+
+        function parseNum(n) {
+          const val = parseInt(n || 0, 10);
+          if (isNaN(val) || val === 0) return '0';
+          if (val >= 1000000) return (val / 1000000).toFixed(1) + 'M';
+          if (val >= 1000) return (val / 1000).toFixed(1) + 'K';
+          return val.toLocaleString();
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          channel: {
+            id: chId,
+            title: channelItem.snippet?.title || '',
+            description: channelItem.snippet?.description || '',
+            customUrl: channelItem.snippet?.customUrl || '',
+            publishedAt: channelItem.snippet?.publishedAt || '',
+            avatar: channelItem.snippet?.thumbnails?.high?.url || channelItem.snippet?.thumbnails?.medium?.url,
+            bannerUrl: channelItem.brandingSettings?.image?.bannerExternalUrl || '',
+            subscribers: parseNum(channelItem.statistics?.subscriberCount),
+            subscriberCount: channelItem.statistics?.subscriberCount,
+            videoCount: parseNum(channelItem.statistics?.videoCount),
+            viewCount: parseNum(channelItem.statistics?.viewCount),
+            recentVideos
+          }
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Channel fetch failed: ' + err.message
+        }), { headers, status: 500 });
+      }
+    }
+
+    // 5g. Real Songs & Music Track API (iTunes Music Catalog + Real Audio Previews)
+    if (path === '/music/songs' && method === 'GET') {
+      const q = (url.searchParams.get('q') || url.searchParams.get('song') || url.searchParams.get('term') || '').trim();
+      const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') || '25', 10)));
+
+      if (!q) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Song query parameter "q" is required'
+        }), { headers, status: 400 });
+      }
+
+      try {
+        const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=${limit}`;
+        const resp = await fetch(itunesUrl, { headers: { 'User-Agent': 'VaultMusicApp/1.0' } });
+        if (!resp.ok) {
+          throw new Error(`iTunes API HTTP ${resp.status}`);
+        }
+        const itunesData = await resp.json();
+        const rawTracks = itunesData.results || [];
+
+        const songs = rawTracks.map(t => {
+          const durMs = t.trackTimeMillis || 0;
+          const mins = Math.floor(durMs / 60000);
+          const secs = Math.floor((durMs % 60000) / 1000).toString().padStart(2, '0');
+          const artwork600 = (t.artworkUrl100 || '').replace('100x100bb', '600x600bb');
+
+          return {
+            trackId: t.trackId,
+            trackName: t.trackName || 'Unknown Title',
+            artistName: t.artistName || 'Unknown Artist',
+            collectionName: t.collectionName || 'Single',
+            previewUrl: t.previewUrl || '',
+            artworkUrl: artwork600 || t.artworkUrl100,
+            durationMs: durMs,
+            durationFormatted: durMs ? `${mins}:${secs}` : '',
+            releaseYear: (t.releaseDate || '').slice(0, 4),
+            genre: t.primaryGenreName || 'Music',
+            itunesUrl: t.trackViewUrl || '',
+            youtubeQuery: `${t.trackName} ${t.artistName} full song official audio`
+          };
+        });
+
+        return new Response(JSON.stringify({
+          success: true,
+          query: q,
+          count: songs.length,
+          songs
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Music search failed: ' + err.message
+        }), { headers, status: 500 });
+      }
+    }
+
+    // 5h. Resolve Real Song to Official Full YouTube Video ID
+    if (path === '/music/song-to-yt' && method === 'GET') {
+      const song = (url.searchParams.get('song') || '').trim();
+      const artist = (url.searchParams.get('artist') || '').trim();
+      const query = (song && artist ? `${song} ${artist} full song official audio` : (url.searchParams.get('q') || song || artist)).trim();
+
+      const ytApiKey = env?.YOUTUBE_API_KEY || (typeof process !== 'undefined' ? process.env?.YOUTUBE_API_KEY : '');
+      if (!ytApiKey) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'YOUTUBE_API_KEY is not configured in environment'
+        }), { headers, status: 400 });
+      }
+
+      if (!query) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Query parameter is required'
+        }), { headers, status: 400 });
+      }
+
+      try {
+        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=1&q=${encodeURIComponent(query)}&type=video&videoCategoryId=10&key=${ytApiKey}`;
+        const resp = await fetch(searchUrl);
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.error?.message || `YouTube API HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+        const topItem = data.items?.[0];
+        if (!topItem || !topItem.id?.videoId) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'No full YouTube song found for this track'
+          }), { headers, status: 404 });
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          videoId: topItem.id.videoId,
+          title: topItem.snippet?.title,
+          channelTitle: topItem.snippet?.channelTitle,
+          thumbnail: topItem.snippet?.thumbnails?.high?.url || `https://img.youtube.com/vi/${topItem.id.videoId}/hqdefault.jpg`
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: err.message
+        }), { headers, status: 500 });
+      }
+    }
+
     // 6. Attachments & Cloudflare R2 Object Storage (10 GB Free Tier, $0 Egress)
     if (path === '/attachments' && method === 'POST') {
       const body = await request.json().catch(() => ({}));

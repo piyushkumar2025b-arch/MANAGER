@@ -1,10 +1,28 @@
 import express from 'express';
 import path from 'node:path';
+import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { GoogleGenAI } from '@google/genai';
 import QRCode from 'qrcode';
 import { onRequest } from './functions/api/[[route]].js';
+
+// Load environment variables from .env if present
+try { process.loadEnvFile?.(); } catch (_) {}
+if (!process.env.YOUTUBE_API_KEY) {
+  try {
+    const envPath = path.join(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const lines = fs.readFileSync(envPath, 'utf8').split('\n');
+      for (const line of lines) {
+        const match = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/);
+        if (match && !process.env[match[1]]) {
+          process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+        }
+      }
+    }
+  } catch (_) {}
+}
 
 const app = express();
 const PORT = 3000;
@@ -1185,6 +1203,7 @@ app.all(['/api', '/api/*'], async (req, res) => {
         GEMINI_API_KEY: process.env.GEMINI_API_KEY,
         GROQ_API_KEY: process.env.GROQ_API_KEY,
         OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+        YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY,
       },
     });
 

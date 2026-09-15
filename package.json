@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Secure vault for managing passwords, tasks, and attachments",
   "main": "server.js",
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "dev": "node server.js",
     "build": "echo 'Build complete'",
