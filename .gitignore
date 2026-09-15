@@ -1,0 +1,10 @@
+node_modules/
+.env
+.dev.env.json
+.wrangler/
+vault.db
+bun.lock
+bun.lockb
+*.log
+dist/
+.DS_Store
