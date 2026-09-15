@@ -1334,6 +1334,59 @@
   .yt-comment-text { font-size: 13px; color: var(--text); margin-top: 4px; line-height: 1.45; word-break: break-word; }
   .yt-comment-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 
+  /* Google Sign-In Material Button (Standard Official Styling) */
+  .gsi-material-button {
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    -webkit-appearance: none;
+    background-color: #ffffff;
+    background-image: none;
+    border: 1px solid #747775;
+    border-radius: 6px;
+    box-sizing: border-box;
+    color: #1f1f1f;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13.5px;
+    height: 40px;
+    letter-spacing: 0.2px;
+    outline: none;
+    overflow: hidden;
+    padding: 0 16px;
+    position: relative;
+    text-align: center;
+    transition: background-color .218s, border-color .218s, box-shadow .218s;
+    vertical-align: middle;
+    white-space: nowrap;
+    width: auto;
+    display: inline-flex;
+    align-items: center;
+  }
+  .gsi-material-button .gsi-material-button-icon {
+    height: 18px;
+    min-width: 18px;
+    width: 18px;
+    margin-right: 10px;
+    display: inline-block;
+  }
+  .gsi-material-button .gsi-material-button-content-wrapper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+  .gsi-material-button .gsi-material-button-contents {
+    font-weight: 600;
+    color: #1f1f1f;
+    font-size: 13.5px;
+  }
+  .gsi-material-button:hover {
+    box-shadow: 0 1px 3px rgba(60,64,67,0.3);
+    background-color: #f8f9fa;
+    border-color: #dadce0;
+  }
+
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
@@ -1408,6 +1461,9 @@
       </button>
       <button class="tab" onclick="switchTab('assistant')" id="tab-assistant">
         <span>🤖</span> AI Copilot
+      </button>
+      <button class="tab" onclick="switchTab('workspace')" id="tab-workspace">
+        <span>⚡</span> Gmail & Calendar
       </button>
       <button class="tab" onclick="switchTab('dictionary')" id="tab-dictionary">
         <span>📖</span> Dictionary
@@ -1770,6 +1826,10 @@ async function loadTab() {
     await renderSecurityAudit();
   } else if (currentTab === 'assistant') {
     renderAssistant();
+  } else if (currentTab === 'workspace') {
+    if (typeof window.renderWorkspaceTab === 'function') {
+      window.renderWorkspaceTab();
+    }
   } else if (currentTab === 'cloudflare') {
     await renderCloudflareHub();
   }
@@ -9859,5 +9919,6 @@ async function runHubWorkersAiTest() {
   }
 })();
 </script>
+<script src="/workspace-automator.js"></script>
 </body>
 </html>

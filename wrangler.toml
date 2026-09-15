@@ -12,15 +12,18 @@ binding = "DB"
 database_name = "vaultapp-db"
 database_id = "db4f140a-0711-46a0-87f2-c4bec6dc2af8"
 
+# Cloudflare Workers AI (10,000 Free Neurons/day)
 [ai]
 binding = "AI"
 
-# Cloudflare R2 Object Storage (10 GB/month Free, $0 Egress)
-[[r2_buckets]]
-binding = "ATTACHMENTS_BUCKET"
-bucket_name = "vault-attachments"
+# Cloudflare R2 Object Storage (Optional: 10 GB/month Free, $0 Egress)
+# If you created an R2 bucket in Cloudflare (e.g. npx wrangler r2 bucket create vault-attachments), uncomment below:
+# [[r2_buckets]]
+# binding = "ATTACHMENTS_BUCKET"
+# bucket_name = "vault-attachments"
 
-# Cloudflare KV Key-Value Storage (100,000 reads/day Free for Edge Rate Limiting)
-[[kv_namespaces]]
-binding = "VAULT_KV"
-id = "vault_kv_namespace"
+# Cloudflare KV Key-Value Storage (Optional: 100,000 reads/day Free for Edge Rate Limiting)
+# If you created a KV namespace (e.g. npx wrangler kv namespace create VAULT_KV), uncomment below with your 32-char ID:
+# [[kv_namespaces]]
+# binding = "VAULT_KV"
+# id = "<your_32_character_kv_namespace_id>"

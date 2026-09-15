@@ -259,6 +259,168 @@ async function callOpenRouter(apiKey, model, systemPrompt, userMessage) {
   return data.choices?.[0]?.message?.content || '';
 }
 
+function fallbackWorkspacePlanner(instruction, nowStr) {
+  const text = (instruction || '').trim();
+  const lower = text.toLowerCase();
+  const now = nowStr ? new Date(nowStr) : new Date();
+
+  // 1. Email Send Check
+  if (lower.includes('send email') || lower.includes('email to') || lower.includes('mail to') || lower.includes('compose email')) {
+    const emailMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const to = emailMatch ? emailMatch[1] : '';
+    
+    let subject = 'Message from Vault Automator';
+    const subjMatch = text.match(/subject[:\s]+["']?([^"',\n]+)["']?/i) || text.match(/about[:\s]+["']?([^"',\n]+)["']?/i);
+    if (subjMatch) subject = subjMatch[1].trim();
+
+    let body = 'Hello,\n\nThis is an automated message sent via Vault Google Automator.';
+    const bodyMatch = text.match(/body[:\s]+["']?([^"'\n]+)["']?/i) || text.match(/saying[:\s]+["']?([^"'\n]+)["']?/i);
+    if (bodyMatch) body = bodyMatch[1].trim();
+
+    return {
+      summary: `Send an email to ${to || 'recipient'} with subject "${subject}"`,
+      requiresConfirmation: true,
+      confirmationPrompt: `Are you sure you want to send this email to ${to || 'the recipient'}?`,
+      actions: [
+        {
+          type: 'gmail_send',
+          params: { to, subject, body, reason: 'Requested via Automator command' }
+        }
+      ]
+    };
+  }
+
+  // 2. Calendar Event Create Check
+  if (lower.includes('schedule') || lower.includes('create event') || lower.includes('add meeting') || lower.includes('calendar event') || lower.includes('set meeting') || lower.includes('book meeting')) {
+    let title = 'New Meeting';
+    const titleMatch = text.match(/(?:meeting|event|schedule|called|for)\s+["']?([^"'\d,]+?)["']?(?:\s+(?:on|at|tomorrow|today|with|for|\d))/i);
+    if (titleMatch && titleMatch[1].trim().length > 2) {
+      title = titleMatch[1].trim();
+    } else {
+      title = text.replace(/(?:schedule|create|add|set|book)\s+(?:a|an)?\s*/i, '').slice(0, 40);
+    }
+
+    let startDate = new Date(now);
+    if (lower.includes('tomorrow')) {
+      startDate.setDate(startDate.getDate() + 1);
+    } else if (lower.includes('next monday')) {
+      const day = startDate.getDay();
+      const diff = (1 + 7 - day) % 7 || 7;
+      startDate.setDate(startDate.getDate() + diff);
+    } else if (lower.includes('friday')) {
+      const day = startDate.getDay();
+      const diff = (5 + 7 - day) % 7 || 7;
+      startDate.setDate(startDate.getDate() + diff);
+    }
+
+    const timeMatch = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1], 10);
+      const mins = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+      const meridiem = (timeMatch[3] || '').toLowerCase();
+      if (meridiem === 'pm' && hours < 12) hours += 12;
+      if (meridiem === 'am' && hours === 12) hours = 0;
+      startDate.setHours(hours, mins, 0, 0);
+    } else {
+      startDate.setHours(startDate.getHours() + 1, 0, 0, 0);
+    }
+
+    const endDate = new Date(startDate.getTime() + 45 * 60000);
+    const emailMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const attendees = emailMatch ? [emailMatch[1]] : [];
+
+    return {
+      summary: `Create calendar event "${title}" on ${startDate.toLocaleString()}`,
+      requiresConfirmation: true,
+      confirmationPrompt: `Create calendar event "${title}" on ${startDate.toLocaleString()}?`,
+      actions: [
+        {
+          type: 'calendar_create',
+          params: {
+            summary: title,
+            description: `Automated event created by Vault Google Automator for: ${text}`,
+            startDateTime: startDate.toISOString(),
+            endDateTime: endDate.toISOString(),
+            attendees: attendees,
+            createMeet: true
+          }
+        }
+      ]
+    };
+  }
+
+  // 3. Gmail Search / Unread Check
+  if (lower.includes('unread') || lower.includes('inbox') || lower.includes('recent email') || lower.includes('search email') || lower.includes('find email')) {
+    let query = 'is:unread';
+    if (!lower.includes('unread')) {
+      query = text.replace(/(?:search|find|list|show)\s+(?:my)?\s*emails?\s*(?:about|for|from)?/i, '').trim() || 'in:inbox';
+    }
+    return {
+      summary: `Search Gmail messages matching "${query}"`,
+      requiresConfirmation: false,
+      actions: [
+        {
+          type: 'gmail_list',
+          params: { query, maxResults: 10 }
+        }
+      ]
+    };
+  }
+
+  // 4. Calendar List / Today's Schedule Check
+  if (lower.includes('schedule') || lower.includes('calendar') || lower.includes('events') || lower.includes('agenda') || lower.includes('meetings')) {
+    const timeMin = new Date(now);
+    timeMin.setHours(0, 0, 0, 0);
+    const timeMax = new Date(now);
+    timeMax.setDate(timeMax.getDate() + 7);
+    timeMax.setHours(23, 59, 59, 999);
+
+    return {
+      summary: 'List upcoming Google Calendar events for the next 7 days',
+      requiresConfirmation: false,
+      actions: [
+        {
+          type: 'calendar_list',
+          params: { timeMin: timeMin.toISOString(), timeMax: timeMax.toISOString() }
+        }
+      ]
+    };
+  }
+
+  // 5. Task Create in Vault
+  if (lower.includes('todo') || lower.includes('task') || lower.includes('remind me to')) {
+    const title = text.replace(/(?:create|add|remind me to)\s+(?:a|an)?\s*(?:task|todo)?/i, '').trim();
+    return {
+      summary: `Create Vault task: "${title}"`,
+      requiresConfirmation: false,
+      actions: [
+        {
+          type: 'task_create',
+          params: { title, priority: 'medium', due_date: new Date(Date.now() + 86400000).toISOString().split('T')[0] }
+        }
+      ]
+    };
+  }
+
+  return {
+    summary: `Guidance for: "${text}"`,
+    requiresConfirmation: false,
+    actions: [
+      {
+        type: 'explain',
+        params: {
+          text: `I'm your Google Workspace Automator. You can instruct me to:
+- Schedule calendar events: "Schedule team sync tomorrow at 3pm with alex@example.com"
+- Check your agenda: "Show my schedule for today"
+- Check unread inbox: "List unread emails from this week"
+- Send an email: "Send email to team@company.com subject Status body All tasks completed"
+- Convert emails into Vault tasks or calendar events with 1 click!`
+        }
+      }
+    ]
+  };
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -1958,6 +2120,154 @@ Provide concise, helpful security guidance. NEVER reveal secret credentials.`;
       // 5. Local Copilot fallback
       const localReply = localSmartCopilot(message, passwords, todos);
       return new Response(JSON.stringify({ reply: localReply, provider: 'local', model: 'vault-copilot-local' }), { headers });
+    }
+
+    // 8.5 Google Workspace & Gmail/Calendar Automator
+    if (path === '/workspace/config' && method === 'GET') {
+      return new Response(JSON.stringify({
+        projectId: 'gen-lang-client-0413303583',
+        appId: '1:489502497748:web:51a535c765c74c1a095441',
+        apiKey: 'AIzaSyDCPImemF_nrlX-ktkYWcyxk1ITU7Ljip0',
+        authDomain: 'gen-lang-client-0413303583.firebaseapp.com',
+        storageBucket: 'gen-lang-client-0413303583.firebasestorage.app',
+        messagingSenderId: '489502497748',
+        oAuthClientId: '489502497748-ukrq819tp9rknbabu586rj0lfnamcesl.apps.googleusercontent.com',
+        scopes: [
+          'https://www.googleapis.com/auth/gmail.readonly',
+          'https://www.googleapis.com/auth/gmail.send',
+          'https://www.googleapis.com/auth/gmail.modify',
+          'https://www.googleapis.com/auth/calendar.events',
+          'https://www.googleapis.com/auth/calendar.readonly'
+        ]
+      }), { headers });
+    }
+
+    if (path === '/workspace/automator/plan' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { instruction, now, timezone } = body;
+      if (!instruction) {
+        return new Response(JSON.stringify({ error: 'Instruction is required' }), { headers, status: 400 });
+      }
+
+      const systemPrompt = `You are an expert Google Workspace AI Automator assistant inside Vault.
+Current Date & Time: ${now || new Date().toISOString()} (${timezone || 'UTC'})
+Your task is to parse the user's natural language command into an executable action plan using Gmail, Google Calendar, or Vault Tasks.
+
+Allowed Action Types:
+1. "gmail_list": Search or list emails. Params: { "query": "is:unread" or search term, "maxResults": 10 }
+2. "gmail_send": Compose and send an email. Params: { "to": "recipient@email.com", "subject": "Subject", "body": "HTML or text body", "reason": "why this is being sent" } (requiresConfirmation: true)
+3. "gmail_trash": Move email to trash. Params: { "messageId": "...", "subject": "..." } (requiresConfirmation: true)
+4. "gmail_mark_read": Mark email as read. Params: { "messageId": "..." } (requiresConfirmation: false)
+5. "calendar_list": List upcoming events. Params: { "timeMin": "ISO string", "timeMax": "ISO string", "query": "" }
+6. "calendar_create": Schedule/create an event. Params: { "summary": "Title", "description": "...", "startDateTime": "ISO string", "endDateTime": "ISO string", "location": "...", "attendees": ["email"], "createMeet": true } (requiresConfirmation: true)
+7. "calendar_delete": Delete a calendar event. Params: { "eventId": "...", "summary": "..." } (requiresConfirmation: true)
+8. "task_create": Create a task in Vault Todo list. Params: { "title": "...", "description": "...", "due_date": "YYYY-MM-DD", "priority": "high/medium/low" }
+9. "explain": Respond with guidance or answer if no direct action is needed. Params: { "text": "..." }
+
+Return ONLY a JSON object (no markdown quotes, no code fences):
+{
+  "summary": "Brief 1-line description of what this automator plan will do",
+  "requiresConfirmation": true,
+  "confirmationPrompt": "Clear message asking user to confirm (e.g. Send email to X, create event Y on Z date)",
+  "actions": [
+    {
+      "type": "calendar_create",
+      "params": { ... }
+    }
+  ]
+}`;
+
+      const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+      const groqKey = env.GROQ_API_KEY || (await getSetting(env.DB, 'groq_api_key'));
+      const openRouterKey = env.OPENROUTER_API_KEY || (await getSetting(env.DB, 'openrouter_api_key'));
+
+      let aiResponseText = '';
+      if (geminiKey) {
+        try {
+          const res = await callGeminiRest(geminiKey, 'gemini-3.8-flash', systemPrompt, instruction);
+          aiResponseText = res.text;
+        } catch (_) {}
+      }
+      if (!aiResponseText && groqKey) {
+        try {
+          aiResponseText = await callGroq(groqKey, 'llama-3.3-70b-versatile', systemPrompt, instruction);
+        } catch (_) {}
+      }
+      if (!aiResponseText && openRouterKey) {
+        try {
+          aiResponseText = await callOpenRouter(openRouterKey, 'meta-llama/llama-3.3-70b-instruct:free', systemPrompt, instruction);
+        } catch (_) {}
+      }
+      if (!aiResponseText && env.AI) {
+        try {
+          const cfRes = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+            messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: instruction }]
+          });
+          aiResponseText = cfRes.response;
+        } catch (_) {}
+      }
+
+      let plan = null;
+      if (aiResponseText) {
+        try {
+          const cleaned = aiResponseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+          plan = JSON.parse(cleaned);
+        } catch (_) {
+          const match = aiResponseText.match(/\{[\s\S]*\}/);
+          if (match) {
+            try { plan = JSON.parse(match[0]); } catch (_) {}
+          }
+        }
+      }
+
+      if (!plan || !plan.actions || plan.actions.length === 0) {
+        plan = fallbackWorkspacePlanner(instruction, now);
+      }
+
+      return new Response(JSON.stringify(plan), { headers });
+    }
+
+    if (path === '/workspace/automator/daily-briefing' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const { events = [], emails = [], tasks = [], userName = 'User' } = body;
+      
+      const prompt = `Create an elegant, executive Daily Morning Briefing for ${userName}.
+Events today (${events.length}): ${events.map(e => `${e.summary} at ${e.start?.dateTime || e.start?.date || 'N/A'}`).join('; ') || 'No scheduled meetings'}
+Important/Unread Emails (${emails.length}): ${emails.map(m => `From ${m.from}: "${m.subject}"`).join('; ') || 'Inbox zero!'}
+Vault Active Tasks (${tasks.length}): ${tasks.map(t => `${t.title} (Priority: ${t.priority})`).join('; ') || 'No pending tasks'}
+
+Format as a clean, structured briefing with clear sections:
+1. Schedule & Meetings Highlights
+2. Action Items & Inbox Alerts
+3. Recommended Focus Today`;
+
+      const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+      let briefing = '';
+      if (geminiKey) {
+        try {
+          const res = await callGeminiRest(geminiKey, 'gemini-3.8-flash', 'You are an executive Chief of Staff briefing assistant.', prompt);
+          briefing = res.text;
+        } catch (_) {}
+      }
+      if (!briefing && env.AI) {
+        try {
+          const cfRes = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+            messages: [{ role: 'system', content: 'You are an executive Chief of Staff assistant.' }, { role: 'user', content: prompt }]
+          });
+          briefing = cfRes.response;
+        } catch (_) {}
+      }
+      if (!briefing) {
+        briefing = `### ☀️ Daily Briefing for ${userName}\n\n` +
+          `**📅 Today's Schedule (${events.length} events):**\n` +
+          (events.length ? events.map(e => `- **${e.summary || 'Meeting'}**: ${e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'All day'}`).join('\n') : '- No meetings scheduled today.') + '\n\n' +
+          `**✉️ Inbox Status (${emails.length} unread):**\n` +
+          (emails.length ? emails.slice(0, 5).map(m => `- ${m.from ? m.from.split('<')[0] : 'Sender'}: "${m.subject || 'No subject'}"`).join('\n') : '- Inbox clean!') + '\n\n' +
+          `**✅ Vault Tasks (${tasks.length} active):**\n` +
+          (tasks.length ? tasks.slice(0, 5).map(t => `- [ ] ${t.title} (${t.priority || 'medium'})`).join('\n') : '- All tasks up to date!');
+      }
+
+      return new Response(JSON.stringify({ briefing }), { headers });
     }
 
     // 9. Backups

@@ -15,5 +15,8 @@
     "@google/genai": "^2.22.0",
     "express": "^4.21.2",
     "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4.131.2"
   }
 }

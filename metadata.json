@@ -1,6 +1,6 @@
 {
   "name": "Vault",
-  "description": "Secure vault for credentials, tasks, ZIP-compressed Cloudflare Drive storage, QR file sharing, voice conversation, English dictionary, creative story writer, music/radio streaming, web image search, and YouTube video player with Picture-in-Picture.",
+  "description": "Secure vault for credentials, tasks, Cloudflare Drive storage, Gmail and Google Calendar automator with Google Auth, AI Copilot, YouTube player, and creative tools.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
