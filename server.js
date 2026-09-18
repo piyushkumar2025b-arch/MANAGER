@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import tls from 'node:tls';
 import { DatabaseSync } from 'node:sqlite';
 import { GoogleGenAI } from '@google/genai';
 import QRCode from 'qrcode';
@@ -168,7 +169,7 @@ const AI_FREE_MODELS = [
   { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'google', tag: 'Fast & Smart • Flagship Free Tier', badge: 'Google' },
   { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', provider: 'google', tag: 'Sub-Second Latency & High Availability', badge: 'Google' },
   { id: 'gemini-flash-latest', name: 'Gemini Flash Latest', provider: 'google', tag: 'Always Latest Flash Version', badge: 'Google' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'google', tag: 'High Capacity & Stable', badge: 'Google' },
+  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', provider: 'google', tag: 'High Capacity & Stable', badge: 'Google' },
   // Groq Free Models (Ultra Fast)
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile', provider: 'groq', tag: 'Ultra-Fast (300+ t/s) • Free', badge: 'Groq' },
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant', provider: 'groq', tag: 'Sub-Second Latency • Free', badge: 'Groq' },
@@ -267,7 +268,7 @@ async function callGemini(apiKey, model, systemPrompt, userMessage) {
     'gemini-3.1-flash-lite',
     'gemini-flash-latest',
     'gemini-3.8-flash',
-    'gemini-2.5-flash'
+    'gemini-3.6-flash'
   ];
   const uniqueModels = [...new Set(fallbackModels)];
 
@@ -579,7 +580,7 @@ app.post(['/api/ai/test', '/api/ai/keys/test'], async (req, res) => {
         message: `Connected to Groq Cloud (${testModel}) in ${latencyMs}ms!`
       });
     } else if (provider === 'google') {
-      const testModel = model || 'gemini-2.5-flash';
+      const testModel = model || 'gemini-3.6-flash';
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${keyToTest}`;
       const r = await fetch(url, {
         method: 'POST',
@@ -645,7 +646,7 @@ app.post(['/api/ai/test', '/api/ai/keys/test'], async (req, res) => {
 app.post('/api/todos/:id/snooze', (req, res) => {
   const id = req.params.id;
   const snoozeUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-  db.prepare('UPDATE todos SET reminder_time = ?, reminder_dismissed = 0, updated_at = datetime("now") WHERE id = ?')
+  db.prepare("UPDATE todos SET reminder_time = ?, reminder_dismissed = 0, updated_at = datetime('now') WHERE id = ?")
     .run(snoozeUntil, id);
   return res.json({ success: true, snoozed_until: snoozeUntil });
 });
@@ -675,6 +676,568 @@ app.get('/api/sounds/presets', (req, res) => {
       { id: 'ticker', name: '⏱️ 2FA Quartz Countdown Ticker', desc: 'High-frequency quartz click impulse for 30s timers' },
       { id: 'ambient_drone', name: '🌌 Deep Space Focus Drone', desc: '55Hz & 110Hz binaural sine wave drone for deep focus' },
       { id: 'matrix_rain_noise', name: '🌧️ Focus Pink Noise & City Hum', desc: 'Filtered brownian/pink noise for soothing cyber atmosphere' }
+    ]
+  });
+});
+
+// SSL / TLS Certificate Inspector
+app.get('/api/network/ssl-inspect', (req, res) => {
+  let domain = (req.query.domain || req.query.host || '').trim();
+  if (!domain) return res.status(400).json({ success: false, error: 'Domain is required' });
+  domain = domain.replace(/^https?:\/\//i, '').split('/')[0].split(':')[0].toLowerCase();
+
+  try {
+    const socket = tls.connect({
+      host: domain,
+      port: 443,
+      servername: domain,
+      timeout: 6000
+    }, () => {
+      const cert = socket.getPeerCertificate(true);
+      const cipher = socket.getCipher();
+      const protocol = socket.getProtocol();
+      socket.destroy();
+
+      if (!cert || Object.keys(cert).length === 0) {
+        return res.json({ success: false, error: 'No certificate presented by host' });
+      }
+
+      const validFrom = cert.valid_from ? new Date(cert.valid_from).toISOString() : null;
+      const validTo = cert.valid_to ? new Date(cert.valid_to).toISOString() : null;
+      const now = Date.now();
+      const expiresAtMs = validTo ? new Date(validTo).getTime() : 0;
+      const daysRemaining = Math.max(0, Math.round((expiresAtMs - now) / (1000 * 60 * 60 * 24)));
+      const isExpired = expiresAtMs < now;
+
+      let sans = [];
+      if (cert.subjectaltname) {
+        sans = cert.subjectaltname.split(', ').map(s => s.replace(/^DNS:/, ''));
+      }
+
+      return res.json({
+        success: true,
+        domain,
+        subject: cert.subject ? (cert.subject.CN || cert.subject.O || domain) : domain,
+        issuer: cert.issuer ? (cert.issuer.O || cert.issuer.CN || 'Unknown CA') : 'Unknown CA',
+        issuerOrg: cert.issuer?.O || cert.issuer?.CN || '',
+        subjectCN: cert.subject?.CN || '',
+        validFrom,
+        validTo,
+        daysRemaining,
+        isExpired,
+        isExpiringSoon: daysRemaining <= 30 && !isExpired,
+        serialNumber: cert.serialNumber || '',
+        fingerprint256: cert.fingerprint256 || '',
+        protocol: protocol || 'TLS',
+        cipher: cipher ? cipher.name : 'Unknown',
+        sans: sans.slice(0, 30),
+        sanCount: sans.length
+      });
+    });
+
+    socket.on('error', (err) => {
+      socket.destroy();
+      return res.json({ success: false, error: 'TLS connection failed: ' + err.message });
+    });
+
+    socket.on('timeout', () => {
+      socket.destroy();
+      return res.json({ success: false, error: 'Connection timed out after 6 seconds' });
+    });
+  } catch (err) {
+    return res.json({ success: false, error: err.message });
+  }
+});
+
+// WHOIS & RDAP Domain Registration Inspector
+app.get('/api/network/whois', async (req, res) => {
+  let domain = (req.query.domain || req.query.host || '').trim();
+  if (!domain) return res.status(400).json({ success: false, error: 'Domain is required' });
+  domain = domain.replace(/^https?:\/\//i, '').split('/')[0].split(':')[0].toLowerCase();
+
+  const parts = domain.split('.');
+  const tld = parts[parts.length - 1];
+
+  let rdapUrl = '';
+  if (tld === 'com' || tld === 'net') {
+    rdapUrl = `https://rdap.verisign.com/com/v1/domain/${domain}`;
+  } else if (tld === 'org') {
+    rdapUrl = `https://rdap.publicinterestregistry.org/rdap/domain/${domain}`;
+  } else {
+    rdapUrl = `https://rdap.org/domain/${domain}`;
+  }
+
+  try {
+    const rdapRes = await fetch(rdapUrl, {
+      headers: {
+        'Accept': 'application/rdap+json, application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) VaultRDAP/1.0'
+      },
+      signal: AbortSignal.timeout(7000)
+    });
+
+    if (rdapRes.ok) {
+      const data = await rdapRes.json();
+      
+      let registrar = 'Unknown';
+      let abuseEmail = '';
+      let abusePhone = '';
+      
+      if (Array.isArray(data.entities)) {
+        for (const ent of data.entities) {
+          if (ent.roles?.includes('registrar')) {
+            if (ent.vcardArray && ent.vcardArray[1]) {
+              const fnObj = ent.vcardArray[1].find(item => item[0] === 'fn');
+              if (fnObj) registrar = fnObj[3];
+            } else if (ent.handle) {
+              registrar = ent.handle;
+            }
+          }
+          if (ent.roles?.includes('abuse')) {
+            if (ent.vcardArray && ent.vcardArray[1]) {
+              const emailObj = ent.vcardArray[1].find(item => item[0] === 'email');
+              if (emailObj) abuseEmail = emailObj[3];
+              const telObj = ent.vcardArray[1].find(item => item[0] === 'tel');
+              if (telObj) abusePhone = telObj[3];
+            }
+          }
+        }
+      }
+
+      let creationDate = null;
+      let expirationDate = null;
+      let updatedDate = null;
+
+      if (Array.isArray(data.events)) {
+        for (const ev of data.events) {
+          if (ev.eventAction === 'registration') creationDate = ev.eventDate;
+          else if (ev.eventAction === 'expiration') expirationDate = ev.eventDate;
+          else if (ev.eventAction === 'last changed') updatedDate = ev.eventDate;
+        }
+      }
+
+      const nameServers = Array.isArray(data.nameservers) ? data.nameservers.map(ns => ns.ldhName || ns.handle || '').filter(Boolean) : [];
+      const statusList = Array.isArray(data.status) ? data.status : [];
+      const dnssec = data.secureDNS?.delegationSigned ?? false;
+
+      return res.json({
+        success: true,
+        domain,
+        handle: data.handle || '',
+        registrar,
+        abuseEmail,
+        abusePhone,
+        creationDate,
+        expirationDate,
+        updatedDate,
+        nameServers,
+        status: statusList,
+        dnssec,
+        source: 'ICANN RDAP Official Service'
+      });
+    }
+  } catch (_) {}
+
+  // Fallback: Query Cloudflare DoH for SOA and NS records
+  try {
+    const dohRes = await fetch(`https://1.1.1.1/dns-query?name=${encodeURIComponent(domain)}&type=SOA`, {
+      headers: { 'Accept': 'application/dns-json' },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (dohRes.ok) {
+      const dohData = await dohRes.json();
+      const soaAnswer = dohData.Answer ? dohData.Answer.find(a => a.type === 6) : null;
+      let primaryNs = '';
+      let adminContact = '';
+      if (soaAnswer && soaAnswer.data) {
+        const parts = soaAnswer.data.split(' ');
+        primaryNs = parts[0] || '';
+        adminContact = parts[1] ? parts[1].replace(/\./, '@') : '';
+      }
+
+      return res.json({
+        success: true,
+        domain,
+        registrar: 'DNS Authoritative Zone',
+        creationDate: null,
+        expirationDate: null,
+        updatedDate: null,
+        nameServers: primaryNs ? [primaryNs] : [],
+        adminContact,
+        status: ['active'],
+        dnssec: dohData.AD || false,
+        source: 'Cloudflare DNS-over-HTTPS (SOA)'
+      });
+    }
+  } catch (err) {
+    return res.json({ success: false, error: 'WHOIS / RDAP lookup failed: ' + err.message });
+  }
+
+  return res.json({ success: false, error: 'Unable to resolve RDAP registration data for this domain' });
+});
+
+// HTTP REST API & Webhook Request Playground
+app.post('/api/network/proxy-fetch', async (req, res) => {
+  const { url, method = 'GET', headers = {}, body = null } = req.body || {};
+  if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+    return res.status(400).json({ success: false, error: 'Valid HTTP/HTTPS URL is required' });
+  }
+
+  // SSRF guard against local internal subnet
+  try {
+    const parsed = new URL(url);
+    const h = parsed.hostname.toLowerCase();
+    if (h === 'localhost' || h === '127.0.0.1' || h.startsWith('10.') || h.startsWith('192.168.') || h === '169.254.169.254') {
+      return res.status(403).json({ success: false, error: 'Loopback and private subnets cannot be requested' });
+    }
+  } catch (_) {
+    return res.status(400).json({ success: false, error: 'Invalid URL format' });
+  }
+
+  const startMs = Date.now();
+  try {
+    const fetchHeaders = new Headers();
+    if (headers && typeof headers === 'object') {
+      for (const [k, v] of Object.entries(headers)) {
+        if (v && typeof v === 'string') fetchHeaders.set(k, v);
+      }
+    }
+    if (!fetchHeaders.has('User-Agent')) {
+      fetchHeaders.set('User-Agent', 'VaultHttpPlayground/1.0');
+    }
+
+    const fetchOpts = {
+      method: method.toUpperCase(),
+      headers: fetchHeaders,
+      signal: AbortSignal.timeout(12000),
+    };
+
+    if (body && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(fetchOpts.method)) {
+      fetchOpts.body = typeof body === 'string' ? body : JSON.stringify(body);
+    }
+
+    const resp = await fetch(url, fetchOpts);
+    const latencyMs = Date.now() - startMs;
+
+    const respHeaders = {};
+    for (const [k, v] of resp.headers.entries()) {
+      respHeaders[k] = v;
+    }
+
+    const textBody = await resp.text();
+    let jsonBody = null;
+    let isJson = false;
+    const contentType = resp.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      try {
+        jsonBody = JSON.parse(textBody);
+        isJson = true;
+      } catch (_) {}
+    }
+
+    return res.json({
+      success: true,
+      status: resp.status,
+      statusText: resp.statusText,
+      latencyMs,
+      sizeBytes: textBody.length,
+      headers: respHeaders,
+      isJson,
+      json: jsonBody,
+      body: textBody.length > 50000 ? textBody.slice(0, 50000) + '\n... [truncated]' : textBody
+    });
+  } catch (err) {
+    return res.json({
+      success: false,
+      latencyMs: Date.now() - startMs,
+      error: err.message
+    });
+  }
+});
+
+// Pwned Passwords Hash Range Check (k-Anonymity)
+app.get('/api/security/pwned-check', async (req, res) => {
+  const prefix = (req.query.prefix || '').trim().toUpperCase();
+  if (!prefix || prefix.length !== 5 || !/^[0-9A-F]{5}$/.test(prefix)) {
+    return res.status(400).json({ success: false, error: 'Requires 5-character hex SHA-1 prefix' });
+  }
+
+  try {
+    const pwnedRes = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      headers: {
+        'User-Agent': 'VaultBreachAuditor/1.0',
+        'Add-Padding': 'true'
+      },
+      signal: AbortSignal.timeout(6000)
+    });
+
+    if (!pwnedRes.ok) {
+      return res.status(pwnedRes.status).json({ success: false, error: 'Pwned Passwords API error' });
+    }
+
+    const text = await pwnedRes.text();
+    const hashes = {};
+    const lines = text.split('\n');
+    for (const line of lines) {
+      const parts = line.trim().split(':');
+      if (parts.length === 2) {
+        const count = parseInt(parts[1], 10);
+        if (!isNaN(count) && count > 0) {
+          hashes[parts[0]] = count;
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      prefix,
+      totalEntries: Object.keys(hashes).length,
+      hashes
+    });
+  } catch (err) {
+    return res.json({ success: false, error: err.message });
+  }
+});
+
+// Curated Open Web Videos Directory & Search
+app.get('/api/videos/web', async (req, res) => {
+  const query = (req.query.q || '').trim();
+  const category = (req.query.category || 'all').trim().toLowerCase();
+
+  const curatedVideos = [
+    {
+      id: 'synthwave-grid',
+      title: 'Synthwave Sunset Highway Loop',
+      category: 'cyberpunk',
+      duration: '0:30',
+      resolution: '1080p 60fps',
+      thumb: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=80',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      tags: ['synthwave', 'retro', 'neon', 'highway', 'chill'],
+      description: 'Retro 80s neon synthwave grid highway driving loop with glowing purple sunset.'
+    },
+    {
+      id: 'ocean-waves',
+      title: 'Deep Ocean Waves & Golden Hour',
+      category: 'nature',
+      duration: '0:15',
+      resolution: '4K Ultra HD',
+      thumb: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+      tags: ['ocean', 'waves', 'sunset', 'relax', 'nature'],
+      description: 'Slow-motion rhythmic ocean waves washing along the coast at golden hour.'
+    },
+    {
+      id: 'matrix-tunnel',
+      title: 'Cyberspace Quantum Data Stream',
+      category: 'cyberpunk',
+      duration: '0:45',
+      resolution: '1080p',
+      thumb: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600&auto=format&fit=crop&q=80',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+      tags: ['code', 'matrix', 'data', 'security', 'tech'],
+      description: 'High-speed cryptographic data packets flying through an encrypted neural fiber tunnel.'
+    },
+    {
+      id: 'rain-window',
+      title: 'Raindrops Falling on Cozy Windowpane',
+      category: 'ambient',
+      duration: '0:35',
+      resolution: '1080p',
+      thumb: 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?w=600&auto=format&fit=crop&q=80',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
+      tags: ['rain', 'window', 'cozy', 'study', 'focus'],
+      description: 'Gentle raindrops tracing paths across a warm ambient glass windowpane.'
+    },
+    {
+      id: 'deep-space',
+      title: 'Cosmic Nebula & Galactic Core Orbit',
+      category: 'space',
+      duration: '0:20',
+      resolution: '4K Ultra HD',
+      thumb: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&auto=format&fit=crop&q=80',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
+      tags: ['space', 'galaxy', 'nebula', 'cosmos', 'stars'],
+      description: 'Spectacular celestial flythrough of distant glowing gas nebulas and starry galaxies.'
+    },
+    {
+      id: 'cyber-server',
+      title: 'Server Room Optical Data Hub',
+      category: 'tech',
+      duration: '0:18',
+      resolution: '1080p',
+      thumb: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=600&auto=format&fit=crop&q=80',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+      tags: ['server', 'cloud', 'datacenter', 'infra', 'led'],
+      description: 'Gleaming server rack array with pulsing fiber-optic network activity LEDs.'
+    },
+    {
+      id: 'lofi-cafe',
+      title: 'Lo-Fi Rain Terrace & Coffee Study',
+      category: 'ambient',
+      duration: '0:40',
+      resolution: '1080p',
+      thumb: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=600&auto=format&fit=crop&q=80',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4',
+      tags: ['lofi', 'coffee', 'cafe', 'chill', 'music'],
+      description: 'Atmospheric urban rain terrace with warm lanterns, steam from coffee, and lo-fi vibes.'
+    },
+    {
+      id: 'aurora-borealis',
+      title: 'Nordic Aurora Borealis Northern Lights',
+      category: 'nature',
+      duration: '0:25',
+      resolution: '4K Ultra HD',
+      thumb: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=600&auto=format&fit=crop&q=80',
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
+      tags: ['aurora', 'green', 'sky', 'night', 'arctic'],
+      description: 'Emerald green ribbons of aurora borealis rippling across the Arctic night sky.'
+    }
+  ];
+
+  let results = curatedVideos;
+  if (category && category !== 'all') {
+    results = results.filter(v => v.category === category);
+  }
+  if (query) {
+    const q = query.toLowerCase();
+    results = results.filter(v => 
+      v.title.toLowerCase().includes(q) || 
+      v.description.toLowerCase().includes(q) ||
+      v.tags.some(t => t.toLowerCase().includes(q))
+    );
+  }
+
+  // Also query Wikimedia Commons Open Videos if a search term is specified
+  let openWebVideos = [];
+  if (query) {
+    try {
+      const wikiUrl = `https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(query + ' filetype:video')}&gsrlimit=6&prop=imageinfo&iiprop=url|size|mime`;
+      const wikiRes = await fetch(wikiUrl, {
+        headers: { 'User-Agent': 'VaultOpenVideos/1.0' },
+        signal: AbortSignal.timeout(3000)
+      });
+      if (wikiRes.ok) {
+        const wikiData = await wikiRes.json();
+        const pages = wikiData?.query?.pages || {};
+        for (const pid of Object.keys(pages)) {
+          const page = pages[pid];
+          const info = page.imageinfo?.[0];
+          if (info && (info.mime?.includes('video') || info.url?.endsWith('.webm') || info.url?.endsWith('.mp4') || info.url?.endsWith('.ogv'))) {
+            const rawTitle = page.title.replace(/^File:/, '').replace(/\.[^.]+$/, '').replace(/_/g, ' ');
+            openWebVideos.push({
+              id: 'wiki-' + pid,
+              title: rawTitle,
+              category: 'open-web',
+              duration: 'Open Web',
+              resolution: `${info.width || 1280}x${info.height || 720}`,
+              thumb: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=600&auto=format&fit=crop&q=80',
+              url: info.url,
+              tags: ['wikimedia', 'creative-commons', 'open-web'],
+              description: `Creative Commons open video archive entry: ${rawTitle}`
+            });
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  return res.json({
+    videos: [...results, ...openWebVideos],
+    total: results.length + openWebVideos.length,
+    categories: [
+      { id: 'all', name: '✨ All Web Videos' },
+      { id: 'ambient', name: '🌧️ Ambient & Study' },
+      { id: 'nature', name: '🌊 Nature & 4K Oceans' },
+      { id: 'cyberpunk', name: '🌆 Cyberpunk & Neon' },
+      { id: 'space', name: '🌌 Space & Nebula' },
+      { id: 'tech', name: '💻 Tech & Cryptography' }
+    ]
+  });
+});
+
+// High-Fidelity Ambient Soundscapes & Soundboard Catalog
+app.get('/api/sounds/ambient', (req, res) => {
+  return res.json({
+    channels: [
+      { id: 'rain', name: 'Heavy Rain & Drops', icon: '🌧️', type: 'synth_noise', freq: 400, q: 0.8, gain: 0.5, desc: 'Gentle continuous rainfall on roof and window' },
+      { id: 'thunder', name: 'Rolling Thunder', icon: '⚡', type: 'synth_sub', freq: 65, q: 3.5, gain: 0.4, desc: 'Deep sub-bass distant thunderstorm rumble' },
+      { id: 'ocean', name: 'Ocean Tide Waves', icon: '🌊', type: 'synth_wave', freq: 280, q: 1.2, gain: 0.45, desc: 'Rhythmic oceanic surf rising and ebbing' },
+      { id: 'fire', name: 'Crackling Campfire', icon: '🔥', type: 'synth_crackle', freq: 800, q: 2.0, gain: 0.4, desc: 'Warm glowing fireplace with wood pops' },
+      { id: 'forest', name: 'Night Forest & Crickets', icon: '🌲', type: 'synth_crickets', freq: 4500, q: 8.0, gain: 0.35, desc: 'Pine forest evening breeze and rhythmic crickets' },
+      { id: 'coffee', name: 'Cafe Terrace Chatter', icon: '☕', type: 'synth_cafe', freq: 1200, q: 1.0, gain: 0.35, desc: 'Low pleasant background cafe murmur and cups' },
+      { id: 'whitenoise', name: 'Pure White Noise', icon: '📻', type: 'noise_white', gain: 0.3, desc: 'Equal energy distribution across all audible frequencies' },
+      { id: 'pinknoise', name: 'Deep Pink Noise', icon: '🌸', type: 'noise_pink', gain: 0.4, desc: 'Balanced 1/f acoustic power for deep reading focus' },
+      { id: 'brownnoise', name: 'Warm Brown Noise', icon: '🍫', type: 'noise_brown', gain: 0.45, desc: 'Deep warm sub-weighted noise for sleep and masking' },
+      { id: 'binaural40', name: '40Hz Gamma Focus Wave', icon: '🧠', type: 'binaural', freqL: 200, freqR: 240, gain: 0.25, desc: 'Binaural auditory beat for peak cognitive focus' },
+      { id: 'binaural14', name: '14Hz Alpha Calm Wave', icon: '⚡', type: 'binaural', freqL: 200, freqR: 214, gain: 0.25, desc: 'Alpha wave brainwave entrainment for relaxed alert flow' },
+      { id: 'zenbowl', name: 'Tibetan Singing Bowl Drone', icon: '🧘', type: 'synth_drone', freq: 432, gain: 0.3, desc: 'Harmonic 432Hz sacred geometry resonant chime' }
+    ],
+    presets: [
+      { id: 'deep_focus', name: '🎯 Peak Focus Room', desc: 'Brown Noise + Rain + 40Hz Gamma', gains: { brownnoise: 60, rain: 45, binaural40: 30 } },
+      { id: 'rainy_cabin', name: '🏡 Cozy Cabin Storm', desc: 'Heavy Rain + Thunder + Campfire', gains: { rain: 75, thunder: 50, fire: 65 } },
+      { id: 'coastal_sunset', name: '🏖️ Coastal Sunset', desc: 'Ocean Waves + Evening Breeze + Pink Noise', gains: { ocean: 80, pinknoise: 35, forest: 25 } },
+      { id: 'cyberpunk_study', name: '🌃 Midnight Cyber Study', desc: 'Rain on Glass + 14Hz Alpha + Pink Noise', gains: { rain: 60, pinknoise: 40, binaural14: 35 } },
+      { id: 'zen_sanctuary', name: '🌸 Zen Temple Sanctuary', desc: '432Hz Singing Bowl + Forest + Ocean', gains: { zenbowl: 70, forest: 45, ocean: 30 } }
+    ],
+    soundboard: [
+      { id: 'click', name: 'Mechanical Key', icon: '⌨️', category: 'ui' },
+      { id: 'success', name: 'Access Granted', icon: '✨', category: 'alerts' },
+      { id: 'chime', name: 'Crystal Bell', icon: '🔔', category: 'musical' },
+      { id: 'coin', name: 'Retro Coin', icon: '🪙', category: 'retro' },
+      { id: 'laser', name: 'Laser Blaster', icon: '⚡', category: 'retro' },
+      { id: 'alert', name: 'Security Ping', icon: '🚨', category: 'alerts' },
+      { id: 'levelup', name: 'Level Complete', icon: '🏆', category: 'retro' },
+      { id: 'pop', name: 'Bubble Pop', icon: '🫧', category: 'ui' },
+      { id: 'swoosh', name: 'Cyber Swoosh', icon: '💨', category: 'ui' },
+      { id: 'shutter', name: 'Camera Shutter', icon: '📸', category: 'ui' }
+    ]
+  });
+});
+
+// Sticker & Reaction Studio Catalog
+app.get('/api/stickers/catalog', (req, res) => {
+  return res.json({
+    categories: [
+      { id: 'tech', name: '💻 Cyber & Tech' },
+      { id: 'kawaii', name: '🐱 Kawaii & Cute' },
+      { id: 'badges', name: '🏷️ Badges & Status' },
+      { id: 'reactions', name: '🔥 Reactions & Memes' },
+      { id: 'security', name: '🛡️ Vault & Crypto' }
+    ],
+    stickers: [
+      // Cyber & Tech
+      { id: 'stk-chip', category: 'tech', name: 'Quantum Core', emoji: '💽', bg: '#0f172a', border: '#38bdf8', color: '#38bdf8', label: 'QUANTUM' },
+      { id: 'stk-term', category: 'tech', name: 'Root Terminal', emoji: '💻', bg: '#022c22', border: '#10b981', color: '#10b981', label: 'ROOT ACCESS' },
+      { id: 'stk-rocket', category: 'tech', name: 'Hyper Rocket', emoji: '🚀', bg: '#450a0a', border: '#f87171', color: '#f87171', label: 'DEPLOYED' },
+      { id: 'stk-matrix', category: 'tech', name: 'Cyber Glitch', emoji: '👾', bg: '#14532d', border: '#22c55e', color: '#86efac', label: 'CYBER BUG' },
+      { id: 'stk-btc', category: 'tech', name: 'Crypto Gold', emoji: '🪙', bg: '#451a03', border: '#f59e0b', color: '#fbbf24', label: 'HASH 256' },
+
+      // Kawaii & Cute
+      { id: 'stk-cat', category: 'kawaii', name: 'Astro Cat', emoji: '🐱‍🚀', bg: '#3b0764', border: '#c084fc', color: '#e9d5ff', label: 'ASTRO MEOW' },
+      { id: 'stk-boba', category: 'kawaii', name: 'Boba Delight', emoji: '🧋', bg: '#451a03', border: '#d97706', color: '#fde68a', label: 'SWEET BOBA' },
+      { id: 'stk-cloud', category: 'kawaii', name: 'Happy Cloud', emoji: '☁️', bg: '#0c4a6e', border: '#38bdf8', color: '#bae6fd', label: 'CHILL VIBE' },
+      { id: 'stk-star', category: 'kawaii', name: 'Magic Star', emoji: '⭐', bg: '#713f12', border: '#eab308', color: '#fef08a', label: 'SUPERSTAR' },
+      { id: 'stk-heart', category: 'kawaii', name: 'Pixel Heart', emoji: '💖', bg: '#831843', border: '#f472b6', color: '#fbcfe8', label: 'MAX HP' },
+
+      // Badges & Status
+      { id: 'stk-verified', category: 'badges', name: 'Verified Shield', emoji: '🛡️', bg: '#064e3b', border: '#34d399', color: '#6ee7b7', label: 'VERIFIED' },
+      { id: 'stk-urgent', category: 'badges', name: 'Urgent Priority', emoji: '🚨', bg: '#7f1d1d', border: '#ef4444', color: '#fca5a5', label: 'URGENT' },
+      { id: 'stk-secret', category: 'badges', name: 'Top Secret', emoji: '🤫', bg: '#18181b', border: '#e11d48', color: '#fda4af', label: 'TOP SECRET' },
+      { id: 'stk-done', category: 'badges', name: 'Mission Done', emoji: '✅', bg: '#064e3b', border: '#10b981', color: '#a7f3d0', label: '100% COMPLETE' },
+      { id: 'stk-vip', category: 'badges', name: 'VIP Status', emoji: '👑', bg: '#581c87', border: '#a855f7', color: '#e9d5ff', label: 'VIP ACCESS' },
+
+      // Reactions & Memes
+      { id: 'stk-fire', category: 'reactions', name: 'Pure Fire', emoji: '🔥', bg: '#7c2d12', border: '#ea580c', color: '#fdba74', label: 'LIT' },
+      { id: 'stk-brain', category: 'reactions', name: 'Galaxy Brain', emoji: '🧠', bg: '#312e81', border: '#818cf8', color: '#c7d2fe', label: '200 IQ' },
+      { id: 'stk-party', category: 'reactions', name: 'Party Popper', emoji: '🎉', bg: '#701a75', border: '#d946ef', color: '#f5d0fe', label: 'CELEBRATE' },
+      { id: 'stk-100', category: 'reactions', name: 'Keep It 100', emoji: '💯', bg: '#881337', border: '#f43f5e', color: '#fecdd3', label: 'PERFECT' },
+      { id: 'stk-rock', category: 'reactions', name: 'Rock On', emoji: '🤘', bg: '#1e1b4b', border: '#6366f1', color: '#a5b4fc', label: 'ROCK ON' },
+
+      // Security
+      { id: 'stk-vault', category: 'security', name: 'Vault Guard', emoji: '🔐', bg: '#0f172a', border: '#60a5fa', color: '#93c5fd', label: 'AES-256' },
+      { id: 'stk-biometric', category: 'security', name: 'Biometric Pass', emoji: '🧬', bg: '#042f2e', border: '#14b8a6', color: '#5eead4', label: 'BIOMETRIC' },
+      { id: 'stk-bugfix', category: 'security', name: 'Bug Eliminated', emoji: '🎯', bg: '#1c1917', border: '#78716c', color: '#e7e5e4', label: 'ZERO BUG' }
     ]
   });
 });
@@ -715,71 +1278,76 @@ app.get('/api/qr', async (req, res) => {
 
 // AI Task Breakdown Endpoint
 app.post('/api/todos/:id/breakdown', async (req, res) => {
-  const id = req.params.id;
-  const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(id);
-  if (!todo) return res.status(404).json({ error: 'Task not found' });
-
-  const prompt = `Break down the following task into 3-5 concrete, actionable sequential steps.\nTask Title: "${todo.title}"\nTask Description: "${todo.description || 'None'}"\n\nReturn ONLY a valid JSON array of step title strings, example:\n["First step", "Second step", "Third step"]\nDo not include code fences, markdown, or any explanation outside the JSON array.`;
-
-  let subtaskTitles = [];
   try {
-    const groqKey = getAiKey('groq');
-    const geminiKey = getAiKey('google');
-    const openRouterKey = getAiKey('openrouter');
-    let rawReply = '';
+    const id = req.params.id;
+    const todo = db.prepare('SELECT * FROM todos WHERE id = ?').get(id);
+    if (!todo) return res.status(404).json({ error: 'Task not found' });
 
-    if (groqKey) {
-      try {
-        rawReply = await callGroq(groqKey, 'llama-3.3-70b-versatile', 'You are an AI task breakdown assistant that outputs only valid raw JSON arrays.', prompt);
-      } catch (_) {}
-    } 
-    if (!rawReply && geminiKey) {
-      try {
-        const gemRes = await callGemini(geminiKey, 'gemini-3.8-flash', 'You are an AI task breakdown assistant that outputs only valid raw JSON arrays.', prompt);
-        rawReply = typeof gemRes === 'object' ? gemRes.text : gemRes;
-      } catch (gemErr) {
-        console.warn('Gemini breakdown failed, trying alternatives:', gemErr.message);
+    const prompt = `Break down the following task into 3-5 concrete, actionable sequential steps.\nTask Title: "${todo.title}"\nTask Description: "${todo.description || 'None'}"\n\nReturn ONLY a valid JSON array of step title strings, example:\n["First step", "Second step", "Third step"]\nDo not include code fences, markdown, or any explanation outside the JSON array.`;
+
+    let subtaskTitles = [];
+    try {
+      const groqKey = getAiKey('groq');
+      const geminiKey = getAiKey('google');
+      const openRouterKey = getAiKey('openrouter');
+      let rawReply = '';
+
+      if (groqKey) {
+        try {
+          rawReply = await callGroq(groqKey, 'llama-3.3-70b-versatile', 'You are an AI task breakdown assistant that outputs only valid raw JSON arrays.', prompt);
+        } catch (_) {}
+      } 
+      if (!rawReply && geminiKey) {
+        try {
+          const gemRes = await callGemini(geminiKey, 'gemini-3.6-flash', 'You are an AI task breakdown assistant that outputs only valid raw JSON arrays.', prompt);
+          rawReply = typeof gemRes === 'object' ? gemRes.text : gemRes;
+        } catch (gemErr) {
+          console.warn('Gemini breakdown failed, trying alternatives:', gemErr.message);
+        }
+      } 
+      if (!rawReply && openRouterKey) {
+        try {
+          rawReply = await callOpenRouter(openRouterKey, 'meta-llama/llama-3.3-70b-instruct:free', 'You are an AI task breakdown assistant that outputs only valid raw JSON arrays.', prompt);
+        } catch (_) {}
       }
-    } 
-    if (!rawReply && openRouterKey) {
-      try {
-        rawReply = await callOpenRouter(openRouterKey, 'meta-llama/llama-3.3-70b-instruct:free', 'You are an AI task breakdown assistant that outputs only valid raw JSON arrays.', prompt);
-      } catch (_) {}
+
+      if (rawReply) {
+        const match = rawReply.match(/\[[\s\S]*\]/);
+        if (match) subtaskTitles = JSON.parse(match[0]);
+      }
+    } catch (err) {
+      console.warn('AI breakdown API call error:', err.message);
     }
 
-    if (rawReply) {
-      const match = rawReply.match(/\[[\s\S]*\]/);
-      if (match) subtaskTitles = JSON.parse(match[0]);
+    // Fallback intelligent breakdown
+    if (!Array.isArray(subtaskTitles) || subtaskTitles.length === 0) {
+      subtaskTitles = [
+        `Review goals and requirements for "${todo.title}"`,
+        `Prepare necessary tools, credentials, or resources`,
+        `Perform primary execution steps`,
+        `Verify results and finalize checklist`
+      ];
     }
+
+    let existing = [];
+    try { existing = JSON.parse(todo.subtasks || '[]'); } catch (_) {}
+    const nextId = existing.length > 0 ? Math.max(...existing.map(s => Number(s.id) || 0)) + 1 : 1;
+    const newItems = subtaskTitles.map((title, idx) => ({
+      id: nextId + idx,
+      title: String(title).trim(),
+      text: String(title).trim(),
+      done: false
+    }));
+
+    const updatedSubtasks = [...existing, ...newItems];
+    db.prepare("UPDATE todos SET subtasks = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(JSON.stringify(updatedSubtasks), id);
+
+    return res.json({ success: true, subtasks: updatedSubtasks });
   } catch (err) {
-    console.warn('AI breakdown API call error:', err.message);
+    console.error('Breakdown endpoint error:', err);
+    return res.status(500).json({ error: err.message });
   }
-
-  // Fallback intelligent breakdown
-  if (!Array.isArray(subtaskTitles) || subtaskTitles.length === 0) {
-    subtaskTitles = [
-      `Review goals and requirements for "${todo.title}"`,
-      `Prepare necessary tools, credentials, or resources`,
-      `Perform primary execution steps`,
-      `Verify results and finalize checklist`
-    ];
-  }
-
-  let existing = [];
-  try { existing = JSON.parse(todo.subtasks || '[]'); } catch (_) {}
-  const nextId = existing.length > 0 ? Math.max(...existing.map(s => Number(s.id) || 0)) + 1 : 1;
-  const newItems = subtaskTitles.map((title, idx) => ({
-    id: nextId + idx,
-    title: String(title).trim(),
-    text: String(title).trim(),
-    done: false
-  }));
-
-  const updatedSubtasks = [...existing, ...newItems];
-  db.prepare('UPDATE todos SET subtasks = ?, updated_at = datetime("now") WHERE id = ?')
-    .run(JSON.stringify(updatedSubtasks), id);
-
-  return res.json({ success: true, subtasks: updatedSubtasks });
 });
 
 // Clear Completed Tasks Endpoint
@@ -820,7 +1388,14 @@ app.post('/api/turnstile/verify', async (req, res) => {
 // Vault Copilot AI Chat Endpoint (Multi-Provider: Google, Groq, OpenRouter, Cloudflare)
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, history, provider: reqProvider, model: reqModel } = req.body || {};
+    const { history, provider: reqProvider, model: reqModel } = req.body || {};
+    const message = (
+      req.body?.message ||
+      req.body?.prompt ||
+      (Array.isArray(req.body?.messages) ? req.body.messages[req.body.messages.length - 1]?.content : '') ||
+      ''
+    ).toString().trim();
+
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
     }
@@ -933,15 +1508,55 @@ app.get('/api/dictionary/:word', async (req, res) => {
   if (!word) return res.status(400).json({ error: 'Word parameter is required' });
 
   try {
-    const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
-    if (!dictRes.ok) {
-      if (dictRes.status === 404) {
-        return res.status(404).json({ error: `No definition found for "${word}". Please check spelling or try a root word.`, notFound: true, word });
+    let data = null;
+
+    // 1. Try Free Dictionary API with a 2.5s timeout
+    try {
+      const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`, {
+        signal: AbortSignal.timeout(2500)
+      });
+      if (dictRes.ok) {
+        data = await dictRes.json();
       }
-      return res.status(dictRes.status).json({ error: 'Dictionary lookup error' });
+    } catch (_) {
+      // Free Dictionary API timed out or unavailable
     }
-    const data = await dictRes.json();
-    return res.json(data);
+
+    // 2. Resilient fallback via Datamuse API (fast, reliable lexical database)
+    if (!data) {
+      try {
+        const dmRes = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(word)}&md=d&max=1`, {
+          signal: AbortSignal.timeout(2500)
+        });
+        if (dmRes.ok) {
+          const dmData = await dmRes.json();
+          if (dmData && dmData[0] && Array.isArray(dmData[0].defs) && dmData[0].defs.length > 0) {
+            const meaningsMap = {};
+            const posNameMap = { adj: 'adjective', n: 'noun', v: 'verb', adv: 'adverb', u: 'general' };
+            for (const defStr of dmData[0].defs) {
+              const tabIdx = defStr.indexOf('\t');
+              const posAbbr = tabIdx !== -1 ? defStr.slice(0, tabIdx).trim() : 'general';
+              const defText = tabIdx !== -1 ? defStr.slice(tabIdx + 1).trim() : defStr.trim();
+              const pos = posNameMap[posAbbr] || posAbbr;
+              if (!meaningsMap[pos]) meaningsMap[pos] = { partOfSpeech: pos, definitions: [] };
+              meaningsMap[pos].definitions.push({ definition: defText });
+            }
+            data = [{
+              word: dmData[0].word || word,
+              phonetic: '',
+              phonetics: [],
+              meanings: Object.values(meaningsMap)
+            }];
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (data && Array.isArray(data) && data.length > 0) {
+      return res.json(data);
+    }
+
+    return res.status(404).json({ error: `No definition found for "${word}". Please check spelling or try a root word.`, notFound: true, word });
   } catch (err) {
     return res.status(500).json({ error: err.message, word });
   }
@@ -1204,6 +1819,19 @@ app.all(['/api', '/api/*'], async (req, res) => {
         GROQ_API_KEY: process.env.GROQ_API_KEY,
         OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
         YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY,
+        CLOUDFLARE_TURNSTILE_SITE_KEY: process.env.CLOUDFLARE_TURNSTILE_SITE_KEY,
+        CLOUDFLARE_TURNSTILE_SECRET_KEY: process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY,
+        CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
+        CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
+        R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
+        R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+        R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
+        R2_BUCKET_NAME: process.env.R2_BUCKET_NAME,
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+        GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+        BRAVE_SEARCH_API_KEY: process.env.BRAVE_SEARCH_API_KEY,
+        TAVILY_API_KEY: process.env.TAVILY_API_KEY,
+        OPENWEATHERMAP_API_KEY: process.env.OPENWEATHERMAP_API_KEY,
       },
     });
 

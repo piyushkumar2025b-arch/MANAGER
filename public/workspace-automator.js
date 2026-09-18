@@ -896,9 +896,12 @@
     container.innerHTML = `
       <div>
         <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px;">
-          <div style="display: flex; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button type="button" class="btn btn-primary" onclick="window.openComposeEmailModal()" style="display: flex; align-items: center; gap: 6px; font-size: 13px;">
               <span>✏️</span> Compose Email
+            </button>
+            <button type="button" class="btn" onclick="window.openEmailDraftHelperModal()" style="display: flex; align-items: center; gap: 6px; font-size: 13px; background: var(--surface2); border: 1px solid var(--border);">
+              <span>✨</span> AI Draft Assistant
             </button>
             <button type="button" class="btn" onclick="window.refreshGmailList('is:unread')" style="background: var(--surface); border: 1px solid var(--border); font-size: 13px;">
               🔄 Unread
@@ -1112,6 +1115,131 @@
         if (typeof window.toast === 'function') window.toast('Email moved to trash');
         await refreshGmailList('is:unread');
       }
+    });
+  };
+
+  // AI Smart Email Draft Helper Modal
+  window.openEmailDraftHelperModal = function () {
+    const html = `
+      <div style="max-width: 580px;">
+        <h3 style="margin: 0 0 14px 0; font-size: 17px; font-weight: 700;">✨ Smart Email Draft Assistant</h3>
+        <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px;">
+          Formulate professional, high-impact emails in seconds powered by Cloudflare AI / Gemini intelligence.
+        </p>
+
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">Goal / Intent of Email:</label>
+          <input type="text" id="draftIntent" placeholder="e.g. Project status report, meeting rescheduling, product demo follow-up" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13.5px;"/>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">Recipient Name / Role:</label>
+            <input type="text" id="draftRecipient" placeholder="e.g. Sarah, Tech Lead" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13.5px;"/>
+          </div>
+          <div>
+            <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">Tone of Voice:</label>
+            <select id="draftTone" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13.5px;">
+              <option value="professional">Professional & Polished</option>
+              <option value="concise">Concise & Direct (Executive)</option>
+              <option value="friendly">Warm & Collaborative</option>
+              <option value="urgent">Urgent & Time-Sensitive</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px;">Key Points / Bullet Notes:</label>
+          <textarea id="draftKeyPoints" rows="3" placeholder="e.g. Completed phase 1, need feedback by Friday, all security tests pass" style="width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13.5px; resize: vertical;"></textarea>
+        </div>
+
+        <div id="draftGenResultContainer" style="display: none; margin-bottom: 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 700; font-size: 13px; color: var(--accent);">Draft Generated</span>
+            <span id="draftFollowUpBadge" style="font-size: 11px; background: rgba(139, 92, 246, 0.15); color: var(--accent); padding: 2px 8px; border-radius: 10px;"></span>
+          </div>
+          <div style="font-weight: 600; font-size: 13.5px; margin-bottom: 6px;" id="draftGeneratedSubject"></div>
+          <div style="font-size: 13px; color: var(--text); white-space: pre-wrap; line-height: 1.5; max-height: 160px; overflow-y: auto;" id="draftGeneratedBody"></div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn" onclick="window.closeModal()" style="background: var(--surface2); border: 1px solid var(--border);">Cancel</button>
+          <button type="button" class="btn" id="generateDraftBtn" onclick="window.submitDraftHelper()" style="background: var(--accent); color: #fff; font-weight: 600;">⚡ Generate Draft</button>
+          <button type="button" class="btn btn-primary" id="useDraftInEmailBtn" style="display: none; background: #2563eb; color: #fff; font-weight: 600;" onclick="window.applyDraftToComposer()">✏️ Edit & Send in Composer</button>
+        </div>
+      </div>
+    `;
+
+    if (typeof window.openModal === 'function') {
+      window.openModal(html);
+    }
+  };
+
+  window._currentDraftData = null;
+
+  window.submitDraftHelper = async function () {
+    const intent = document.getElementById('draftIntent')?.value.trim();
+    const recipient = document.getElementById('draftRecipient')?.value.trim();
+    const tone = document.getElementById('draftTone')?.value;
+    const keyPoints = document.getElementById('draftKeyPoints')?.value.trim();
+
+    if (!intent) {
+      if (typeof window.toast === 'function') window.toast('Please provide the goal or intent of the email.');
+      return;
+    }
+
+    const genBtn = document.getElementById('generateDraftBtn');
+    if (genBtn) {
+      genBtn.disabled = true;
+      genBtn.textContent = '✨ Drafting…';
+    }
+
+    try {
+      const res = await (typeof window.api === 'function' ? window.api('POST', '/workspace/email/draft-helper', {
+        intent,
+        recipient,
+        tone,
+        keyPoints
+      }) : fetch('/api/workspace/email/draft-helper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intent, recipient, tone, keyPoints })
+      }).then(r => r.json()));
+
+      if (res && res.success && res.draft) {
+        window._currentDraftData = res.draft;
+        const resBox = document.getElementById('draftGenResultContainer');
+        const subjEl = document.getElementById('draftGeneratedSubject');
+        const bodyEl = document.getElementById('draftGeneratedBody');
+        const badgeEl = document.getElementById('draftFollowUpBadge');
+        const useBtn = document.getElementById('useDraftInEmailBtn');
+
+        if (resBox) resBox.style.display = 'block';
+        if (subjEl) subjEl.textContent = 'Subject: ' + res.draft.subject;
+        if (bodyEl) bodyEl.textContent = res.draft.body;
+        if (badgeEl && res.draft.followUpDate) badgeEl.textContent = 'Follow-up: ' + res.draft.followUpDate;
+        if (useBtn) useBtn.style.display = 'inline-block';
+        if (typeof window.toast === 'function') window.toast('Draft generated successfully!');
+      } else {
+        if (typeof window.toast === 'function') window.toast('Failed to draft email: ' + (res?.error || 'Unknown error'));
+      }
+    } catch (err) {
+      if (typeof window.toast === 'function') window.toast('Error drafting email: ' + err.message);
+    } finally {
+      if (genBtn) {
+        genBtn.disabled = false;
+        genBtn.textContent = '🔄 Regenerate';
+      }
+    }
+  };
+
+  window.applyDraftToComposer = function () {
+    if (!window._currentDraftData) return;
+    const to = document.getElementById('draftRecipient')?.value.trim() || '';
+    window.openComposeEmailModal({
+      to: to.includes('@') ? to : '',
+      subject: window._currentDraftData.subject || '',
+      body: window._currentDraftData.body || ''
     });
   };
 
