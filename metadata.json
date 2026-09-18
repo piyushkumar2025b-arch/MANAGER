@@ -1,6 +1,6 @@
 {
   "name": "Vault",
-  "description": "Secure vault for credentials, tasks, Cloudflare Drive storage, real-time Google search, deep network scraper and web security auditor, latency ping and IP geolocation, developer toolbox suite, and AI tools.",
+  "description": "Secure vault for credentials, tasks, Cloudflare Drive storage, real-time Google search, live AI News & Media Corner, Hugging Face Trending Apps & Models, deep network scraper, developer toolbox suite, and AI tools.",
   "requestFramePermissions": ["microphone", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

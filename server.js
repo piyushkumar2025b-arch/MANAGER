@@ -1003,352 +1003,235 @@ app.get('/api/security/pwned-check', async (req, res) => {
 // 🧠 AI PULSE: LIVE AI NEWS CORNER & BEST TRENDING AI APPS (REAL SOURCES)
 // ============================================================================
 
-const TRENDING_AI_APPS = [
-  {
-    id: 'cursor',
-    name: 'Cursor AI',
-    tagline: 'The AI-first Code Editor built for developers on top of VS Code',
-    category: 'code',
-    pricing: 'freemium',
-    badge: 'Trending #1',
-    rank: 1,
-    trendingScore: 9.9,
-    url: 'https://cursor.com',
-    developer: 'Anysphere',
-    icon: '💻',
-    keyFeatures: ['Multi-file codebase indexing', 'Composer full-app editing', 'Contextual Tab autocompletion', 'Claude 3.7 & GPT-4o integration']
-  },
-  {
-    id: 'claude',
-    name: 'Claude 3.7 Sonnet',
-    tagline: 'Leading hybrid reasoning and standard reasoning frontier model',
-    category: 'llm',
-    pricing: 'freemium',
-    badge: 'Frontier Benchmark',
-    rank: 2,
-    trendingScore: 9.9,
-    url: 'https://claude.ai',
-    developer: 'Anthropic',
-    icon: '🧠',
-    keyFeatures: ['Extended thinking modes', '200K token context window', 'Artifacts live execution', 'Superior coding and architecture']
-  },
-  {
-    id: 'chatgpt',
-    name: 'ChatGPT & GPT-4o / o3',
-    tagline: 'The world standard conversational AI and breakthrough reasoning models',
-    category: 'llm',
-    pricing: 'freemium',
-    badge: 'Global Pioneer',
-    rank: 3,
-    trendingScore: 9.9,
-    url: 'https://chatgpt.com',
-    developer: 'OpenAI',
-    icon: '⚡',
-    keyFeatures: ['Native multimodal voice & vision', 'o3-mini scientific reasoning', 'Custom GPTs ecosystem', 'Canvas collaborative editor']
-  },
-  {
-    id: 'deepseek',
-    name: 'DeepSeek-R1 / V3',
-    tagline: 'Open-weights reasoning model matching closed commercial frontier systems',
-    category: 'llm',
-    pricing: 'open',
-    badge: 'Open Weights King',
-    rank: 4,
-    trendingScore: 9.8,
-    url: 'https://chat.deepseek.com',
-    developer: 'DeepSeek',
-    icon: '🐋',
-    keyFeatures: ['671B MoE architecture', 'Pure reinforcement learning reasoning', 'MIT open licensed weights', 'Ultra cost-effective API']
-  },
-  {
-    id: 'v0',
-    name: 'v0 by Vercel',
-    tagline: 'Generative UI development system turning natural language into React & Tailwind',
-    category: 'code',
-    pricing: 'freemium',
-    badge: 'Top Design Tool',
-    rank: 5,
-    trendingScore: 9.8,
-    url: 'https://v0.dev',
-    developer: 'Vercel',
-    icon: '📐',
-    keyFeatures: ['Shadcn UI & Tailwind native', 'Fullstack Next.js scaffold export', 'Iterative visual code inspection', 'Figma design alignment']
-  },
-  {
-    id: 'perplexity',
-    name: 'Perplexity AI',
-    tagline: 'Conversational answer engine with live verified web citations',
-    category: 'productivity',
-    pricing: 'freemium',
-    badge: 'Editor Choice',
-    rank: 6,
-    trendingScore: 9.8,
-    url: 'https://perplexity.ai',
-    developer: 'Perplexity',
-    icon: '🔍',
-    keyFeatures: ['Real-time multi-source search', 'Pro Search with deep reasoning', 'Upload PDFs & spreadsheets', 'Curated Collections']
-  },
-  {
-    id: 'elevenlabs',
-    name: 'ElevenLabs',
-    tagline: 'Voice synthesis, emotional speech AI, and multilingual dubbing',
-    category: 'audio',
-    pricing: 'freemium',
-    badge: 'Audio Benchmark',
-    rank: 7,
-    trendingScore: 9.9,
-    url: 'https://elevenlabs.io',
-    developer: 'ElevenLabs',
-    icon: '🎙️',
-    keyFeatures: ['Zero-shot voice cloning', 'Conversational AI agents', 'Studio voiceover production', 'Sub-100ms streaming TTS']
-  },
-  {
-    id: 'midjourney',
-    name: 'Midjourney v6.1',
-    tagline: 'Photorealistic generative imagery and state-of-the-art artistic styling',
-    category: 'image',
-    pricing: 'paid',
-    badge: 'Visual Master',
-    rank: 8,
-    trendingScore: 9.8,
-    url: 'https://midjourney.com',
-    developer: 'Midjourney',
-    icon: '🎨',
-    keyFeatures: ['Hyper-realistic skin & lighting', 'Web canvas inpainting editor', 'Style and character consistency', 'Text rendering fidelity']
-  },
-  {
-    id: 'flux',
-    name: 'FLUX.1',
-    tagline: 'Open visual foundation model by Black Forest Labs with extraordinary text rendering',
-    category: 'image',
-    pricing: 'open',
-    badge: 'Open Weights Lead',
-    rank: 9,
-    trendingScore: 9.8,
-    url: 'https://blackforestlabs.ai',
-    developer: 'Black Forest Labs',
-    icon: '✨',
-    keyFeatures: ['12B parameter rectified flow', 'Flawless typography in images', 'Schnell & Dev open weights', 'Available on Hugging Face & local']
-  },
-  {
-    id: 'runway',
-    name: 'Runway Gen-3 Alpha',
-    tagline: 'Cinematic AI video generation with expressive motion and camera control',
-    category: 'video',
-    pricing: 'paid',
-    badge: 'Hollywood Standard',
-    rank: 10,
-    trendingScore: 9.7,
-    url: 'https://runwayml.com',
-    developer: 'Runway',
-    icon: '🎬',
-    keyFeatures: ['High-definition text-to-video', 'Motion brush regional control', 'Director camera maneuvers', 'Lip sync actor animation']
-  },
-  {
-    id: 'suno',
-    name: 'Suno AI v4',
-    tagline: 'Full-song composition generating radio-quality lyrics, vocals, and instruments',
-    category: 'audio',
-    pricing: 'freemium',
-    badge: 'Music Hitmaker',
-    rank: 11,
-    trendingScore: 9.8,
-    url: 'https://suno.com',
-    developer: 'Suno',
-    icon: '🎵',
-    keyFeatures: ['Full 2+ minute songs', 'Multi-genre stem separation', 'Vocal tone customization', 'Instant MP3 and WAV export']
-  },
-  {
-    id: 'gemini',
-    name: 'Google Gemini 2.0 Flash / Pro',
-    tagline: 'Next-generation multimodal model with 2M context and native tool use',
-    category: 'llm',
-    pricing: 'freemium',
-    badge: 'Multimodal Titan',
-    rank: 12,
-    trendingScore: 9.7,
-    url: 'https://gemini.google.com',
-    developer: 'Google DeepMind',
-    icon: '💎',
-    keyFeatures: ['2,000,000 token context window', 'Live audio & video streaming API', 'Google Search & Maps grounding', 'Ultra-fast Flash latency']
-  },
-  {
-    id: 'notebooklm',
-    name: 'NotebookLM',
-    tagline: 'Personal AI research assistant generating conversational Audio Overviews',
-    category: 'productivity',
-    pricing: 'free',
-    badge: 'Viral Innovation',
-    rank: 13,
-    trendingScore: 9.7,
-    url: 'https://notebooklm.google.com',
-    developer: 'Google',
-    icon: '📓',
-    keyFeatures: ['Deep dive podcast audio generation', 'Strict source-grounded citations', 'Upload PDFs, Docs & YouTube', 'Zero data hallucination on notes']
-  },
-  {
-    id: 'lovable',
-    name: 'Lovable.dev',
-    tagline: 'Fullstack web application builder that creates production code from prompts',
-    category: 'code',
-    pricing: 'freemium',
-    badge: 'Rapid Builder',
-    rank: 14,
-    trendingScore: 9.7,
-    url: 'https://lovable.dev',
-    developer: 'Lovable',
-    icon: '🚀',
-    keyFeatures: ['Full GitHub sync', 'Supabase backend integration', 'Instant live preview sandbox', 'Responsive UI components']
-  },
-  {
-    id: 'bolt',
-    name: 'Bolt.new',
-    tagline: 'In-browser fullstack development sandbox running Node.js via WebContainers',
-    category: 'code',
-    pricing: 'freemium',
-    badge: 'Browser Dev',
-    rank: 15,
-    trendingScore: 9.6,
-    url: 'https://bolt.new',
-    developer: 'StackBlitz',
-    icon: '⚡',
-    keyFeatures: ['In-browser container environment', 'NPM package ecosystem support', '1-click Netlify deploy', 'Full-stack code control']
-  },
-  {
-    id: 'kling',
-    name: 'Kling AI',
-    tagline: 'State-of-the-art video model with physical world simulation and high motion',
-    category: 'video',
-    pricing: 'freemium',
-    badge: 'Motion Physics',
-    rank: 16,
-    trendingScore: 9.6,
-    url: 'https://klingai.com',
-    developer: 'Kuaishou',
-    icon: '🎥',
-    keyFeatures: ['1080p 30fps video generation', 'Realistic fluid & cloth dynamics', 'Up to 2 minutes duration', 'High consistency character motion']
-  },
-  {
-    id: 'recraft',
-    name: 'Recraft AI',
-    tagline: 'Generative AI graphic studio specialized in vector art, icons, and brand design',
-    category: 'image',
-    pricing: 'freemium',
-    badge: 'Vector Specialist',
-    rank: 17,
-    trendingScore: 9.6,
-    url: 'https://recraft.ai',
-    developer: 'Recraft',
-    icon: '✒️',
-    keyFeatures: ['Native SVG vector export', 'Brand color palette locking', 'Icon pack generation', 'Clean transparent backgrounds']
-  },
-  {
-    id: 'groq',
-    name: 'GroqCloud',
-    tagline: 'Ultra-fast LPU inference engine streaming open LLMs at 500+ tokens/sec',
-    category: 'code',
-    pricing: 'freemium',
-    badge: 'Speed Demon',
-    rank: 18,
-    trendingScore: 9.8,
-    url: 'https://groq.com',
-    developer: 'Groq',
-    icon: '🏎️',
-    keyFeatures: ['500+ tokens per second', 'Llama 3.3 & DeepSeek R1 models', 'OpenAI-compatible API format', 'Zero-latency voice agents']
-  },
-  {
-    id: 'huggingface',
-    name: 'Hugging Face Hub',
-    tagline: 'The open-source collaboration platform and git repository of machine learning',
-    category: 'code',
-    pricing: 'open',
-    badge: 'Community Hub',
-    rank: 19,
-    trendingScore: 9.9,
-    url: 'https://huggingface.co',
-    developer: 'Hugging Face',
-    icon: '🤗',
-    keyFeatures: ['Over 1M+ open models', 'Spaces web application hosting', 'Open LLM Leaderboard', 'Datasets & pipeline libraries']
-  },
-  {
-    id: 'replit_agent',
-    name: 'Replit Agent',
-    tagline: 'Autonomous AI engineer building and deploying fullstack applications',
-    category: 'code',
-    pricing: 'paid',
-    badge: 'Autonomous Agent',
-    rank: 20,
-    trendingScore: 9.5,
-    url: 'https://replit.com',
-    developer: 'Replit',
-    icon: '🤖',
-    keyFeatures: ['Database schema creation', 'Automated package installation', 'Interactive terminal debugging', 'Instant custom domain hosting']
-  },
-  {
-    id: 'gamma',
-    name: 'Gamma.app',
-    tagline: 'Create beautiful presentations, documents, and webpages with AI',
-    category: 'productivity',
-    pricing: 'freemium',
-    badge: 'Slides Reimagined',
-    rank: 21,
-    trendingScore: 9.6,
-    url: 'https://gamma.app',
-    developer: 'Gamma',
-    icon: '📊',
-    keyFeatures: ['One-click deck generation', 'Interactive analytics embeds', 'Responsive web presentations', 'Export to PDF and PowerPoint']
-  },
-  {
-    id: 'udio',
-    name: 'Udio Music',
-    tagline: 'Next-generation AI music creation with extraordinary vocal clarity and depth',
-    category: 'audio',
-    pricing: 'freemium',
-    badge: 'Studio Vocals',
-    rank: 22,
-    trendingScore: 9.6,
-    url: 'https://udio.com',
-    developer: 'Udio',
-    icon: '🎧',
-    keyFeatures: ['Advanced inpainting and track extension', 'Jazz, classical, EDM & hip-hop genres', 'Vocal style customization', 'Stem download options']
-  },
-  {
-    id: 'whisper',
-    name: 'OpenAI Whisper Large-v3',
-    tagline: 'Robust multi-language speech recognition, translation, and transcription',
-    category: 'audio',
-    pricing: 'open',
-    badge: 'Open Weights Standard',
-    rank: 23,
-    trendingScore: 9.9,
-    url: 'https://github.com/openai/whisper',
-    developer: 'OpenAI',
-    icon: '👂',
-    keyFeatures: ['99+ languages supported', 'Word-level timestamps', 'Resilient against background noise', 'Fully runnable offline on GPU/CPU']
-  },
-  {
-    id: 'windsurf',
-    name: 'Windsurf by Codeium',
-    tagline: 'Next-gen agentic IDE with Cascade flow keeping developers in deep state',
-    category: 'code',
-    pricing: 'freemium',
-    badge: 'Agentic IDE',
-    rank: 24,
-    trendingScore: 9.6,
-    url: 'https://codeium.com/windsurf',
-    developer: 'Codeium',
-    icon: '🏄',
-    keyFeatures: ['Cascade collaborative AI flow', 'Deep contextual repository awareness', 'Real-time terminal execution', 'Blazing fast autocompletions']
-  }
-];
+// ============================================================================
+// 🧠 AI PULSE: 100% REAL LIVE API-FETCHED AI NEWS, MEDIA & TRENDING APPS
+// ============================================================================
 
-// In-memory cache for live AI news
-let aiNewsCache = {
+// Utility: Clean XML / HTML and decode entities
+function stripXmlHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/<[^>]*>?/gm, '')
+    .replace(/&quot;/g, '"')
+    .replace(/&#8217;/g, "'")
+    .replace(/&#8216;/g, "'")
+    .replace(/&#8220;/g, '"')
+    .replace(/&#8221;/g, '"')
+    .replace(/&#038;/g, '&')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Infer category from title / summary / tags
+function inferAiCategory(text) {
+  const t = (text || '').toLowerCase();
+  if (/llm|claude|chatgpt|gpt|gemini|deepseek|llama|reasoning|o3|prompt|qwen|mistral|transformer|gemma/.test(t)) return 'llm';
+  if (/code|coder|github|cursor|copilot|ide|programming|software|developer|repo|devin|v0/.test(t)) return 'code';
+  if (/vision|flux|diffusion|image|photo|video|sora|midjourney|kling|runway|camera|dall-e|comfyui/.test(t)) return 'vision';
+  if (/audio|voice|speech|sound|music|whisper|suno|elevenlabs|tts|dubbing/.test(t)) return 'audio';
+  if (/robot|robotics|drone|humanoid|optimus|figure|embodied|cybernetic/.test(t)) return 'robotics';
+  if (/paper|research|arxiv|benchmark|dataset|proof|study|architecture|theorem/.test(t)) return 'research';
+  return 'general';
+}
+
+// In-memory caches for live real-time AI data
+let liveAiNewsCache = {
   timestamp: 0,
   articles: []
 };
 
-// Parser for arXiv Atom XML
+let liveAiAppsCache = {
+  timestamp: 0,
+  apps: []
+};
+
+// Parser: The Verge AI Atom Feed (has real full-res photos, exact dates, authors)
+function parseVergeFeed(xml) {
+  const items = [];
+  const entries = xml.match(/<entry>([\s\S]*?)<\/entry>/g) || [];
+  for (const e of entries) {
+    const rawTitle = (e.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1];
+    const link = (e.match(/<link[^>]+href=["']([^"']+)["']/) || [])[1];
+    const pub = (e.match(/<published>([\s\S]*?)<\/published>/) || e.match(/<updated>([\s\S]*?)<\/updated>/) || [])[1];
+    const author = (e.match(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>/) || [])[1];
+    const img = (e.match(/<img[^>]+src=["']([^"']+)["']/) || [])[1];
+    const summary = (e.match(/<summary[^>]*>([\s\S]*?)<\/summary>/) || [])[1];
+
+    if (rawTitle && link) {
+      const cleanTitle = stripXmlHtml(rawTitle);
+      const cleanSummary = stripXmlHtml(summary);
+      items.push({
+        id: 'verge-' + (link.split('/').filter(Boolean).pop() || Math.random().toString(36).slice(2)),
+        title: cleanTitle,
+        summary: cleanSummary.length > 280 ? cleanSummary.slice(0, 280) + '...' : cleanSummary,
+        url: link,
+        source: 'The Verge',
+        sourceType: 'verge',
+        mediaType: img ? 'photo' : 'article',
+        mediaUrl: img || null,
+        author: stripXmlHtml(author) || 'The Verge Staff',
+        publishedAt: pub ? new Date(pub).toISOString() : new Date().toISOString(),
+        score: null,
+        commentsCount: null,
+        category: inferAiCategory(cleanTitle + ' ' + cleanSummary),
+        tags: ['The Verge', 'Tech Journalism', 'Illustrated']
+      });
+    }
+  }
+  return items;
+}
+
+// Parser: Ars Technica IT & AI Feed (has media:content images, exact dates, authors)
+function parseArsFeed(xml) {
+  const items = [];
+  const entryMatches = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
+  for (const it of entryMatches) {
+    const titleMatch = (it.match(/<title>([\s\S]*?)<\/title>/) || [])[1];
+    const link = (it.match(/<link>([\s\S]*?)<\/link>/) || [])[1];
+    const pub = (it.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1];
+    const creator = (it.match(/<dc:creator>([\s\S]*?)<\/dc:creator>/) || [])[1];
+    const desc = (it.match(/<description>([\s\S]*?)<\/description>/) || [])[1];
+    const mediaContent = (it.match(/<media:content[^>]+url=["']([^"']+)["']/) || [])[1];
+    const mediaThumb = (it.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/) || [])[1];
+    const img = mediaContent || mediaThumb || null;
+
+    if (titleMatch && link) {
+      const cleanTitle = stripXmlHtml(titleMatch);
+      const cleanDesc = stripXmlHtml(desc);
+      items.push({
+        id: 'ars-' + (link.split('/').filter(Boolean).pop() || Math.random().toString(36).slice(2)),
+        title: cleanTitle,
+        summary: cleanDesc.length > 280 ? cleanDesc.slice(0, 280) + '...' : cleanDesc,
+        url: link.trim(),
+        source: 'Ars Technica',
+        sourceType: 'arstechnica',
+        mediaType: img ? 'photo' : 'article',
+        mediaUrl: img,
+        author: stripXmlHtml(creator) || 'Ars Technica',
+        publishedAt: pub ? new Date(pub).toISOString() : new Date().toISOString(),
+        score: null,
+        commentsCount: null,
+        category: inferAiCategory(cleanTitle + ' ' + cleanDesc),
+        tags: ['Ars Technica', 'In-Depth Analysis']
+      });
+    }
+  }
+  return items;
+}
+
+// Parser: MIT Technology Review AI Feed
+function parseMitFeed(xml) {
+  const items = [];
+  const entryMatches = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
+  for (const it of entryMatches) {
+    const titleMatch = (it.match(/<title>([\s\S]*?)<\/title>/) || [])[1];
+    const link = (it.match(/<link>([\s\S]*?)<\/link>/) || [])[1];
+    const pub = (it.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1];
+    const creator = (it.match(/<dc:creator>([\s\S]*?)<\/dc:creator>/) || [])[1];
+    const desc = (it.match(/<description>([\s\S]*?)<\/description>/) || [])[1];
+
+    if (titleMatch && link) {
+      const cleanTitle = stripXmlHtml(titleMatch);
+      const cleanDesc = stripXmlHtml(desc);
+      items.push({
+        id: 'mit-' + (link.split('/').filter(Boolean).pop() || Math.random().toString(36).slice(2)),
+        title: cleanTitle,
+        summary: cleanDesc.length > 280 ? cleanDesc.slice(0, 280) + '...' : cleanDesc,
+        url: link.trim(),
+        source: 'MIT Technology Review',
+        sourceType: 'mit',
+        mediaType: 'article',
+        mediaUrl: null,
+        author: stripXmlHtml(creator) || 'MIT Tech Review',
+        publishedAt: pub ? new Date(pub).toISOString() : new Date().toISOString(),
+        score: null,
+        commentsCount: null,
+        category: inferAiCategory(cleanTitle + ' ' + cleanDesc),
+        tags: ['MIT Tech Review', 'Research & Policy']
+      });
+    }
+  }
+  return items;
+}
+
+// Parser: YouTube AI Channels Feed (real AI videos with video IDs & thumbnails)
+function parseYouTubeFeed(xml, channelName) {
+  const items = [];
+  const entries = xml.match(/<entry>([\s\S]*?)<\/entry>/g) || [];
+  for (const e of entries) {
+    const vidId = (e.match(/<yt:videoId>([\s\S]*?)<\/yt:videoId>/) || [])[1];
+    const rawTitle = (e.match(/<title>([\s\S]*?)<\/title>/) || [])[1];
+    const pub = (e.match(/<published>([\s\S]*?)<\/published>/) || [])[1];
+    const thumb = (e.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/) || [])[1];
+    const rawDesc = (e.match(/<media:description>([\s\S]*?)<\/media:description>/) || [])[1];
+    const author = (e.match(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>/) || [])[1];
+
+    if (vidId && rawTitle) {
+      const cleanTitle = stripXmlHtml(rawTitle);
+      const cleanDesc = stripXmlHtml(rawDesc);
+      items.push({
+        id: 'yt-' + vidId.trim(),
+        videoId: vidId.trim(),
+        title: cleanTitle,
+        summary: cleanDesc.length > 260 ? cleanDesc.slice(0, 260) + '...' : cleanDesc,
+        url: `https://www.youtube.com/watch?v=${vidId.trim()}`,
+        source: channelName || stripXmlHtml(author) || 'YouTube AI',
+        sourceType: 'youtube',
+        mediaType: 'video',
+        mediaUrl: thumb ? thumb.trim() : `https://i3.ytimg.com/vi/${vidId.trim()}/hqdefault.jpg`,
+        author: channelName || stripXmlHtml(author) || 'AI Creator',
+        publishedAt: pub ? new Date(pub.trim()).toISOString() : new Date().toISOString(),
+        score: null,
+        commentsCount: null,
+        category: inferAiCategory(cleanTitle + ' ' + cleanDesc),
+        tags: ['YouTube AI', 'Video Breakdown', 'Demo']
+      });
+    }
+  }
+  return items;
+}
+
+// Parser: Google News AI Feed (real articles from international newsrooms)
+function parseGoogleNewsFeed(xml) {
+  const items = [];
+  const entryMatches = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
+  for (const it of entryMatches) {
+    const rawTitle = (it.match(/<title>([\s\S]*?)<\/title>/) || [])[1];
+    const link = (it.match(/<link>([\s\S]*?)<\/link>/) || [])[1];
+    const pub = (it.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1];
+    const sourceMatch = it.match(/<source[^>]*>([\s\S]*?)<\/source>/);
+    const rawSource = sourceMatch ? sourceMatch[1] : 'Google News';
+
+    if (rawTitle && link) {
+      const cleanTitle = stripXmlHtml(rawTitle);
+      items.push({
+        id: 'gnews-' + Math.random().toString(36).slice(2, 10),
+        title: cleanTitle,
+        summary: `Real-time coverage reported by ${stripXmlHtml(rawSource)} on global artificial intelligence developments.`,
+        url: link.trim(),
+        source: stripXmlHtml(rawSource) || 'Global Press',
+        sourceType: 'googlenews',
+        mediaType: 'article',
+        mediaUrl: null,
+        author: stripXmlHtml(rawSource),
+        publishedAt: pub ? new Date(pub.trim()).toISOString() : new Date().toISOString(),
+        score: null,
+        commentsCount: null,
+        category: inferAiCategory(cleanTitle),
+        tags: ['Google News', 'Global Media']
+      });
+    }
+  }
+  return items;
+}
+
+// Parser: arXiv Computer Science & AI Atom Feed (real academic research papers)
 function parseArxivFeed(xml) {
   const entries = [];
   const entryMatches = xml.match(/<entry>([\s\S]*?)<\/entry>/g) || [];
@@ -1366,21 +1249,23 @@ function parseArxivFeed(xml) {
     }
 
     if (titleMatch && idMatch) {
-      const rawTitle = titleMatch[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-      const rawSummary = (summaryMatch ? summaryMatch[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() : '');
+      const rawTitle = stripXmlHtml(titleMatch[1]);
+      const rawSummary = stripXmlHtml(summaryMatch ? summaryMatch[1] : '');
       const url = idMatch[1].trim();
       const pdfUrl = url.replace('/abs/', '/pdf/') + '.pdf';
       entries.push({
         id: 'arxiv-' + (url.split('/').pop() || Math.random().toString(36).slice(2)),
         title: rawTitle,
-        summary: rawSummary.length > 260 ? rawSummary.slice(0, 260) + '...' : rawSummary,
+        summary: rawSummary.length > 280 ? rawSummary.slice(0, 280) + '...' : rawSummary,
         fullSummary: rawSummary,
         url,
         pdfUrl,
         source: 'arXiv cs.AI / cs.LG',
         sourceType: 'arxiv',
+        mediaType: 'paper',
+        mediaUrl: null,
         author: authors.slice(0, 3).join(', ') + (authors.length > 3 ? ' et al.' : ''),
-        publishedAt: publishedMatch ? publishedMatch[1].trim() : new Date().toISOString(),
+        publishedAt: publishedMatch ? new Date(publishedMatch[1].trim()).toISOString() : new Date().toISOString(),
         score: null,
         commentsCount: null,
         category: 'research',
@@ -1391,163 +1276,222 @@ function parseArxivFeed(xml) {
   return entries;
 }
 
-// Curated verified frontier AI releases
-const OFFICIAL_FRONTIER_NEWS = [
-  {
-    id: 'frontier-claude-3-7',
-    title: 'Anthropic releases Claude 3.7 Sonnet with hybrid reasoning & dynamic thinking',
-    summary: 'Claude 3.7 Sonnet offers state-of-the-art software engineering benchmarks, giving developers continuous control over reasoning token budgets.',
-    url: 'https://www.anthropic.com/news/claude-3-7-sonnet',
-    source: 'Anthropic Research',
-    sourceType: 'official',
-    author: 'Anthropic Team',
-    publishedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
-    score: 840,
-    commentsCount: 395,
-    category: 'llm',
-    tags: ['Anthropic', 'Claude', 'Frontier Model', 'Reasoning']
-  },
-  {
-    id: 'frontier-deepseek-r1',
-    title: 'DeepSeek-R1 open-weights release revolutionizes open source AI economics',
-    summary: 'DeepSeek open-sources R1 with full weights, technical paper, and verifiable reasoning chains, matching closed proprietary frontier models.',
-    url: 'https://github.com/deepseek-ai/DeepSeek-R1',
-    source: 'DeepSeek AI',
-    sourceType: 'official',
-    author: 'DeepSeek Research',
-    publishedAt: new Date(Date.now() - 3600000 * 28).toISOString(),
-    score: 1650,
-    commentsCount: 920,
-    category: 'llm',
-    tags: ['DeepSeek', 'Open Weights', 'Reasoning', 'Reinforcement Learning']
-  },
-  {
-    id: 'frontier-gemini-2-0',
-    title: 'Google DeepMind introduces Gemini 2.0 Flash with native live audio & vision',
-    summary: 'Gemini 2.0 Flash powers real-time multimodal bidirectional streaming with 2M token context, sub-second latency, and agentic workflows.',
-    url: 'https://blog.google/technology/ai/google-gemini-ai-update-december-2024/',
-    source: 'Google DeepMind',
-    sourceType: 'official',
-    author: 'DeepMind Team',
-    publishedAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-    score: 910,
-    commentsCount: 412,
-    category: 'llm',
-    tags: ['Google', 'DeepMind', 'Gemini', 'Multimodal']
-  },
-  {
-    id: 'frontier-flux-visual',
-    title: 'Black Forest Labs unveils FLUX.1 visual foundation models with superior typography',
-    summary: 'From the creators of Stable Diffusion, FLUX.1 brings high-fidelity photo generation, prompt adherence, and crystal clear text in images.',
-    url: 'https://blackforestlabs.ai/announcing-black-forest-labs/',
-    source: 'Black Forest Labs',
-    sourceType: 'official',
-    author: 'Robin Rombach et al.',
-    publishedAt: new Date(Date.now() - 3600000 * 72).toISOString(),
-    score: 720,
-    commentsCount: 280,
-    category: 'vision',
-    tags: ['FLUX', 'Open Source', 'Diffusion', 'Computer Vision']
-  },
-  {
-    id: 'frontier-openai-o3',
-    title: 'OpenAI announces o3 reasoning series with unprecedented math & coding benchmarks',
-    summary: 'The o3 model family achieves groundbreaking scores on competitive programming (Codeforces) and the International Mathematical Olympiad.',
-    url: 'https://openai.com/index/introducing-o3-and-o3-mini/',
-    source: 'OpenAI Research',
-    sourceType: 'official',
-    author: 'OpenAI Research',
-    publishedAt: new Date(Date.now() - 3600000 * 80).toISOString(),
-    score: 1120,
-    commentsCount: 650,
-    category: 'llm',
-    tags: ['OpenAI', 'o3', 'Reasoning', 'Mathematics']
-  }
-];
-
-// Helper to fetch live AI news across real sources
+// Helper: 100% Live Fetch across real multi-modal AI sources
 async function fetchRealAiNews() {
   const now = Date.now();
-  if (aiNewsCache.articles.length > 0 && (now - aiNewsCache.timestamp < 300000)) {
-    return aiNewsCache.articles;
+  // 3-minute in-memory cache to respect third-party rate limits and maintain sub-second responses
+  if (liveAiNewsCache.articles.length > 0 && (now - liveAiNewsCache.timestamp < 180000)) {
+    return liveAiNewsCache.articles;
   }
 
   const collected = [];
 
-  // 1. Always include official frontier updates
-  collected.push(...OFFICIAL_FRONTIER_NEWS);
+  const feedPromises = [
+    // 1. The Verge AI Feed (Photos, exact dates, journalists)
+    fetch('https://www.theverge.com/rss/ai-artificial-intelligence/index.xml', { signal: AbortSignal.timeout(6000) })
+      .then(r => r.ok ? r.text() : '')
+      .then(xml => xml ? parseVergeFeed(xml) : [])
+      .catch(() => []),
 
-  // 2. Fetch live Hacker News AI stories via Algolia API
-  try {
-    const hnRes = await fetch(
-      'https://hn.algolia.com/api/v1/search_by_date?query=artificial+intelligence+OR+LLM+OR+OpenAI+OR+Claude+OR+DeepSeek+OR+Gemini&tags=story&hitsPerPage=30',
-      { signal: AbortSignal.timeout(6000) }
-    );
-    if (hnRes.ok) {
-      const data = await hnRes.json();
-      if (data.hits && Array.isArray(data.hits)) {
-        for (const hit of data.hits) {
-          if (!hit.title) continue;
-          const titleLower = hit.title.toLowerCase();
-          let category = 'general';
-          if (/llm|gpt|claude|deepseek|gemini|llama|mistral|reasoning|prompt/.test(titleLower)) category = 'llm';
-          else if (/code|cursor|copilot|devin|v0|programming|syntax|developer/.test(titleLower)) category = 'code';
-          else if (/robot|figure|tesla|optimus|embodied|hardware/.test(titleLower)) category = 'robotics';
-          else if (/vision|diffusion|midjourney|flux|video|sora|kling|image/.test(titleLower)) category = 'vision';
+    // 2. Ars Technica IT & AI Feed (Photos/media:content, exact dates, journalists)
+    fetch('https://feeds.arstechnica.com/arstechnica/technology-lab', { signal: AbortSignal.timeout(6000) })
+      .then(r => r.ok ? r.text() : '')
+      .then(xml => xml ? parseArsFeed(xml) : [])
+      .catch(() => []),
 
-          collected.push({
-            id: 'hn-' + hit.objectID,
-            title: hit.title,
-            summary: hit.story_text ? hit.story_text.replace(/<[^>]*>?/gm, '').slice(0, 260) + '...' : `Discussed by the developer & tech community on Hacker News with ${hit.points || 0} upvotes and ${hit.num_comments || 0} comments.`,
-            url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+    // 3. MIT Technology Review AI Feed
+    fetch('https://www.technologyreview.com/topic/artificial-intelligence/feed/', { signal: AbortSignal.timeout(6000) })
+      .then(r => r.ok ? r.text() : '')
+      .then(xml => xml ? parseMitFeed(xml) : [])
+      .catch(() => []),
+
+    // 4. Two Minute Papers YouTube AI Channel
+    fetch('https://www.youtube.com/feeds/videos.xml?channel_id=UCbfYPyITQ-7l4upoX8nvctg', { signal: AbortSignal.timeout(6000) })
+      .then(r => r.ok ? r.text() : '')
+      .then(xml => xml ? parseYouTubeFeed(xml, 'Two Minute Papers') : [])
+      .catch(() => []),
+
+    // 5. Wes Roth AI News YouTube Channel
+    fetch('https://www.youtube.com/feeds/videos.xml?channel_id=UCqcbQf6yw5KzRoDDcZ_wBSw', { signal: AbortSignal.timeout(6000) })
+      .then(r => r.ok ? r.text() : '')
+      .then(xml => xml ? parseYouTubeFeed(xml, 'Wes Roth AI News') : [])
+      .catch(() => []),
+
+    // 6. DeepLearning.AI YouTube Channel
+    fetch('https://www.youtube.com/feeds/videos.xml?channel_id=UC2D2CMWXMOVWx7giW1n3LIg', { signal: AbortSignal.timeout(6000) })
+      .then(r => r.ok ? r.text() : '')
+      .then(xml => xml ? parseYouTubeFeed(xml, 'DeepLearning.AI') : [])
+      .catch(() => []),
+
+    // 7. Google News Real-time AI Query
+    fetch('https://news.google.com/rss/search?q=Artificial+Intelligence+when:3d&hl=en-US&gl=US&ceid=US:en', { signal: AbortSignal.timeout(6000) })
+      .then(r => r.ok ? r.text() : '')
+      .then(xml => xml ? parseGoogleNewsFeed(xml).slice(0, 15) : [])
+      .catch(() => []),
+
+    // 8. arXiv cs.AI and cs.LG Research Papers
+    fetch('https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG+OR+cat:cs.CL&sortBy=submittedDate&sortOrder=descending&max_results=16', { signal: AbortSignal.timeout(6000) })
+      .then(r => r.ok ? r.text() : '')
+      .then(xml => xml ? parseArxivFeed(xml) : [])
+      .catch(() => []),
+
+    // 9. Hacker News Algolia Live Community AI Stories
+    fetch('https://hn.algolia.com/api/v1/search_by_date?query=artificial+intelligence+OR+LLM+OR+OpenAI+OR+Claude+OR+DeepSeek+OR+Gemini&tags=story&hitsPerPage=25', { signal: AbortSignal.timeout(6000) })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data || !data.hits) return [];
+        return data.hits.filter(h => h.title).map(h => {
+          const t = stripXmlHtml(h.title);
+          const cat = inferAiCategory(t);
+          return {
+            id: 'hn-' + h.objectID,
+            title: t,
+            summary: h.story_text ? stripXmlHtml(h.story_text).slice(0, 260) + '...' : `Discussed on Hacker News with ${h.points || 0} upvotes and ${h.num_comments || 0} comments.`,
+            url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
             source: 'Hacker News AI',
             sourceType: 'hn',
-            author: hit.author || 'HN Contributor',
-            publishedAt: hit.created_at || new Date().toISOString(),
-            score: hit.points || 0,
-            commentsCount: hit.num_comments || 0,
-            category,
-            tags: ['Hacker News', category.toUpperCase(), 'Tech Pulse']
-          });
-        }
-      }
+            mediaType: 'article',
+            mediaUrl: null,
+            author: h.author || 'HN Contributor',
+            publishedAt: h.created_at || new Date().toISOString(),
+            score: h.points || 0,
+            commentsCount: h.num_comments || 0,
+            category: cat,
+            tags: ['Hacker News', cat.toUpperCase()]
+          };
+        });
+      })
+      .catch(() => [])
+  ];
+
+  const results = await Promise.allSettled(feedPromises);
+  for (const res of results) {
+    if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+      collected.push(...res.value);
     }
-  } catch (err) {
-    console.warn('[AI News] Hacker News Algolia query error:', err.message);
   }
 
-  // 3. Fetch latest arXiv Computer Science & AI research papers
-  try {
-    const arxivRes = await fetch(
-      'https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG+OR+cat:cs.CL&sortBy=submittedDate&sortOrder=descending&max_results=12',
-      { signal: AbortSignal.timeout(6000) }
-    );
-    if (arxivRes.ok) {
-      const xmlText = await arxivRes.text();
-      const arxivArticles = parseArxivFeed(xmlText);
-      collected.push(...arxivArticles);
+  // Deduplicate by URL or title
+  const seenUrls = new Set();
+  const deduped = [];
+  for (const item of collected) {
+    const key = item.url.toLowerCase();
+    if (!seenUrls.has(key)) {
+      seenUrls.add(key);
+      deduped.push(item);
     }
-  } catch (err) {
-    console.warn('[AI News] arXiv API query error:', err.message);
   }
 
-  // Sort by date descending
-  collected.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+  // Sort by exact published timestamp descending (freshest first)
+  deduped.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
-  aiNewsCache = {
+  liveAiNewsCache = {
     timestamp: now,
-    articles: collected
+    articles: deduped
   };
 
-  return collected;
+  return deduped;
 }
 
-// API: Live AI News Corner
+// Helper: 100% Live Fetch for Trending AI Apps & Foundation Models from Hugging Face Hub APIs
+async function fetchRealAiApps() {
+  const now = Date.now();
+  // 5-minute in-memory cache
+  if (liveAiAppsCache.apps.length > 0 && (now - liveAiAppsCache.timestamp < 300000)) {
+    return liveAiAppsCache.apps;
+  }
+
+  const collectedApps = [];
+
+  const [spacesRes, modelsRes] = await Promise.allSettled([
+    fetch('https://huggingface.co/api/spaces?sort=trendingScore&direction=-1&limit=35', { signal: AbortSignal.timeout(7000) }).then(r => r.ok ? r.json() : []),
+    fetch('https://huggingface.co/api/models?sort=trendingScore&direction=-1&limit=35', { signal: AbortSignal.timeout(7000) }).then(r => r.ok ? r.json() : [])
+  ]);
+
+  // 1. Process Live Interactive AI Spaces (Web Apps)
+  if (spacesRes.status === 'fulfilled' && Array.isArray(spacesRes.value)) {
+    for (const s of spacesRes.value) {
+      if (!s.id) continue;
+      const parts = s.id.split('/');
+      const author = parts[0];
+      const rawName = (parts[1] || parts[0]).replace(/[-_]/g, ' ');
+      const sdk = s.sdk || 'gradio';
+      const tags = Array.isArray(s.tags) ? s.tags : [];
+      const cat = inferAiCategory(rawName + ' ' + tags.join(' '));
+
+      collectedApps.push({
+        id: 'space-' + s.id.replace(/[^a-zA-Z0-9_-]/g, '_'),
+        name: rawName,
+        tagline: tags.length > 0 ? tags.slice(0, 4).join(' • ') : `Interactive ${sdk.toUpperCase()} AI Web Application`,
+        developer: author,
+        category: cat,
+        type: 'space',
+        sdk,
+        pricing: 'open',
+        badge: 'Trending Space',
+        trendingScore: s.trendingScore || 0,
+        likes: s.likes || 0,
+        downloads: null,
+        url: `https://huggingface.co/spaces/${s.id}`,
+        directAppUrl: `https://${s.id.replace('/', '-').toLowerCase()}.hf.space`,
+        createdAt: s.createdAt || new Date().toISOString(),
+        tags: [sdk.toUpperCase(), 'Live Demo', cat.toUpperCase()],
+        icon: cat === 'vision' ? '🎨' : (cat === 'audio' ? '🎵' : (cat === 'code' ? '💻' : '⚡'))
+      });
+    }
+  }
+
+  // 2. Process Live Trending Foundation Models
+  if (modelsRes.status === 'fulfilled' && Array.isArray(modelsRes.value)) {
+    for (const m of modelsRes.value) {
+      if (!m.id) continue;
+      const parts = m.id.split('/');
+      const author = parts[0];
+      const modelName = parts[1] || parts[0];
+      const pipeline = m.pipeline_tag || 'foundation-model';
+      const tags = Array.isArray(m.tags) ? m.tags : [];
+      const cat = inferAiCategory(modelName + ' ' + pipeline + ' ' + tags.join(' '));
+
+      collectedApps.push({
+        id: 'model-' + m.id.replace(/[^a-zA-Z0-9_-]/g, '_'),
+        name: modelName,
+        tagline: `${pipeline} • ${tags.slice(0, 3).join(', ') || 'open weights'}`,
+        developer: author,
+        category: cat,
+        type: 'model',
+        sdk: 'weights',
+        pricing: 'open',
+        badge: 'Open Weights',
+        trendingScore: m.trendingScore || 0,
+        likes: m.likes || 0,
+        downloads: m.downloads || 0,
+        url: `https://huggingface.co/${m.id}`,
+        directAppUrl: null,
+        createdAt: m.createdAt || new Date().toISOString(),
+        tags: [pipeline, 'Open Weights', cat.toUpperCase()],
+        icon: cat === 'vision' ? '👁️' : (cat === 'audio' ? '🎧' : (cat === 'code' ? '💻' : '🧠'))
+      });
+    }
+  }
+
+  // Sort by trending score & likes
+  collectedApps.sort((a, b) => (b.trendingScore || 0) - (a.trendingScore || 0) || (b.likes || 0) - (a.likes || 0));
+
+  liveAiAppsCache = {
+    timestamp: now,
+    apps: collectedApps
+  };
+
+  return collectedApps;
+}
+
+// API: Live AI News Corner (Real Sources, Exact Dates, Media, Photos, Videos & Papers)
 app.get('/api/ai/news', async (req, res) => {
   const category = (req.query.category || 'all').trim().toLowerCase();
   const source = (req.query.source || 'all').trim().toLowerCase();
+  const media = (req.query.media || 'all').trim().toLowerCase();
   const query = (req.query.q || '').trim().toLowerCase();
-  const limit = Math.min(100, parseInt(req.query.limit, 10) || 40);
+  const limit = Math.min(100, parseInt(req.query.limit, 10) || 50);
 
   try {
     let articles = await fetchRealAiNews();
@@ -1560,18 +1504,23 @@ app.get('/api/ai/news', async (req, res) => {
       articles = articles.filter(a => a.sourceType === source);
     }
 
+    if (media && media !== 'all') {
+      articles = articles.filter(a => a.mediaType === media);
+    }
+
     if (query) {
       articles = articles.filter(a =>
         a.title.toLowerCase().includes(query) ||
         (a.summary && a.summary.toLowerCase().includes(query)) ||
-        (a.author && a.author.toLowerCase().includes(query))
+        (a.author && a.author.toLowerCase().includes(query)) ||
+        (a.source && a.source.toLowerCase().includes(query))
       );
     }
 
     return res.json({
       success: true,
       total: articles.length,
-      cachedAt: new Date(aiNewsCache.timestamp).toISOString(),
+      cachedAt: new Date(liveAiNewsCache.timestamp).toISOString(),
       articles: articles.slice(0, limit)
     });
   } catch (err) {
@@ -1579,36 +1528,41 @@ app.get('/api/ai/news', async (req, res) => {
   }
 });
 
-// API: Best Trending AI Apps Corner
-app.get('/api/ai/trending-apps', (req, res) => {
+// API: Best Trending AI Apps Corner (100% Live Fetched from Hugging Face Hub)
+app.get('/api/ai/trending-apps', async (req, res) => {
   const category = (req.query.category || 'all').trim().toLowerCase();
-  const pricing = (req.query.pricing || 'all').trim().toLowerCase();
+  const type = (req.query.type || 'all').trim().toLowerCase();
   const query = (req.query.q || '').trim().toLowerCase();
 
-  let apps = [...TRENDING_AI_APPS];
+  try {
+    let apps = await fetchRealAiApps();
 
-  if (category && category !== 'all') {
-    apps = apps.filter(a => a.category === category);
+    if (category && category !== 'all') {
+      apps = apps.filter(a => a.category === category);
+    }
+
+    if (type && type !== 'all') {
+      apps = apps.filter(a => a.type === type);
+    }
+
+    if (query) {
+      apps = apps.filter(a =>
+        a.name.toLowerCase().includes(query) ||
+        a.tagline.toLowerCase().includes(query) ||
+        a.developer.toLowerCase().includes(query) ||
+        (a.tags && a.tags.some(t => t.toLowerCase().includes(query)))
+      );
+    }
+
+    return res.json({
+      success: true,
+      total: apps.length,
+      cachedAt: new Date(liveAiAppsCache.timestamp).toISOString(),
+      apps
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
-
-  if (pricing && pricing !== 'all') {
-    apps = apps.filter(a => a.pricing === pricing);
-  }
-
-  if (query) {
-    apps = apps.filter(a =>
-      a.name.toLowerCase().includes(query) ||
-      a.tagline.toLowerCase().includes(query) ||
-      a.developer.toLowerCase().includes(query) ||
-      a.keyFeatures.some(f => f.toLowerCase().includes(query))
-    );
-  }
-
-  return res.json({
-    success: true,
-    total: apps.length,
-    apps
-  });
 });
 
 // Curated Open Web Videos Directory & Search
