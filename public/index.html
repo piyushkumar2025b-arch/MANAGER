@@ -1694,6 +1694,9 @@
       <button class="tab" onclick="switchTab('toolbox')" id="tab-toolbox">
         <span>🛠️</span> Toolbox
       </button>
+      <button class="tab" onclick="switchTab('ainews')" id="tab-ainews">
+        <span>🧠</span> AI News & Apps
+      </button>
     </div>
   </div>
 
@@ -2080,6 +2083,10 @@ async function loadTab() {
   } else if (currentTab === 'toolbox') {
     if (typeof window.renderToolboxTab === 'function') {
       window.renderToolboxTab();
+    }
+  } else if (currentTab === 'ainews') {
+    if (typeof window.renderAiNewsAppsTab === 'function') {
+      window.renderAiNewsAppsTab();
     }
   }
 }
@@ -10935,6 +10942,8 @@ async function renderInternetAndFeedsTab() {
 
   const subtabs = [
     { id: 'search', icon: '🔍', label: 'Google & Web Search' },
+    { id: 'ainews', icon: '⚡', label: 'AI News Corner' },
+    { id: 'trendingapps', icon: '🔥', label: 'Trending AI Apps' },
     { id: 'scraper', icon: '🕷️', label: 'Network Scraper & Auditor' },
     { id: 'netping', icon: '📡', label: 'Network Ping & IP Geo' },
     { id: 'map', icon: '🗺️', label: 'Map Viewer' },
@@ -11014,6 +11023,14 @@ function renderCurrentInternetSubtab() {
     renderHackerNewsSubtab(container);
   } else if (currentInternetSubtab === 'dns') {
     renderDnsSubtab(container);
+  } else if (currentInternetSubtab === 'ainews') {
+    if (typeof window.renderAiNewsAppsTab === 'function') {
+      window.renderAiNewsAppsTab('news');
+    }
+  } else if (currentInternetSubtab === 'trendingapps') {
+    if (typeof window.renderAiNewsAppsTab === 'function') {
+      window.renderAiNewsAppsTab('apps');
+    }
   }
 }
 
@@ -14665,5 +14682,6 @@ async function runHubWorkersAiTest() {
 <script src="/workspace-automator.js"></script>
 <script src="/web-media-studio.js"></script>
 <script src="/developer-toolbox.js"></script>
+<script src="/ai-news-apps.js"></script>
 </body>
 </html>

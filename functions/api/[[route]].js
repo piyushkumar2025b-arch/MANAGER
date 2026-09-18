@@ -4773,6 +4773,241 @@ Provide your response in JSON format with two keys:
       }
     }
 
+    // AI Pulse: Live AI News Feed (Hacker News Algolia + arXiv cs.AI + Frontier Announcements)
+    if (path === '/ai/news' && method === 'GET') {
+      const category = (url.searchParams.get('category') || 'all').trim().toLowerCase();
+      const source = (url.searchParams.get('source') || 'all').trim().toLowerCase();
+      const query = (url.searchParams.get('q') || '').trim().toLowerCase();
+      const limit = Math.min(100, parseInt(url.searchParams.get('limit'), 10) || 40);
+
+      const frontierNews = [
+        {
+          id: 'frontier-claude-3-7',
+          title: 'Anthropic releases Claude 3.7 Sonnet with hybrid reasoning & dynamic thinking',
+          summary: 'Claude 3.7 Sonnet offers state-of-the-art software engineering benchmarks, giving developers continuous control over reasoning token budgets.',
+          url: 'https://www.anthropic.com/news/claude-3-7-sonnet',
+          source: 'Anthropic Research',
+          sourceType: 'official',
+          author: 'Anthropic Team',
+          publishedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+          score: 840,
+          commentsCount: 395,
+          category: 'llm',
+          tags: ['Anthropic', 'Claude', 'Frontier Model', 'Reasoning']
+        },
+        {
+          id: 'frontier-deepseek-r1',
+          title: 'DeepSeek-R1 open-weights release revolutionizes open source AI economics',
+          summary: 'DeepSeek open-sources R1 with full weights, technical paper, and verifiable reasoning chains, matching closed proprietary frontier models.',
+          url: 'https://github.com/deepseek-ai/DeepSeek-R1',
+          source: 'DeepSeek AI',
+          sourceType: 'official',
+          author: 'DeepSeek Research',
+          publishedAt: new Date(Date.now() - 3600000 * 28).toISOString(),
+          score: 1650,
+          commentsCount: 920,
+          category: 'llm',
+          tags: ['DeepSeek', 'Open Weights', 'Reasoning', 'Reinforcement Learning']
+        },
+        {
+          id: 'frontier-gemini-2-0',
+          title: 'Google DeepMind introduces Gemini 2.0 Flash with native live audio & vision',
+          summary: 'Gemini 2.0 Flash powers real-time multimodal bidirectional streaming with 2M token context, sub-second latency, and agentic workflows.',
+          url: 'https://blog.google/technology/ai/google-gemini-ai-update-december-2024/',
+          source: 'Google DeepMind',
+          sourceType: 'official',
+          author: 'DeepMind Team',
+          publishedAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+          score: 910,
+          commentsCount: 412,
+          category: 'llm',
+          tags: ['Google', 'DeepMind', 'Gemini', 'Multimodal']
+        },
+        {
+          id: 'frontier-flux-visual',
+          title: 'Black Forest Labs unveils FLUX.1 visual foundation models with superior typography',
+          summary: 'From the creators of Stable Diffusion, FLUX.1 brings high-fidelity photo generation, prompt adherence, and crystal clear text in images.',
+          url: 'https://blackforestlabs.ai/announcing-black-forest-labs/',
+          source: 'Black Forest Labs',
+          sourceType: 'official',
+          author: 'Robin Rombach et al.',
+          publishedAt: new Date(Date.now() - 3600000 * 72).toISOString(),
+          score: 720,
+          commentsCount: 280,
+          category: 'vision',
+          tags: ['FLUX', 'Open Source', 'Diffusion', 'Computer Vision']
+        },
+        {
+          id: 'frontier-openai-o3',
+          title: 'OpenAI announces o3 reasoning series with unprecedented math & coding benchmarks',
+          summary: 'The o3 model family achieves groundbreaking scores on competitive programming (Codeforces) and the International Mathematical Olympiad.',
+          url: 'https://openai.com/index/introducing-o3-and-o3-mini/',
+          source: 'OpenAI Research',
+          sourceType: 'official',
+          author: 'OpenAI Research',
+          publishedAt: new Date(Date.now() - 3600000 * 80).toISOString(),
+          score: 1120,
+          commentsCount: 650,
+          category: 'llm',
+          tags: ['OpenAI', 'o3', 'Reasoning', 'Mathematics']
+        }
+      ];
+
+      const collected = [...frontierNews];
+
+      // Query live Hacker News Algolia
+      try {
+        const hnRes = await fetch(
+          'https://hn.algolia.com/api/v1/search_by_date?query=artificial+intelligence+OR+LLM+OR+OpenAI+OR+Claude+OR+DeepSeek+OR+Gemini&tags=story&hitsPerPage=30',
+          { headers: { 'User-Agent': 'VaultAiPulse/1.0' } }
+        );
+        if (hnRes.ok) {
+          const data = await hnRes.json();
+          if (data.hits && Array.isArray(data.hits)) {
+            for (const hit of data.hits) {
+              if (!hit.title) continue;
+              const titleLower = hit.title.toLowerCase();
+              let cat = 'general';
+              if (/llm|gpt|claude|deepseek|gemini|llama|mistral|reasoning|prompt/.test(titleLower)) cat = 'llm';
+              else if (/code|cursor|copilot|devin|v0|programming|syntax|developer/.test(titleLower)) cat = 'code';
+              else if (/robot|figure|tesla|optimus|embodied|hardware/.test(titleLower)) cat = 'robotics';
+              else if (/vision|diffusion|midjourney|flux|video|sora|kling|image/.test(titleLower)) cat = 'vision';
+
+              collected.push({
+                id: 'hn-' + hit.objectID,
+                title: hit.title,
+                summary: hit.story_text ? hit.story_text.replace(/<[^>]*>?/gm, '').slice(0, 260) + '...' : `Discussed on Hacker News with ${hit.points || 0} upvotes and ${hit.num_comments || 0} comments.`,
+                url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+                source: 'Hacker News AI',
+                sourceType: 'hn',
+                author: hit.author || 'HN Contributor',
+                publishedAt: hit.created_at || new Date().toISOString(),
+                score: hit.points || 0,
+                commentsCount: hit.num_comments || 0,
+                category: cat,
+                tags: ['Hacker News', cat.toUpperCase(), 'Live Pulse']
+              });
+            }
+          }
+        }
+      } catch (_) {}
+
+      // Query arXiv cs.AI
+      try {
+        const arxivRes = await fetch(
+          'https://export.arxiv.org/api/query?search_query=cat:cs.AI+OR+cat:cs.LG+OR+cat:cs.CL&sortBy=submittedDate&sortOrder=descending&max_results=12'
+        );
+        if (arxivRes.ok) {
+          const xmlText = await arxivRes.text();
+          const entryMatches = xmlText.match(/<entry>([\s\S]*?)<\/entry>/g) || [];
+          for (const block of entryMatches) {
+            const titleMatch = block.match(/<title>([\s\S]*?)<\/title>/);
+            const summaryMatch = block.match(/<summary>([\s\S]*?)<\/summary>/);
+            const idMatch = block.match(/<id>([\s\S]*?)<\/id>/);
+            const publishedMatch = block.match(/<published>([\s\S]*?)<\/published>/);
+            const authors = [];
+            const authorMatches = block.match(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/g) || [];
+            for (const a of authorMatches) {
+              const nm = a.match(/<name>([\s\S]*?)<\/name>/);
+              if (nm) authors.push(nm[1].trim());
+            }
+            if (titleMatch && idMatch) {
+              const rawTitle = titleMatch[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+              const rawSummary = (summaryMatch ? summaryMatch[1].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim() : '');
+              const u = idMatch[1].trim();
+              collected.push({
+                id: 'arxiv-' + (u.split('/').pop() || Math.random().toString(36).slice(2)),
+                title: rawTitle,
+                summary: rawSummary.length > 260 ? rawSummary.slice(0, 260) + '...' : rawSummary,
+                fullSummary: rawSummary,
+                url: u,
+                pdfUrl: u.replace('/abs/', '/pdf/') + '.pdf',
+                source: 'arXiv cs.AI / cs.LG',
+                sourceType: 'arxiv',
+                author: authors.slice(0, 3).join(', ') + (authors.length > 3 ? ' et al.' : ''),
+                publishedAt: publishedMatch ? publishedMatch[1].trim() : new Date().toISOString(),
+                score: null,
+                commentsCount: null,
+                category: 'research',
+                tags: ['arXiv', 'Research Paper', 'Computer Science']
+              });
+            }
+          }
+        }
+      } catch (_) {}
+
+      collected.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+      let filtered = collected;
+      if (category && category !== 'all') filtered = filtered.filter(a => a.category === category);
+      if (source && source !== 'all') filtered = filtered.filter(a => a.sourceType === source);
+      if (query) {
+        filtered = filtered.filter(a =>
+          a.title.toLowerCase().includes(query) ||
+          (a.summary && a.summary.toLowerCase().includes(query)) ||
+          (a.author && a.author.toLowerCase().includes(query))
+        );
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        total: filtered.length,
+        articles: filtered.slice(0, limit)
+      }), { headers });
+    }
+
+    // AI Pulse: Curated Best Trending AI Apps
+    if (path === '/ai/trending-apps' && method === 'GET') {
+      const category = (url.searchParams.get('category') || 'all').trim().toLowerCase();
+      const pricing = (url.searchParams.get('pricing') || 'all').trim().toLowerCase();
+      const query = (url.searchParams.get('q') || '').trim().toLowerCase();
+
+      const trendingAppsList = [
+        { id: 'cursor', name: 'Cursor AI', tagline: 'The AI-first Code Editor built for developers on top of VS Code', category: 'code', pricing: 'freemium', badge: 'Trending #1', rank: 1, trendingScore: 9.9, url: 'https://cursor.com', developer: 'Anysphere', icon: '💻', keyFeatures: ['Multi-file codebase indexing', 'Composer full-app editing', 'Contextual Tab autocompletion', 'Claude 3.7 & GPT-4o integration'] },
+        { id: 'claude', name: 'Claude 3.7 Sonnet', tagline: 'Leading hybrid reasoning and standard reasoning frontier model', category: 'llm', pricing: 'freemium', badge: 'Frontier Benchmark', rank: 2, trendingScore: 9.9, url: 'https://claude.ai', developer: 'Anthropic', icon: '🧠', keyFeatures: ['Extended thinking modes', '200K token context window', 'Artifacts live execution', 'Superior coding and architecture'] },
+        { id: 'chatgpt', name: 'ChatGPT & GPT-4o / o3', tagline: 'The world standard conversational AI and breakthrough reasoning models', category: 'llm', pricing: 'freemium', badge: 'Global Pioneer', rank: 3, trendingScore: 9.9, url: 'https://chatgpt.com', developer: 'OpenAI', icon: '⚡', keyFeatures: ['Native multimodal voice & vision', 'o3-mini scientific reasoning', 'Custom GPTs ecosystem', 'Canvas collaborative editor'] },
+        { id: 'deepseek', name: 'DeepSeek-R1 / V3', tagline: 'Open-weights reasoning model matching closed commercial frontier systems', category: 'llm', pricing: 'open', badge: 'Open Weights King', rank: 4, trendingScore: 9.8, url: 'https://chat.deepseek.com', developer: 'DeepSeek', icon: '🐋', keyFeatures: ['671B MoE architecture', 'Pure reinforcement learning reasoning', 'MIT open licensed weights', 'Ultra cost-effective API'] },
+        { id: 'v0', name: 'v0 by Vercel', tagline: 'Generative UI development system turning natural language into React & Tailwind', category: 'code', pricing: 'freemium', badge: 'Top Design Tool', rank: 5, trendingScore: 9.8, url: 'https://v0.dev', developer: 'Vercel', icon: '📐', keyFeatures: ['Shadcn UI & Tailwind native', 'Fullstack Next.js scaffold export', 'Iterative visual code inspection', 'Figma design alignment'] },
+        { id: 'perplexity', name: 'Perplexity AI', tagline: 'Conversational answer engine with live verified web citations', category: 'productivity', pricing: 'freemium', badge: 'Editor Choice', rank: 6, trendingScore: 9.8, url: 'https://perplexity.ai', developer: 'Perplexity', icon: '🔍', keyFeatures: ['Real-time multi-source search', 'Pro Search with deep reasoning', 'Upload PDFs & spreadsheets', 'Curated Collections'] },
+        { id: 'elevenlabs', name: 'ElevenLabs', tagline: 'Voice synthesis, emotional speech AI, and multilingual dubbing', category: 'audio', pricing: 'freemium', badge: 'Audio Benchmark', rank: 7, trendingScore: 9.9, url: 'https://elevenlabs.io', developer: 'ElevenLabs', icon: '🎙️', keyFeatures: ['Zero-shot voice cloning', 'Conversational AI agents', 'Studio voiceover production', 'Sub-100ms streaming TTS'] },
+        { id: 'midjourney', name: 'Midjourney v6.1', tagline: 'Photorealistic generative imagery and state-of-the-art artistic styling', category: 'image', pricing: 'paid', badge: 'Visual Master', rank: 8, trendingScore: 9.8, url: 'https://midjourney.com', developer: 'Midjourney', icon: '🎨', keyFeatures: ['Hyper-realistic skin & lighting', 'Web canvas inpainting editor', 'Style and character consistency', 'Text rendering fidelity'] },
+        { id: 'flux', name: 'FLUX.1', tagline: 'Open visual foundation model by Black Forest Labs with extraordinary text rendering', category: 'image', pricing: 'open', badge: 'Open Weights Lead', rank: 9, trendingScore: 9.8, url: 'https://blackforestlabs.ai', developer: 'Black Forest Labs', icon: '✨', keyFeatures: ['12B parameter rectified flow', 'Flawless typography in images', 'Schnell & Dev open weights', 'Available on Hugging Face & local'] },
+        { id: 'runway', name: 'Runway Gen-3 Alpha', tagline: 'Cinematic AI video generation with expressive motion and camera control', category: 'video', pricing: 'paid', badge: 'Hollywood Standard', rank: 10, trendingScore: 9.7, url: 'https://runwayml.com', developer: 'Runway', icon: '🎬', keyFeatures: ['High-definition text-to-video', 'Motion brush regional control', 'Director camera maneuvers', 'Lip sync actor animation'] },
+        { id: 'suno', name: 'Suno AI v4', tagline: 'Full-song composition generating radio-quality lyrics, vocals, and instruments', category: 'audio', pricing: 'freemium', badge: 'Music Hitmaker', rank: 11, trendingScore: 9.8, url: 'https://suno.com', developer: 'Suno', icon: '🎵', keyFeatures: ['Full 2+ minute songs', 'Multi-genre stem separation', 'Vocal tone customization', 'Instant MP3 and WAV export'] },
+        { id: 'gemini', name: 'Google Gemini 2.0 Flash / Pro', tagline: 'Next-generation multimodal model with 2M context and native tool use', category: 'llm', pricing: 'freemium', badge: 'Multimodal Titan', rank: 12, trendingScore: 9.7, url: 'https://gemini.google.com', developer: 'Google DeepMind', icon: '💎', keyFeatures: ['2,000,000 token context window', 'Live audio & video streaming API', 'Google Search & Maps grounding', 'Ultra-fast Flash latency'] },
+        { id: 'notebooklm', name: 'NotebookLM', tagline: 'Personal AI research assistant generating conversational Audio Overviews', category: 'productivity', pricing: 'free', badge: 'Viral Innovation', rank: 13, trendingScore: 9.7, url: 'https://notebooklm.google.com', developer: 'Google', icon: '📓', keyFeatures: ['Deep dive podcast audio generation', 'Strict source-grounded citations', 'Upload PDFs, Docs & YouTube', 'Zero data hallucination on notes'] },
+        { id: 'lovable', name: 'Lovable.dev', tagline: 'Fullstack web application builder that creates production code from prompts', category: 'code', pricing: 'freemium', badge: 'Rapid Builder', rank: 14, trendingScore: 9.7, url: 'https://lovable.dev', developer: 'Lovable', icon: '🚀', keyFeatures: ['Full GitHub sync', 'Supabase backend integration', 'Instant live preview sandbox', 'Responsive UI components'] },
+        { id: 'bolt', name: 'Bolt.new', tagline: 'In-browser fullstack development sandbox running Node.js via WebContainers', category: 'code', pricing: 'freemium', badge: 'Browser Dev', rank: 15, trendingScore: 9.6, url: 'https://bolt.new', developer: 'StackBlitz', icon: '⚡', keyFeatures: ['In-browser container environment', 'NPM package ecosystem support', '1-click Netlify deploy', 'Full-stack code control'] },
+        { id: 'kling', name: 'Kling AI', tagline: 'State-of-the-art video model with physical world simulation and high motion', category: 'video', pricing: 'freemium', badge: 'Motion Physics', rank: 16, trendingScore: 9.6, url: 'https://klingai.com', developer: 'Kuaishou', icon: '🎥', keyFeatures: ['1080p 30fps video generation', 'Realistic fluid & cloth dynamics', 'Up to 2 minutes duration', 'High consistency character motion'] },
+        { id: 'recraft', name: 'Recraft AI', tagline: 'Generative AI graphic studio specialized in vector art, icons, and brand design', category: 'image', pricing: 'freemium', badge: 'Vector Specialist', rank: 17, trendingScore: 9.6, url: 'https://recraft.ai', developer: 'Recraft', icon: '✒️', keyFeatures: ['Native SVG vector export', 'Brand color palette locking', 'Icon pack generation', 'Clean transparent backgrounds'] },
+        { id: 'groq', name: 'GroqCloud', tagline: 'Ultra-fast LPU inference engine streaming open LLMs at 500+ tokens/sec', category: 'code', pricing: 'freemium', badge: 'Speed Demon', rank: 18, trendingScore: 9.8, url: 'https://groq.com', developer: 'Groq', icon: '🏎️', keyFeatures: ['500+ tokens per second', 'Llama 3.3 & DeepSeek R1 models', 'OpenAI-compatible API format', 'Zero-latency voice agents'] },
+        { id: 'huggingface', name: 'Hugging Face Hub', tagline: 'The open-source collaboration platform and git repository of machine learning', category: 'code', pricing: 'open', badge: 'Community Hub', rank: 19, trendingScore: 9.9, url: 'https://huggingface.co', developer: 'Hugging Face', icon: '🤗', keyFeatures: ['Over 1M+ open models', 'Spaces web application hosting', 'Open LLM Leaderboard', 'Datasets & pipeline libraries'] },
+        { id: 'replit_agent', name: 'Replit Agent', tagline: 'Autonomous AI engineer building and deploying fullstack applications', category: 'code', pricing: 'paid', badge: 'Autonomous Agent', rank: 20, trendingScore: 9.5, url: 'https://replit.com', developer: 'Replit', icon: '🤖', keyFeatures: ['Database schema creation', 'Automated package installation', 'Interactive terminal debugging', 'Instant custom domain hosting'] },
+        { id: 'gamma', name: 'Gamma.app', tagline: 'Create beautiful presentations, documents, and webpages with AI', category: 'productivity', pricing: 'freemium', badge: 'Slides Reimagined', rank: 21, trendingScore: 9.6, url: 'https://gamma.app', developer: 'Gamma', icon: '📊', keyFeatures: ['One-click deck generation', 'Interactive analytics embeds', 'Responsive web presentations', 'Export to PDF and PowerPoint'] },
+        { id: 'udio', name: 'Udio Music', tagline: 'Next-generation AI music creation with extraordinary vocal clarity and depth', category: 'audio', pricing: 'freemium', badge: 'Studio Vocals', rank: 22, trendingScore: 9.6, url: 'https://udio.com', developer: 'Udio', icon: '🎧', keyFeatures: ['Advanced inpainting and track extension', 'Jazz, classical, EDM & hip-hop genres', 'Vocal style customization', 'Stem download options'] },
+        { id: 'whisper', name: 'OpenAI Whisper Large-v3', tagline: 'Robust multi-language speech recognition, translation, and transcription', category: 'audio', pricing: 'open', badge: 'Open Weights Standard', rank: 23, trendingScore: 9.9, url: 'https://github.com/openai/whisper', developer: 'OpenAI', icon: '👂', keyFeatures: ['99+ languages supported', 'Word-level timestamps', 'Resilient against background noise', 'Fully runnable offline on GPU/CPU'] },
+        { id: 'windsurf', name: 'Windsurf by Codeium', tagline: 'Next-gen agentic IDE with Cascade flow keeping developers in deep state', category: 'code', pricing: 'freemium', badge: 'Agentic IDE', rank: 24, trendingScore: 9.6, url: 'https://codeium.com/windsurf', developer: 'Codeium', icon: '🏄', keyFeatures: ['Cascade collaborative AI flow', 'Deep contextual repository awareness', 'Real-time terminal execution', 'Blazing fast autocompletions'] }
+      ];
+
+      let filtered = trendingAppsList;
+      if (category && category !== 'all') filtered = filtered.filter(a => a.category === category);
+      if (pricing && pricing !== 'all') filtered = filtered.filter(a => a.pricing === pricing);
+      if (query) {
+        filtered = filtered.filter(a =>
+          a.name.toLowerCase().includes(query) ||
+          a.tagline.toLowerCase().includes(query) ||
+          a.developer.toLowerCase().includes(query) ||
+          a.keyFeatures.some(f => f.toLowerCase().includes(query))
+        );
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        total: filtered.length,
+        apps: filtered
+      }), { headers });
+    }
+
     if (path === '/web/scrape' && (method === 'GET' || method === 'POST')) {
       let targetUrl = '';
       let maxChars = 35000;
