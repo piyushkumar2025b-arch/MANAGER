@@ -43,6 +43,9 @@ window.renderToolboxTab = function() {
           <span class="badge" style="background:rgba(124,106,247,0.15);color:var(--accent);font-size:11px;font-weight:600;padding:3px 9px;">
             14 Sub-Tools Active
           </span>
+          <button class="filter-pill" onclick="switchTab('bots')" style="font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;background:var(--accent);color:#fff;border:none;font-weight:600;padding:6px 12px;border-radius:6px;">
+            <span>🤖</span> Bot Controller (Telegram & Discord)
+          </button>
           <button class="filter-pill" onclick="copyToolboxRestInfo()" style="font-size:12px;display:flex;align-items:center;gap:5px;">
             <span>📋</span> API Endpoints
           </button>

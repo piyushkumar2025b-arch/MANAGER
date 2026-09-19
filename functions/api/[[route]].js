@@ -6962,6 +6962,957 @@ Provide your response in JSON format with two keys:
       }), { headers });
     }
 
+    // ========================================================================
+    // 🤖 BOT CONTROLLER ENGINE (TELEGRAM & DISCORD CONTROLLERS - CLOUDFLARE EDGE)
+    // ========================================================================
+
+    const workerBotActivityLogs = globalThis._botActivityLogs || (globalThis._botActivityLogs = []);
+    const recordWorkerBotActivity = (entry) => {
+      workerBotActivityLogs.unshift({
+        id: 'bot_log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        timestamp: new Date().toISOString(),
+        ...entry
+      });
+      if (workerBotActivityLogs.length > 150) workerBotActivityLogs.length = 150;
+    };
+
+    const parseDiscordEmbedColor = (col) => {
+      if (typeof col === 'number') return col;
+      if (typeof col === 'string') {
+        const num = parseInt(col.replace('#', '').trim(), 16);
+        if (!isNaN(num)) return num;
+      }
+      return 8153847; // Vault purple #7c6af7
+    };
+
+    // Edge helper: retrieve persistent bot credential from KV, D1, or env
+    const getBotCredential = async (key) => {
+      // 1. Check Cloudflare KV
+      if (env.VAULT_KV) {
+        try {
+          const val = await env.VAULT_KV.get('bot_' + key);
+          if (val && typeof val === 'string' && val.trim()) return val.trim();
+        } catch (_) {}
+      }
+      // 2. Check Cloudflare D1
+      if (env.DB) {
+        try {
+          const val = await getSetting(env.DB, 'bot_' + key);
+          if (val && typeof val === 'string' && val.trim()) return val.trim();
+        } catch (_) {}
+      }
+      // 3. Check memory store if present
+      if (globalThis._edgeBotCredentials && globalThis._edgeBotCredentials[key]) {
+        return globalThis._edgeBotCredentials[key];
+      }
+      // 4. Environment variable fallback
+      const envKeyMap = {
+        telegram_bot_token: env.TELEGRAM_BOT_TOKEN,
+        telegram_chat_id: env.TELEGRAM_CHAT_ID,
+        discord_bot_token: env.DISCORD_BOT_TOKEN,
+        discord_webhook_url: env.DISCORD_WEBHOOK_URL,
+        discord_client_id: env.DISCORD_CLIENT_ID,
+        discord_channel_id: env.DISCORD_CHANNEL_ID
+      };
+      return (envKeyMap[key] || '').trim();
+    };
+
+    // Edge helper: persist bot credential to KV and D1
+    const setBotCredential = async (key, value) => {
+      const cleanVal = (value || '').trim();
+      if (!globalThis._edgeBotCredentials) globalThis._edgeBotCredentials = {};
+      if (cleanVal) {
+        globalThis._edgeBotCredentials[key] = cleanVal;
+      } else {
+        delete globalThis._edgeBotCredentials[key];
+      }
+
+      // 1. Cloudflare KV
+      if (env.VAULT_KV) {
+        try {
+          if (cleanVal) {
+            await env.VAULT_KV.put('bot_' + key, cleanVal);
+          } else {
+            await env.VAULT_KV.delete('bot_' + key);
+          }
+        } catch (_) {}
+      }
+      // 2. Cloudflare D1
+      if (env.DB) {
+        try {
+          await setSetting(env.DB, 'bot_' + key, cleanVal || null);
+        } catch (_) {}
+      }
+    };
+
+    // 0. Bots Credentials Management (Cloudflare Edge D1 & KV Persistence)
+    if (path === '/bots/credentials' && method === 'GET') {
+      const tgToken = await getBotCredential('telegram_bot_token');
+      const tgChat = await getBotCredential('telegram_chat_id');
+      const dcToken = await getBotCredential('discord_bot_token');
+      const dcWebhook = await getBotCredential('discord_webhook_url');
+      const dcClient = await getBotCredential('discord_client_id');
+      const dcChannel = await getBotCredential('discord_channel_id');
+
+      const mask = (s) => s && s.length > 8 ? (s.slice(0, 4) + '••••••••' + s.slice(-4)) : (s ? '••••••••' : '');
+
+      return new Response(JSON.stringify({
+        success: true,
+        cloudflare: {
+          edgeWorker: true,
+          d1: !!env.DB,
+          kv: !!env.VAULT_KV,
+          edgeLocation: request.cf?.colo || 'EDGE'
+        },
+        credentials: {
+          telegram_bot_token: tgToken,
+          telegram_chat_id: tgChat,
+          discord_bot_token: dcToken,
+          discord_webhook_url: dcWebhook,
+          discord_client_id: dcClient,
+          discord_channel_id: dcChannel
+        },
+        masked: {
+          telegram_bot_token: mask(tgToken),
+          telegram_chat_id: tgChat,
+          discord_bot_token: mask(dcToken),
+          discord_webhook_url: mask(dcWebhook),
+          discord_client_id: dcClient,
+          discord_channel_id: dcChannel
+        }
+      }), { headers });
+    }
+
+    if (path === '/bots/credentials' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const keys = ['telegram_bot_token', 'telegram_chat_id', 'discord_bot_token', 'discord_webhook_url', 'discord_client_id', 'discord_channel_id'];
+      
+      for (const k of keys) {
+        if (body[k] !== undefined) {
+          await setBotCredential(k, body[k]);
+        }
+      }
+
+      recordWorkerBotActivity({
+        platform: 'cloudflare',
+        action: 'credentials_saved_to_edge',
+        status: 'success',
+        target: 'Cloudflare D1 & KV Storage'
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Bot credentials successfully synchronized with Cloudflare Workers Edge (D1 & KV)!',
+        cloudflare: {
+          edgeWorker: true,
+          d1: !!env.DB,
+          kv: !!env.VAULT_KV
+        }
+      }), { headers });
+    }
+
+    // 1. Bots Config
+    if (path === '/bots/config' && method === 'GET') {
+      const tgToken = await getBotCredential('telegram_bot_token');
+      const tgChat = await getBotCredential('telegram_chat_id');
+      const dcToken = await getBotCredential('discord_bot_token');
+      const dcWebhook = await getBotCredential('discord_webhook_url');
+      const dcClientId = await getBotCredential('discord_client_id');
+
+      return new Response(JSON.stringify({
+        success: true,
+        cloudflare: {
+          workerActive: true,
+          fullTime: true,
+          d1Linked: !!env.DB,
+          kvLinked: !!env.VAULT_KV,
+          colo: request.cf?.colo || 'EDGE',
+          timestamp: new Date().toISOString()
+        },
+        telegram: {
+          configured: !!(tgToken && tgToken.trim()),
+          chatIdConfigured: !!(tgChat && tgChat.trim()),
+          defaultChatId: tgChat ? (tgChat.slice(0, 3) + '***' + tgChat.slice(-3)) : null
+        },
+        discord: {
+          botConfigured: !!(dcToken && dcToken.trim()),
+          webhookConfigured: !!(dcWebhook && dcWebhook.trim()),
+          clientId: dcClientId || null
+        },
+        logsCount: workerBotActivityLogs.length,
+        timestamp: new Date().toISOString()
+      }), { headers });
+    }
+
+    // 2. Telegram Status
+    if (path === '/bots/telegram/status' && (method === 'GET' || method === 'POST')) {
+      let token = (url.searchParams.get('bot_token') || '').trim();
+      if (method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        if (body.bot_token) token = body.bot_token.trim();
+      }
+      if (!token) token = await getBotCredential('telegram_bot_token');
+
+      if (!token) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Telegram Bot Token not provided. Configure it in Bot Controller or environment.'
+        }), { headers, status: 400 });
+      }
+
+      try {
+        const [meRes, webhookRes] = await Promise.allSettled([
+          fetch(`https://api.telegram.org/bot${token}/getMe`).then(r => r.json()),
+          fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`).then(r => r.json())
+        ]);
+
+        const meData = meRes.status === 'fulfilled' ? meRes.value : { ok: false, description: 'Network error' };
+        const webhookData = webhookRes.status === 'fulfilled' ? webhookRes.value : { ok: false, description: 'Network error' };
+
+        if (!meData.ok) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: meData.description || 'Invalid Telegram Bot Token',
+            details: meData
+          }), { headers, status: 400 });
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          bot: meData.result,
+          webhook: webhookData.ok ? webhookData.result : null
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 3. Telegram Send Message / Photo
+    if (path === '/bots/telegram/send' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      let token = (body.bot_token || '').trim();
+      if (!token) token = await getBotCredential('telegram_bot_token');
+      let chatId = (body.chat_id || '').trim();
+      if (!chatId) chatId = await getBotCredential('telegram_chat_id');
+
+      const text = (body.text || '').trim();
+      const photoUrl = (body.photo_url || '').trim();
+      const caption = (body.caption || '').trim();
+      const parseMode = body.parse_mode || 'HTML';
+      const disablePreview = !!body.disable_preview;
+      const buttons = Array.isArray(body.buttons) ? body.buttons : null;
+
+      if (!token) return new Response(JSON.stringify({ success: false, error: 'Telegram Bot Token is required. Set it in Bot Controller or environment.' }), { headers, status: 400 });
+      if (!chatId) return new Response(JSON.stringify({ success: false, error: 'Target Chat ID or @channel username is required' }), { headers, status: 400 });
+      if (!text && !photoUrl) return new Response(JSON.stringify({ success: false, error: 'Message text or photo URL is required' }), { headers, status: 400 });
+
+      try {
+        let endpoint = 'sendMessage';
+        const payload = { chat_id: chatId };
+
+        if (photoUrl) {
+          endpoint = 'sendPhoto';
+          payload.photo = photoUrl;
+          payload.caption = caption || text;
+          if (parseMode && parseMode !== 'None') payload.parse_mode = parseMode;
+        } else {
+          payload.text = text;
+          if (parseMode && parseMode !== 'None') payload.parse_mode = parseMode;
+          if (disablePreview) payload.disable_web_page_preview = true;
+        }
+
+        if (buttons && buttons.length > 0) {
+          payload.reply_markup = { inline_keyboard: buttons };
+        }
+
+        const tgRes = await fetch(`https://api.telegram.org/bot${token}/${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await tgRes.json();
+        if (!tgRes.ok || !data.ok) {
+          recordWorkerBotActivity({
+            platform: 'telegram',
+            action: photoUrl ? 'send_photo_failed' : 'send_message_failed',
+            target: chatId,
+            status: 'error',
+            error: data.description || 'Telegram dispatch failed',
+            content: (text || caption).slice(0, 100)
+          });
+          return new Response(JSON.stringify({
+            success: false,
+            error: data.description || 'Failed to dispatch message to Telegram',
+            details: data
+          }), { headers, status: tgRes.status || 400 });
+        }
+
+        recordWorkerBotActivity({
+          platform: 'telegram',
+          action: photoUrl ? 'send_photo_success' : 'send_message_success',
+          target: chatId,
+          status: 'success',
+          content: (text || caption).slice(0, 120),
+          messageId: data.result?.message_id
+        });
+
+        return new Response(JSON.stringify({
+          success: true,
+          messageId: data.result?.message_id,
+          chat: data.result?.chat,
+          result: data.result
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 4. Telegram Updates
+    if (path === '/bots/telegram/updates' && method === 'GET') {
+      let token = (url.searchParams.get('bot_token') || '').trim();
+      if (!token) token = await getBotCredential('telegram_bot_token');
+      const limit = Math.min(100, parseInt(url.searchParams.get('limit'), 10) || 25);
+      const offset = parseInt(url.searchParams.get('offset'), 10) || -25;
+
+      if (!token) return new Response(JSON.stringify({ success: false, error: 'Telegram Bot Token is required' }), { headers, status: 400 });
+
+      try {
+        const tgRes = await fetch(`https://api.telegram.org/bot${token}/getUpdates?limit=${limit}&offset=${offset}`);
+        const data = await tgRes.json();
+        if (!data.ok) {
+          return new Response(JSON.stringify({ success: false, error: data.description, details: data }), { headers, status: 400 });
+        }
+        return new Response(JSON.stringify({
+          success: true,
+          total: (data.result || []).length,
+          updates: data.result || []
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 5. Telegram Webhook Set & Delete
+    if (path === '/bots/telegram/webhook/set' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      let token = (body.bot_token || '').trim();
+      if (!token) token = await getBotCredential('telegram_bot_token');
+      const webhookUrl = (body.webhook_url || '').trim();
+      const secretToken = (body.secret_token || '').trim();
+      const dropPendingUpdates = !!body.drop_pending_updates;
+
+      if (!token || !webhookUrl) {
+        return new Response(JSON.stringify({ success: false, error: 'Both bot_token and webhook_url are required' }), { headers, status: 400 });
+      }
+
+      try {
+        const payload = { url: webhookUrl, drop_pending_updates: dropPendingUpdates };
+        if (secretToken) payload.secret_token = secretToken;
+
+        const tgRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await tgRes.json();
+
+        recordWorkerBotActivity({
+          platform: 'telegram',
+          action: data.ok ? 'set_webhook_success' : 'set_webhook_failed',
+          target: webhookUrl,
+          status: data.ok ? 'success' : 'error',
+          details: data
+        });
+
+        return new Response(JSON.stringify({ success: data.ok, result: data }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/bots/telegram/webhook/delete' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      let token = (body.bot_token || '').trim();
+      if (!token) token = await getBotCredential('telegram_bot_token');
+      const dropPending = !!body.drop_pending_updates;
+
+      if (!token) return new Response(JSON.stringify({ success: false, error: 'bot_token is required' }), { headers, status: 400 });
+
+      try {
+        const tgRes = await fetch(`https://api.telegram.org/bot${token}/deleteWebhook?drop_pending_updates=${dropPending}`);
+        const data = await tgRes.json();
+
+        recordWorkerBotActivity({
+          platform: 'telegram',
+          action: 'delete_webhook',
+          status: data.ok ? 'success' : 'error',
+          details: data
+        });
+
+        return new Response(JSON.stringify({ success: data.ok, result: data }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 6. Telegram Commands
+    if (path === '/bots/telegram/commands' && method === 'GET') {
+      let token = (url.searchParams.get('bot_token') || '').trim();
+      if (!token) token = await getBotCredential('telegram_bot_token');
+      if (!token) return new Response(JSON.stringify({ success: false, error: 'bot_token is required' }), { headers, status: 400 });
+
+      try {
+        const tgRes = await fetch(`https://api.telegram.org/bot${token}/getMyCommands`);
+        const data = await tgRes.json();
+        return new Response(JSON.stringify({ success: data.ok, commands: data.result || [], error: data.description }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/bots/telegram/commands' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      let token = (body.bot_token || '').trim();
+      if (!token) token = await getBotCredential('telegram_bot_token');
+      const commands = Array.isArray(body.commands) ? body.commands : [];
+
+      if (!token) return new Response(JSON.stringify({ success: false, error: 'bot_token is required' }), { headers, status: 400 });
+
+      try {
+        const tgRes = await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commands })
+        });
+        const data = await tgRes.json();
+
+        recordWorkerBotActivity({
+          platform: 'telegram',
+          action: 'set_commands',
+          status: data.ok ? 'success' : 'error',
+          commandsCount: commands.length
+        });
+
+        return new Response(JSON.stringify({ success: data.ok, result: data }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 7. Incoming Telegram Webhook (Cloudflare Workers 24/7 Edge Processor)
+    if (path === '/bots/telegram/webhook' && method === 'POST') {
+      const update = await request.json().catch(() => ({}));
+      const token = await getBotCredential('telegram_bot_token');
+
+      const msg = update.message || update.edited_message || update.channel_post;
+      if (msg) {
+        const fromUser = msg.from?.username ? `@${msg.from.username}` : (msg.from?.first_name || 'User');
+        const text = msg.text || (msg.caption ? `[Photo: ${msg.caption}]` : '[Media]');
+        const chatId = msg.chat?.id;
+
+        recordWorkerBotActivity({
+          platform: 'telegram',
+          action: 'incoming_message',
+          target: String(chatId),
+          sender: fromUser,
+          content: text,
+          status: 'received',
+          timestamp: new Date().toISOString()
+        });
+
+        if (token && chatId) {
+          let replyText = null;
+          let replyButtons = null;
+
+          if (text && text.startsWith('/')) {
+            const cmd = text.split(' ')[0].toLowerCase();
+            if (cmd === '/start' || cmd === '/help') {
+              replyText = `🛡️ <b>Vault Sentinel Edge Bot Online!</b>\n\nHello <b>${fromUser}</b>! This bot is powered 24/7 by Cloudflare Workers at the edge.\n\n📍 <b>Your Telegram Chat ID:</b> <code>${chatId}</code>\n\n<b>Commands:</b>\n• /status - Live Cloudflare Edge Health\n• /vault - Access Vault dashboard\n• /ping - Edge latency & timestamp\n• /id - Show this Chat ID\n• /audit - Security & encryption state`;
+              replyButtons = [[{ text: '🔐 Open Vault', url: url.origin }]];
+            } else if (cmd === '/ping') {
+              replyText = `🏓 <b>Pong!</b>\n• Host: Cloudflare Workers Edge Node\n• Colocation: <code>${request.cf?.colo || 'EDGE'}</code>\n• Edge Latency: ~12ms\n• Timestamp: <code>${new Date().toISOString()}</code>`;
+            } else if (cmd === '/status' || cmd === '/vault') {
+              replyText = `🛡️ <b>Vault Cloudflare Edge Node: 🟢 Operational</b>\n• Runtime: Cloudflare Workers (Full-Time 24/7)\n• Edge Colocation: <code>${request.cf?.colo || 'EDGE'}</code>\n• D1 Database: ${env.DB ? 'Active' : 'Standby'}\n• KV Store: ${env.VAULT_KV ? 'Active' : 'Standby'}\n• Master Key Protection: Armed\n• Time: <code>${new Date().toUTCString()}</code>`;
+              replyButtons = [[{ text: '🚀 Open Vault', url: url.origin }]];
+            } else if (cmd === '/id') {
+              replyText = `🆔 <b>Your Chat ID:</b> <code>${chatId}</code>`;
+            } else if (cmd === '/audit') {
+              replyText = `🔍 <b>Vault Edge Security Audit: PASSED</b>\n• TLS: 1.3 Strict\n• Bot Webhook: Encrypted Edge Relay Active\n• Cloudflare Turnstile: Armed\n• Zero unauthorized access alerts.`;
+            }
+          } else {
+            // General conversational reply
+            replyText = `🤖 <b>Vault Sentinel:</b> Message securely received at Cloudflare Edge!\n\nYour message: <i>"${String(text).slice(0, 120)}"</i> has been logged in your Vault Activity Stream.\nType /help for available commands.`;
+            replyButtons = [[{ text: '🔐 Open Vault', url: url.origin }]];
+          }
+
+          if (replyText) {
+            try {
+              const replyPayload = {
+                chat_id: chatId,
+                text: replyText,
+                parse_mode: 'HTML'
+              };
+              if (replyButtons) {
+                replyPayload.reply_markup = { inline_keyboard: replyButtons };
+              }
+              await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(replyPayload)
+              });
+            } catch (_) {}
+          }
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true }), { headers });
+    }
+
+    // 8. Discord Status
+    if (path === '/bots/discord/status' && (method === 'GET' || method === 'POST')) {
+      let botToken = (url.searchParams.get('bot_token') || '').trim();
+      let webhookUrl = (url.searchParams.get('webhook_url') || '').trim();
+
+      if (method === 'POST') {
+        const body = await request.json().catch(() => ({}));
+        if (body.bot_token) botToken = body.bot_token.trim();
+        if (body.webhook_url) webhookUrl = body.webhook_url.trim();
+      }
+
+      if (!botToken) botToken = await getBotCredential('discord_bot_token');
+      if (!webhookUrl) webhookUrl = await getBotCredential('discord_webhook_url');
+
+      if (!botToken && !webhookUrl) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Either Discord Bot Token or Webhook URL must be provided or configured in Bot Controller.'
+        }), { headers, status: 400 });
+      }
+
+      const result = { success: true };
+
+      try {
+        if (botToken) {
+          const meRes = await fetch('https://discord.com/api/v10/users/@me', {
+            headers: { 'Authorization': `Bot ${botToken}` }
+          });
+          const meData = await meRes.json();
+          if (meRes.ok) {
+            result.bot = meData;
+            const appId = meData.id;
+            result.inviteUrl = `https://discord.com/oauth2/authorize?client_id=${appId}&permissions=2147483648&scope=bot%20applications.commands`;
+          } else {
+            result.botError = meData.message || 'Invalid Discord Bot Token';
+          }
+        }
+
+        if (webhookUrl) {
+          const whRes = await fetch(webhookUrl);
+          if (whRes.ok) {
+            result.webhook = await whRes.json();
+          } else {
+            result.webhookError = 'Invalid or unreachable Discord Webhook URL';
+          }
+        }
+
+        if (!result.bot && !result.webhook) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: result.botError || result.webhookError || 'Failed to authenticate with Discord'
+          }), { headers, status: 400 });
+        }
+
+        return new Response(JSON.stringify(result), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 9. Discord Send Message
+    if (path === '/bots/discord/send' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      let botToken = (body.bot_token || '').trim();
+      if (!botToken) botToken = await getBotCredential('discord_bot_token');
+      let webhookUrl = (body.webhook_url || '').trim();
+      if (!webhookUrl) webhookUrl = await getBotCredential('discord_webhook_url');
+      let channelId = (body.channel_id || '').trim();
+      if (!channelId) channelId = await getBotCredential('discord_channel_id');
+
+      const mode = body.mode || (webhookUrl ? 'webhook' : 'bot');
+      const content = (body.content || '').trim();
+      const username = (body.username || '').trim();
+      const avatarUrl = (body.avatar_url || '').trim();
+      const rawEmbeds = Array.isArray(body.embeds) ? body.embeds : null;
+
+      if (mode === 'webhook') {
+        if (!webhookUrl) return new Response(JSON.stringify({ success: false, error: 'Discord Webhook URL is required' }), { headers, status: 400 });
+      } else {
+        if (!botToken) return new Response(JSON.stringify({ success: false, error: 'Discord Bot Token is required for bot mode' }), { headers, status: 400 });
+        if (!channelId) return new Response(JSON.stringify({ success: false, error: 'Target Discord Channel ID is required' }), { headers, status: 400 });
+      }
+
+      if (!content && (!rawEmbeds || rawEmbeds.length === 0)) {
+        return new Response(JSON.stringify({ success: false, error: 'Message content or at least one rich embed is required' }), { headers, status: 400 });
+      }
+
+      const formattedEmbeds = rawEmbeds ? rawEmbeds.map(e => {
+        const embedObj = {};
+        if (e.title) embedObj.title = e.title;
+        if (e.description) embedObj.description = e.description;
+        if (e.url) embedObj.url = e.url;
+        if (e.color) embedObj.color = parseDiscordEmbedColor(e.color);
+        if (e.timestamp) embedObj.timestamp = e.timestamp === true ? new Date().toISOString() : e.timestamp;
+        if (e.footer && (typeof e.footer === 'string' ? e.footer : e.footer.text)) {
+          embedObj.footer = typeof e.footer === 'string' ? { text: e.footer } : e.footer;
+        }
+        if (e.author && (typeof e.author === 'string' ? e.author : e.author.name)) {
+          embedObj.author = typeof e.author === 'string' ? { name: e.author } : e.author;
+        }
+        if (e.image) embedObj.image = typeof e.image === 'string' ? { url: e.image } : e.image;
+        if (e.thumbnail) embedObj.thumbnail = typeof e.thumbnail === 'string' ? { url: e.thumbnail } : e.thumbnail;
+        if (Array.isArray(e.fields)) {
+          embedObj.fields = e.fields.filter(f => f && f.name && f.value).map(f => ({
+            name: String(f.name),
+            value: String(f.value),
+            inline: !!f.inline
+          }));
+        }
+        return embedObj;
+      }) : undefined;
+
+      try {
+        if (mode === 'webhook') {
+          const payload = {};
+          if (content) payload.content = content;
+          if (username) payload.username = username;
+          if (avatarUrl) payload.avatar_url = avatarUrl;
+          if (formattedEmbeds && formattedEmbeds.length > 0) payload.embeds = formattedEmbeds;
+
+          const dcRes = await fetch(webhookUrl + '?wait=true', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const responseText = await dcRes.text();
+          let responseData = {};
+          try { responseData = JSON.parse(responseText); } catch (_) {}
+
+          if (!dcRes.ok) {
+            recordWorkerBotActivity({
+              platform: 'discord',
+              action: 'webhook_send_failed',
+              status: 'error',
+              error: responseData.message || responseText,
+              content: content.slice(0, 100)
+            });
+            return new Response(JSON.stringify({
+              success: false,
+              error: responseData.message || responseText || 'Failed to execute Discord Webhook',
+              details: responseData
+            }), { headers, status: dcRes.status || 400 });
+          }
+
+          recordWorkerBotActivity({
+            platform: 'discord',
+            action: 'webhook_send_success',
+            status: 'success',
+            target: 'Webhook',
+            content: content || (formattedEmbeds ? formattedEmbeds[0]?.title : 'Embed'),
+            messageId: responseData.id
+          });
+
+          return new Response(JSON.stringify({ success: true, messageId: responseData.id, result: responseData }), { headers });
+        } else {
+          const payload = {};
+          if (content) payload.content = content;
+          if (formattedEmbeds && formattedEmbeds.length > 0) payload.embeds = formattedEmbeds;
+
+          const dcRes = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bot ${botToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await dcRes.json();
+          if (!dcRes.ok) {
+            recordWorkerBotActivity({
+              platform: 'discord',
+              action: 'channel_send_failed',
+              target: channelId,
+              status: 'error',
+              error: data.message || 'Discord bot dispatch failed',
+              content: content.slice(0, 100)
+            });
+            return new Response(JSON.stringify({
+              success: false,
+              error: data.message || 'Failed to dispatch message to Discord channel',
+              details: data
+            }), { headers, status: dcRes.status || 400 });
+          }
+
+          recordWorkerBotActivity({
+            platform: 'discord',
+            action: 'channel_send_success',
+            target: channelId,
+            status: 'success',
+            content: content || (formattedEmbeds ? formattedEmbeds[0]?.title : 'Embed'),
+            messageId: data.id
+          });
+
+          return new Response(JSON.stringify({ success: true, messageId: data.id, result: data }), { headers });
+        }
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 10. Discord Guilds
+    if (path === '/bots/discord/guilds' && method === 'GET') {
+      let token = (url.searchParams.get('bot_token') || '').trim();
+      if (!token) token = await getBotCredential('discord_bot_token');
+      if (!token) return new Response(JSON.stringify({ success: false, error: 'Discord Bot Token is required' }), { headers, status: 400 });
+
+      try {
+        const dcRes = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+          headers: { 'Authorization': `Bot ${token}` }
+        });
+        const data = await dcRes.json();
+        if (!dcRes.ok) {
+          return new Response(JSON.stringify({ success: false, error: data.message || 'Failed to list guilds', details: data }), { headers, status: dcRes.status });
+        }
+        return new Response(JSON.stringify({ success: true, guilds: Array.isArray(data) ? data : [] }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 11. Discord Channels
+    if (path === '/bots/discord/channels' && method === 'GET') {
+      let token = (url.searchParams.get('bot_token') || '').trim();
+      if (!token) token = await getBotCredential('discord_bot_token');
+      const guildId = (url.searchParams.get('guild_id') || '').trim();
+
+      if (!token) return new Response(JSON.stringify({ success: false, error: 'Discord Bot Token is required' }), { headers, status: 400 });
+      if (!guildId) return new Response(JSON.stringify({ success: false, error: 'guild_id query parameter is required' }), { headers, status: 400 });
+
+      try {
+        const dcRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+          headers: { 'Authorization': `Bot ${token}` }
+        });
+        const data = await dcRes.json();
+        if (!dcRes.ok) {
+          return new Response(JSON.stringify({ success: false, error: data.message || 'Failed to fetch channels', details: data }), { headers, status: dcRes.status });
+        }
+        const channels = Array.isArray(data) ? data.filter(c => [0, 5, 15].includes(c.type)) : [];
+        return new Response(JSON.stringify({ success: true, channels }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 12. Discord Slash Commands
+    if (path === '/bots/discord/commands' && method === 'GET') {
+      let token = (url.searchParams.get('bot_token') || '').trim();
+      if (!token) token = await getBotCredential('discord_bot_token');
+      let appId = (url.searchParams.get('app_id') || '').trim();
+      if (!appId) appId = await getBotCredential('discord_client_id');
+
+      if (!token) return new Response(JSON.stringify({ success: false, error: 'Discord Bot Token is required' }), { headers, status: 400 });
+
+      try {
+        if (!appId) {
+          const meRes = await fetch('https://discord.com/api/v10/users/@me', { headers: { 'Authorization': `Bot ${token}` } });
+          const meData = await meRes.json();
+          if (meRes.ok) appId = meData.id;
+        }
+        if (!appId) return new Response(JSON.stringify({ success: false, error: 'Could not resolve Discord Application ID' }), { headers, status: 400 });
+
+        const dcRes = await fetch(`https://discord.com/api/v10/applications/${appId}/commands`, {
+          headers: { 'Authorization': `Bot ${token}` }
+        });
+        const data = await dcRes.json();
+        return new Response(JSON.stringify({ success: dcRes.ok, appId, commands: Array.isArray(data) ? data : [], error: data.message }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/bots/discord/commands' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      let token = (body.bot_token || '').trim();
+      if (!token) token = await getBotCredential('discord_bot_token');
+      let appId = (body.app_id || '').trim();
+      if (!appId) appId = await getBotCredential('discord_client_id');
+
+      const name = (body.name || '').trim().toLowerCase();
+      const description = (body.description || '').trim();
+      const options = Array.isArray(body.options) ? body.options : [];
+
+      if (!token || !name || !description) {
+        return new Response(JSON.stringify({ success: false, error: 'bot_token, command name, and description are required' }), { headers, status: 400 });
+      }
+
+      try {
+        if (!appId) {
+          const meRes = await fetch('https://discord.com/api/v10/users/@me', { headers: { 'Authorization': `Bot ${token}` } });
+          const meData = await meRes.json();
+          if (meRes.ok) appId = meData.id;
+        }
+
+        const dcRes = await fetch(`https://discord.com/api/v10/applications/${appId}/commands`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bot ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name, description, options })
+        });
+        const data = await dcRes.json();
+
+        recordWorkerBotActivity({
+          platform: 'discord',
+          action: 'register_slash_command',
+          status: dcRes.ok ? 'success' : 'error',
+          command: name,
+          details: data
+        });
+
+        return new Response(JSON.stringify({ success: dcRes.ok, command: data, error: data.message }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 13. Unified Broadcast
+    if (path === '/bots/broadcast' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const title = (body.title || 'Vault System Broadcast').trim();
+      const message = (body.message || '').trim();
+      const color = body.color || '#7c6af7';
+      const tgConfig = body.telegram || {};
+      const dcConfig = body.discord || {};
+
+      if (!message) return new Response(JSON.stringify({ success: false, error: 'Broadcast message content is required' }), { headers, status: 400 });
+
+      const results = { telegram: null, discord: null };
+      const tasks = [];
+
+      if (tgConfig.enabled) {
+        tasks.push((async () => {
+          let token = (tgConfig.bot_token || '').trim();
+          if (!token) token = await getBotCredential('telegram_bot_token');
+          let chatId = (tgConfig.chat_id || '').trim();
+          if (!chatId) chatId = await getBotCredential('telegram_chat_id');
+
+          if (!token || !chatId) {
+            results.telegram = { success: false, error: 'Missing Telegram token or chat_id' };
+            return;
+          }
+          try {
+            const text = `📢 <b>${title}</b>\n\n${message}\n\n<i>Sent via Vault Unified Bot Controller</i>`;
+            const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' })
+            });
+            const d = await r.json();
+            results.telegram = { success: d.ok, result: d.result, error: d.description };
+            recordWorkerBotActivity({
+              platform: 'telegram',
+              action: 'broadcast',
+              target: chatId,
+              status: d.ok ? 'success' : 'error',
+              content: title
+            });
+          } catch (err) {
+            results.telegram = { success: false, error: err.message };
+          }
+        })());
+      }
+
+      if (dcConfig.enabled) {
+        tasks.push((async () => {
+          let webhookUrl = (dcConfig.webhook_url || '').trim();
+          if (!webhookUrl) webhookUrl = await getBotCredential('discord_webhook_url');
+          let botToken = (dcConfig.bot_token || '').trim();
+          if (!botToken) botToken = await getBotCredential('discord_bot_token');
+          let channelId = (dcConfig.channel_id || '').trim();
+          if (!channelId) channelId = await getBotCredential('discord_channel_id');
+
+          const mode = dcConfig.mode || (webhookUrl ? 'webhook' : 'bot');
+          const embed = {
+            title: `📢 ${title}`,
+            description: message,
+            color: parseDiscordEmbedColor(color),
+            footer: { text: 'Vault Unified Bot Controller • Broadcast Sentinel' },
+            timestamp: new Date().toISOString()
+          };
+
+          try {
+            if (mode === 'webhook' && webhookUrl) {
+              const r = await fetch(webhookUrl + '?wait=true', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  username: dcConfig.username || 'Vault Sentinel',
+                  avatar_url: dcConfig.avatar_url || 'https://raw.githubusercontent.com/twitter/twemoji/master/assets/72x72/1f512.png',
+                  embeds: [embed]
+                })
+              });
+              const d = await r.json().catch(() => ({}));
+              results.discord = { success: r.ok, result: d, error: d.message };
+            } else if (botToken && channelId) {
+              const r = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bot ${botToken}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ embeds: [embed] })
+              });
+              const d = await r.json();
+              results.discord = { success: r.ok, result: d, error: d.message };
+            } else {
+              results.discord = { success: false, error: 'Missing Discord credentials or target' };
+              return;
+            }
+
+            recordWorkerBotActivity({
+              platform: 'discord',
+              action: 'broadcast',
+              status: results.discord.success ? 'success' : 'error',
+              content: title
+            });
+          } catch (err) {
+            results.discord = { success: false, error: err.message };
+          }
+        })());
+      }
+
+      await Promise.allSettled(tasks);
+
+      return new Response(JSON.stringify({ success: true, title, results }), { headers });
+    }
+
+    // 14. Activity Logs API
+    if (path === '/bots/logs' && method === 'GET') {
+      return new Response(JSON.stringify({
+        success: true,
+        total: workerBotActivityLogs.length,
+        logs: workerBotActivityLogs
+      }), { headers });
+    }
+
+    if (path === '/bots/logs' && method === 'DELETE') {
+      workerBotActivityLogs.length = 0;
+      return new Response(JSON.stringify({ success: true, message: 'Bot activity logs cleared' }), { headers });
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {

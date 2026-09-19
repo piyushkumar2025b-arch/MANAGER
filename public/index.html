@@ -1697,6 +1697,9 @@
       <button class="tab" onclick="switchTab('ainews')" id="tab-ainews">
         <span>🧠</span> AI News & Apps
       </button>
+      <button class="tab" onclick="switchTab('bots')" id="tab-bots">
+        <span>🤖</span> Bot Controller
+      </button>
     </div>
   </div>
 
@@ -2087,6 +2090,10 @@ async function loadTab() {
   } else if (currentTab === 'ainews') {
     if (typeof window.renderAiNewsAppsTab === 'function') {
       window.renderAiNewsAppsTab();
+    }
+  } else if (currentTab === 'bots') {
+    if (typeof window.renderBotControllerTab === 'function') {
+      window.renderBotControllerTab();
     }
   }
 }
@@ -14683,5 +14690,6 @@ async function runHubWorkersAiTest() {
 <script src="/web-media-studio.js"></script>
 <script src="/developer-toolbox.js"></script>
 <script src="/ai-news-apps.js"></script>
+<script src="/bot-controller.js"></script>
 </body>
 </html>
