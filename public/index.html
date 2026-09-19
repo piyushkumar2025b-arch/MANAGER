@@ -6,9 +6,11 @@
 <meta name="theme-color" content="#0f0f13"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <title>Vault</title>
-<meta name="description" content="Secure vault for credentials, tasks, Cloudflare Drive storage, web videos, ambient soundscape mixer, stickers and moodboard canvas, YouTube player, interactive map explorer, and AI creative tools."/>
+<meta name="description" content="Secure vault for credentials, tasks, Cloudflare Drive storage, Prompt-to-3D Model Generator, 3D Gaming Arcade, live AI News, Telegram & Discord Bot Controllers, developer toolbox suite, and AI tools."/>
 <meta property="og:title" content="Vault"/>
-<meta property="og:description" content="Secure vault for credentials, tasks, Cloudflare Drive storage, web videos, ambient soundscape mixer, stickers and moodboard canvas, YouTube player, interactive map explorer, and AI creative tools."/>
+<meta property="og:description" content="Secure vault for credentials, tasks, Cloudflare Drive storage, Prompt-to-3D Model Generator, 3D Gaming Arcade, live AI News, Telegram & Discord Bot Controllers, developer toolbox suite, and AI tools."/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
@@ -1700,6 +1702,9 @@
       <button class="tab" onclick="switchTab('bots')" id="tab-bots">
         <span>🤖</span> Bot Controller
       </button>
+      <button class="tab" onclick="switchTab('gaming')" id="tab-gaming">
+        <span>🎮</span> Gaming & 3D Lab
+      </button>
     </div>
   </div>
 
@@ -1924,6 +1929,9 @@ function renderStudioSubNav(activeSub) {
       <button class="studio-subtab ${activeSub === 'readaloud' ? 'active' : ''}" onclick="switchStudioSubtab('readaloud')">
         <span>🗣️</span> Read Aloud (TTS)
       </button>
+      <button class="studio-subtab ${activeSub === 'modelgen' ? 'active' : ''}" onclick="switchStudioSubtab('modelgen')">
+        <span>🧊</span> 3D Generator
+      </button>
     </div>
   `;
 }
@@ -1985,6 +1993,9 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('toolbox');">
       <span class="icon">🛠️</span> Developer & Productivity Toolbox
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('gaming');">
+      <span class="icon">🎮</span> Gaming & 3D Lab
+    </button>
   `;
   overlay.appendChild(dropdown);
   document.body.appendChild(overlay);
@@ -2004,14 +2015,14 @@ function switchTab(tab) {
 
   if (tab === 'studio') {
     tab = currentStudioSubtab || 'imagegen';
-  } else if (tab === 'imagegen' || tab === 'webimages' || tab === 'ytplayer' || tab === 'webvideos' || tab === 'websounds' || tab === 'stickers' || tab === 'storygen' || tab === 'videogen' || tab === 'soundgen' || tab === 'readaloud') {
+  } else if (tab === 'imagegen' || tab === 'webimages' || tab === 'ytplayer' || tab === 'webvideos' || tab === 'websounds' || tab === 'stickers' || tab === 'storygen' || tab === 'videogen' || tab === 'soundgen' || tab === 'readaloud' || tab === 'modelgen') {
     currentStudioSubtab = tab;
   }
 
   currentTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
 
-  const isStudio = (tab === 'imagegen' || tab === 'webimages' || tab === 'webvideos' || tab === 'websounds' || tab === 'stickers' || tab === 'ytplayer' || tab === 'storygen' || tab === 'videogen' || tab === 'soundgen' || tab === 'readaloud');
+  const isStudio = (tab === 'imagegen' || tab === 'webimages' || tab === 'webvideos' || tab === 'websounds' || tab === 'stickers' || tab === 'ytplayer' || tab === 'storygen' || tab === 'videogen' || tab === 'soundgen' || tab === 'readaloud' || tab === 'modelgen');
   const targetTabId = isStudio ? 'tab-studio' : 'tab-' + tab;
   const activeTabEl = document.getElementById(targetTabId);
   if (activeTabEl) activeTabEl.classList.add('active');
@@ -2094,6 +2105,10 @@ async function loadTab() {
   } else if (currentTab === 'bots') {
     if (typeof window.renderBotControllerTab === 'function') {
       window.renderBotControllerTab();
+    }
+  } else if (currentTab === 'gaming' || currentTab === 'modelgen') {
+    if (typeof window.renderGamingStudioTab === 'function') {
+      window.renderGamingStudioTab(currentTab === 'modelgen' ? '3dgen' : null);
     }
   }
 }
@@ -14691,5 +14706,6 @@ async function runHubWorkersAiTest() {
 <script src="/developer-toolbox.js"></script>
 <script src="/ai-news-apps.js"></script>
 <script src="/bot-controller.js"></script>
+<script src="/gaming-3d-studio.js"></script>
 </body>
 </html>

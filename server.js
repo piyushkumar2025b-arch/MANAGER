@@ -74,6 +74,15 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT
   );
+  CREATE TABLE IF NOT EXISTS models_3d (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    prompt TEXT,
+    category TEXT DEFAULT 'general',
+    recipe TEXT NOT NULL,
+    thumbnail TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 // Safe migrations for todos columns
@@ -2768,6 +2777,481 @@ app.post('/api/ai/preferences', (req, res) => {
   if (provider) setSetting('ai_preferred_provider', provider);
   if (model) setSetting('ai_preferred_model', model);
   return res.json({ success: true });
+});
+
+// ============================================================================
+// 3D MODEL GENERATOR & GAMING ENGINE APIS
+// ============================================================================
+
+// Procedural 3D model recipe generator for basic/low-poly 3D models
+function compileProcedural3DRecipe(promptText, categoryHint = 'general') {
+  const text = (promptText || '').toLowerCase().trim();
+  const id = 'model_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+  // 1. STARFIGHTER / SPACESHIP
+  if (text.includes('space') || text.includes('ship') || text.includes('fighter') || text.includes('rocket') || text.includes('shuttle')) {
+    return {
+      id,
+      title: 'Aero-Starfighter Mk-IV',
+      prompt: promptText,
+      category: 'scifi',
+      description: 'Futuristic atmospheric and orbital starfighter with dual wingtip laser cannons and hyperdrive nacelles.',
+      animation: 'hover',
+      camera: { position: [4, 3, 5], target: [0, 0, 0] },
+      parts: [
+        { name: 'Fuselage', shape: 'box', size: [1.2, 0.4, 3.2], position: [0, 0, 0], rotation: [0, 0, 0], color: '#38bdf8', metalness: 0.7, roughness: 0.3 },
+        { name: 'Nose Cone', shape: 'cone', size: [0.5, 1.4, 8], position: [0, 0, 2.1], rotation: [Math.PI / 2, 0, 0], color: '#0284c7', metalness: 0.8, roughness: 0.2 },
+        { name: 'Cockpit Canopy', shape: 'sphere', size: [0.45, 16, 16], position: [0, 0.25, 0.4], rotation: [0, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.6, metalness: 0.2, roughness: 0.1, transparent: true, opacity: 0.85 },
+        { name: 'Left Wing', shape: 'box', size: [2.2, 0.08, 1.4], position: [-1.4, 0, -0.4], rotation: [0, 0.2, 0], color: '#1e293b', metalness: 0.5, roughness: 0.4 },
+        { name: 'Right Wing', shape: 'box', size: [2.2, 0.08, 1.4], position: [1.4, 0, -0.4], rotation: [0, -0.2, 0], color: '#1e293b', metalness: 0.5, roughness: 0.4 },
+        { name: 'Left Wing Cannon', shape: 'cylinder', size: [0.08, 0.08, 1.6], position: [-2.4, 0.05, 0.1], rotation: [Math.PI / 2, 0, 0], color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 0.4 },
+        { name: 'Right Wing Cannon', shape: 'cylinder', size: [0.08, 0.08, 1.6], position: [2.4, 0.05, 0.1], rotation: [Math.PI / 2, 0, 0], color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 0.4 },
+        { name: 'Vertical Stabilizer', shape: 'box', size: [0.08, 1.0, 1.2], position: [0, 0.6, -1.1], rotation: [-0.3, 0, 0], color: '#0284c7', metalness: 0.6, roughness: 0.3 },
+        { name: 'Engine Left', shape: 'cylinder', size: [0.25, 0.3, 0.8], position: [-0.4, 0, -1.8], rotation: [Math.PI / 2, 0, 0], color: '#0f172a', metalness: 0.9, roughness: 0.2 },
+        { name: 'Engine Right', shape: 'cylinder', size: [0.25, 0.3, 0.8], position: [0.4, 0, -1.8], rotation: [Math.PI / 2, 0, 0], color: '#0f172a', metalness: 0.9, roughness: 0.2 },
+        { name: 'Left Thruster Plasma', shape: 'cylinder', size: [0.2, 0.05, 0.5], position: [-0.4, 0, -2.3], rotation: [Math.PI / 2, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 1.2 },
+        { name: 'Right Thruster Plasma', shape: 'cylinder', size: [0.2, 0.05, 0.5], position: [0.4, 0, -2.3], rotation: [Math.PI / 2, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 1.2 }
+      ]
+    };
+  }
+
+  // 2. TANK / COMBAT VEHICLE
+  if (text.includes('tank') || text.includes('artillery') || text.includes('panzer')) {
+    return {
+      id,
+      title: 'Apex Cyber Tank',
+      prompt: promptText,
+      category: 'vehicles',
+      description: 'Heavy armored assault vehicle with heavy treads, rotating turret, and dual cannons.',
+      animation: 'none',
+      camera: { position: [4, 3, 5], target: [0, 0.5, 0] },
+      parts: [
+        { name: 'Left Tread', shape: 'box', size: [0.6, 0.7, 3.4], position: [-1.2, 0.35, 0], rotation: [0, 0, 0], color: '#1e293b', metalness: 0.8, roughness: 0.6 },
+        { name: 'Right Tread', shape: 'box', size: [0.6, 0.7, 3.4], position: [1.2, 0.35, 0], rotation: [0, 0, 0], color: '#1e293b', metalness: 0.8, roughness: 0.6 },
+        { name: 'Lower Chassis', shape: 'box', size: [1.9, 0.6, 3.0], position: [0, 0.5, 0], rotation: [0, 0, 0], color: '#334155', metalness: 0.7, roughness: 0.4 },
+        { name: 'Sloped Glacis Plate', shape: 'box', size: [1.8, 0.2, 1.0], position: [0, 0.65, 1.2], rotation: [0.5, 0, 0], color: '#475569', metalness: 0.7, roughness: 0.4 },
+        { name: 'Main Turret Ring', shape: 'cylinder', size: [0.9, 1.0, 0.6], position: [0, 1.0, -0.1], rotation: [0, 0, 0], color: '#1e293b', metalness: 0.8, roughness: 0.3 },
+        { name: 'Turret Armor Pod', shape: 'box', size: [1.4, 0.6, 1.6], position: [0, 1.2, -0.2], rotation: [0, 0, 0], color: '#2563eb', metalness: 0.6, roughness: 0.3 },
+        { name: 'Commander Hatch', shape: 'cylinder', size: [0.3, 0.3, 0.2], position: [0.35, 1.55, -0.3], rotation: [0, 0, 0], color: '#0f172a', metalness: 0.9, roughness: 0.2 },
+        { name: 'Main Cannon Barrel', shape: 'cylinder', size: [0.12, 0.12, 2.6], position: [0, 1.25, 1.4], rotation: [Math.PI / 2, 0, 0], color: '#64748b', metalness: 0.9, roughness: 0.2 },
+        { name: 'Muzzle Brake', shape: 'cylinder', size: [0.2, 0.2, 0.4], position: [0, 1.25, 2.7], rotation: [Math.PI / 2, 0, 0], color: '#0f172a', metalness: 0.9, roughness: 0.2 },
+        { name: 'Antenna', shape: 'cylinder', size: [0.03, 0.03, 1.4], position: [-0.5, 1.9, -0.7], rotation: [-0.1, 0, 0], color: '#f59e0b', emissive: '#f59e0b', emissiveIntensity: 0.4 }
+      ]
+    };
+  }
+
+  // 3. ARCADE CABINET / RETRO CONSOLE
+  if (text.includes('arcade') || text.includes('cabinet') || text.includes('retro') || text.includes('gameboy') || text.includes('nintendo')) {
+    return {
+      id,
+      title: 'Classic Neon Arcade Cabinet',
+      prompt: promptText,
+      category: 'arcade',
+      description: 'Authentic 1980s coin-op arcade cabinet with illuminated marquee, angled CRT monitor, and dual joystick deck.',
+      animation: 'spin',
+      camera: { position: [3, 2.5, 4], target: [0, 1.4, 0] },
+      parts: [
+        { name: 'Cabinet Body Base', shape: 'box', size: [1.4, 1.2, 1.3], position: [0, 0.6, 0], rotation: [0, 0, 0], color: '#0f172a', metalness: 0.2, roughness: 0.8 },
+        { name: 'Coin Return Door', shape: 'box', size: [0.6, 0.7, 0.05], position: [0, 0.5, 0.66], rotation: [0, 0, 0], color: '#1e293b', metalness: 0.8, roughness: 0.3 },
+        { name: 'Coin Slot Yellow', shape: 'box', size: [0.15, 0.08, 0.03], position: [-0.15, 0.7, 0.7], rotation: [0, 0, 0], color: '#f59e0b', emissive: '#f59e0b', emissiveIntensity: 0.8 },
+        { name: 'Coin Slot Red', shape: 'box', size: [0.15, 0.08, 0.03], position: [0.15, 0.7, 0.7], rotation: [0, 0, 0], color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 0.8 },
+        { name: 'Angled Control Deck', shape: 'box', size: [1.45, 0.12, 0.8], position: [0, 1.25, 0.6], rotation: [0.25, 0, 0], color: '#7c6af7', metalness: 0.4, roughness: 0.4 },
+        { name: 'Player 1 Joystick', shape: 'cylinder', size: [0.04, 0.04, 0.35], position: [-0.35, 1.45, 0.55], rotation: [0.25, 0, 0], color: '#ef4444' },
+        { name: 'Player 1 Ball Knob', shape: 'sphere', size: [0.1, 12, 12], position: [-0.35, 1.6, 0.53], rotation: [0, 0, 0], color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 0.4 },
+        { name: 'Buttons P1 A', shape: 'cylinder', size: [0.05, 0.05, 0.04], position: [-0.15, 1.35, 0.58], rotation: [0.25, 0, 0], color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 0.5 },
+        { name: 'Buttons P1 B', shape: 'cylinder', size: [0.05, 0.05, 0.04], position: [-0.05, 1.38, 0.54], rotation: [0.25, 0, 0], color: '#38bdf8', emissive: '#38bdf8', emissiveIntensity: 0.5 },
+        { name: 'CRT Bezel Housing', shape: 'box', size: [1.38, 1.1, 0.6], position: [0, 1.8, 0.1], rotation: [-0.25, 0, 0], color: '#18181b' },
+        { name: 'Glowing CRT Screen', shape: 'box', size: [1.1, 0.85, 0.05], position: [0, 1.82, 0.4], rotation: [-0.25, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.85 },
+        { name: 'Marquee Header', shape: 'box', size: [1.4, 0.45, 0.6], position: [0, 2.45, 0.3], rotation: [0, 0, 0], color: '#ec4899', emissive: '#ec4899', emissiveIntensity: 0.7 },
+        { name: 'Left Cabinet Side Fin', shape: 'box', size: [0.08, 2.5, 1.4], position: [-0.72, 1.3, 0.05], rotation: [0, 0, 0], color: '#6366f1' },
+        { name: 'Right Cabinet Side Fin', shape: 'box', size: [0.08, 2.5, 1.4], position: [0.72, 1.3, 0.05], rotation: [0, 0, 0], color: '#6366f1' }
+      ]
+    };
+  }
+
+  // 4. LOW POLY TREE & FLOATING ISLAND
+  if (text.includes('tree') || text.includes('island') || text.includes('forest') || text.includes('nature') || text.includes('mountain')) {
+    return {
+      id,
+      title: 'Floating Mystic Low-Poly Island',
+      prompt: promptText,
+      category: 'nature',
+      description: 'Lush floating polygonal sky island with tiered pine trees, bedrock crust, and crystalline water pool.',
+      animation: 'hover',
+      camera: { position: [4, 4, 4], target: [0, 0.5, 0] },
+      parts: [
+        { name: 'Island Grass Top', shape: 'cylinder', size: [2.6, 2.4, 0.5, 7], position: [0, 0.1, 0], rotation: [0, 0.4, 0], color: '#22c55e', roughness: 0.8 },
+        { name: 'Bedrock Crust', shape: 'cone', size: [2.4, 2.0, 7], position: [0, -1.1, 0], rotation: [Math.PI, 0.4, 0], color: '#57534e', roughness: 0.9 },
+        { name: 'Tree 1 Trunk', shape: 'cylinder', size: [0.15, 0.22, 1.2], position: [-0.4, 0.85, -0.3], rotation: [0, 0, 0], color: '#78350f', roughness: 0.9 },
+        { name: 'Tree 1 Foliage Bottom', shape: 'cone', size: [0.9, 1.0, 6], position: [-0.4, 1.6, -0.3], rotation: [0, 0, 0], color: '#15803d', roughness: 0.7 },
+        { name: 'Tree 1 Foliage Mid', shape: 'cone', size: [0.75, 0.9, 6], position: [-0.4, 2.1, -0.3], rotation: [0, 0.4, 0], color: '#16a34a', roughness: 0.7 },
+        { name: 'Tree 1 Foliage Top', shape: 'cone', size: [0.55, 0.8, 6], position: [-0.4, 2.6, -0.3], rotation: [0, 0.8, 0], color: '#22c55e', roughness: 0.7 },
+        { name: 'Tree 2 Trunk', shape: 'cylinder', size: [0.12, 0.18, 0.9], position: [0.8, 0.7, 0.5], rotation: [0.1, 0, -0.05], color: '#78350f', roughness: 0.9 },
+        { name: 'Tree 2 Foliage', shape: 'cone', size: [0.7, 1.2, 5], position: [0.8, 1.5, 0.5], rotation: [0, 0.2, 0], color: '#15803d', roughness: 0.7 },
+        { name: 'Crystal Water Spring', shape: 'cylinder', size: [0.7, 0.7, 0.08], position: [0.3, 0.36, -0.5], rotation: [0, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.5, transparent: true, opacity: 0.8 },
+        { name: 'Floating Crystal Shard', shape: 'dodecahedron', size: [0.35], position: [1.2, 1.8, -0.8], rotation: [0.4, 0.4, 0.4], color: '#c084fc', emissive: '#c084fc', emissiveIntensity: 0.8 }
+      ]
+    };
+  }
+
+  // 5. MEDIEVAL CASTLE / WIZARD TOWER
+  if (text.includes('castle') || text.includes('tower') || text.includes('fortress') || text.includes('wizard') || text.includes('medieval')) {
+    return {
+      id,
+      title: 'Citadel of the Mystic Spires',
+      prompt: promptText,
+      category: 'fantasy',
+      description: 'Heavy stone fortress tower with battlement parapets, arched gateway, and hovering mana crystal orb.',
+      animation: 'hover',
+      camera: { position: [4, 4, 5], target: [0, 1.8, 0] },
+      parts: [
+        { name: 'Fortress Base', shape: 'box', size: [2.6, 1.2, 2.6], position: [0, 0.6, 0], rotation: [0, 0, 0], color: '#475569', roughness: 0.85 },
+        { name: 'Wooden Gate Door', shape: 'box', size: [0.7, 0.9, 0.1], position: [0, 0.5, 1.32], rotation: [0, 0, 0], color: '#78350f', roughness: 0.9 },
+        { name: 'Gate Iron Portcullis', shape: 'box', size: [0.65, 0.85, 0.04], position: [0, 0.55, 1.35], rotation: [0, 0, 0], color: '#0f172a', metalness: 0.8 },
+        { name: 'Tower Column Lower', shape: 'cylinder', size: [1.0, 1.1, 2.0, 8], position: [0, 2.1, 0], rotation: [0, 0, 0], color: '#64748b', roughness: 0.8 },
+        { name: 'Parapet Overhang', shape: 'cylinder', size: [1.3, 1.0, 0.4, 8], position: [0, 3.2, 0], rotation: [0, 0, 0], color: '#334155', roughness: 0.8 },
+        { name: 'High Spire Roof', shape: 'cone', size: [1.25, 2.2, 8], position: [0, 4.4, 0], rotation: [0, 0, 0], color: '#1e3a8a', roughness: 0.5, metalness: 0.3 },
+        { name: 'Spire Golden Finial', shape: 'sphere', size: [0.18, 12, 12], position: [0, 5.6, 0], rotation: [0, 0, 0], color: '#facc15', metalness: 0.9, roughness: 0.1 },
+        { name: 'Corner Turret NW', shape: 'cylinder', size: [0.35, 0.35, 1.6, 6], position: [-1.2, 1.0, -1.2], rotation: [0, 0, 0], color: '#475569' },
+        { name: 'Corner Roof NW', shape: 'cone', size: [0.45, 0.8, 6], position: [-1.2, 2.1, -1.2], rotation: [0, 0, 0], color: '#1e3a8a' },
+        { name: 'Corner Turret NE', shape: 'cylinder', size: [0.35, 0.35, 1.6, 6], position: [1.2, 1.0, -1.2], rotation: [0, 0, 0], color: '#475569' },
+        { name: 'Corner Roof NE', shape: 'cone', size: [0.45, 0.8, 6], position: [1.2, 2.1, -1.2], rotation: [0, 0, 0], color: '#1e3a8a' },
+        { name: 'Floating Mana Orb', shape: 'dodecahedron', size: [0.3], position: [0, 3.8, 1.4], rotation: [0.4, 0.4, 0], color: '#a855f7', emissive: '#a855f7', emissiveIntensity: 0.9 }
+      ]
+    };
+  }
+
+  // 6. ROBOT / MECH / CYBORG
+  if (text.includes('robot') || text.includes('mech') || text.includes('cyborg') || text.includes('droid') || text.includes('bot')) {
+    return {
+      id,
+      title: 'Titan Sentinel Mech-01',
+      prompt: promptText,
+      category: 'scifi',
+      description: 'Bipedal heavy defense mech equipped with dual shoulder missile pods, chest reactor core, and energy cannon.',
+      animation: 'hover',
+      camera: { position: [3, 2.5, 4], target: [0, 1.2, 0] },
+      parts: [
+        { name: 'Torso Core', shape: 'box', size: [1.2, 0.9, 0.8], position: [0, 1.4, 0], rotation: [0, 0, 0], color: '#1e293b', metalness: 0.8, roughness: 0.3 },
+        { name: 'Chest Arc Reactor', shape: 'cylinder', size: [0.25, 0.25, 0.15], position: [0, 1.5, 0.42], rotation: [Math.PI / 2, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 1.0 },
+        { name: 'Head Unit', shape: 'box', size: [0.6, 0.45, 0.55], position: [0, 2.1, 0], rotation: [0, 0, 0], color: '#334155', metalness: 0.7, roughness: 0.3 },
+        { name: 'Visor Eye', shape: 'box', size: [0.5, 0.12, 0.08], position: [0, 2.1, 0.28], rotation: [0, 0, 0], color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 0.9 },
+        { name: 'Left Shoulder Pod', shape: 'box', size: [0.5, 0.5, 0.6], position: [-0.95, 1.6, 0], rotation: [0, 0, 0.1], color: '#ea580c', metalness: 0.6, roughness: 0.4 },
+        { name: 'Right Shoulder Pod', shape: 'box', size: [0.5, 0.5, 0.6], position: [0.95, 1.6, 0], rotation: [0, 0, -0.1], color: '#ea580c', metalness: 0.6, roughness: 0.4 },
+        { name: 'Left Arm Armament', shape: 'cylinder', size: [0.18, 0.14, 1.0], position: [-1.0, 0.9, 0.1], rotation: [0.3, 0, 0], color: '#475569', metalness: 0.8 },
+        { name: 'Right Arm Blaster', shape: 'cylinder', size: [0.18, 0.14, 1.0], position: [1.0, 0.9, 0.1], rotation: [0.3, 0, 0], color: '#475569', metalness: 0.8 },
+        { name: 'Blaster Energy Nozzle', shape: 'cylinder', size: [0.1, 0.1, 0.4], position: [1.0, 0.65, 0.6], rotation: [Math.PI / 2, 0, 0], color: '#f59e0b', emissive: '#f59e0b', emissiveIntensity: 0.8 },
+        { name: 'Pelvis Hip', shape: 'box', size: [0.9, 0.3, 0.6], position: [0, 0.85, 0], rotation: [0, 0, 0], color: '#0f172a', metalness: 0.9 },
+        { name: 'Left Upper Leg', shape: 'box', size: [0.3, 0.6, 0.35], position: [-0.38, 0.45, 0], rotation: [-0.1, 0, 0], color: '#1e293b' },
+        { name: 'Right Upper Leg', shape: 'box', size: [0.3, 0.6, 0.35], position: [0.38, 0.45, 0], rotation: [-0.1, 0, 0], color: '#1e293b' },
+        { name: 'Left Foot Stomp', shape: 'box', size: [0.42, 0.18, 0.7], position: [-0.38, 0.1, 0.1], rotation: [0, 0, 0], color: '#334155' },
+        { name: 'Right Foot Stomp', shape: 'box', size: [0.42, 0.18, 0.7], position: [0.38, 0.1, 0.1], rotation: [0, 0, 0], color: '#334155' }
+      ]
+    };
+  }
+
+  // 7. SWORD / WEAPON / EXCALIBUR
+  if (text.includes('sword') || text.includes('blade') || text.includes('weapon') || text.includes('katana') || text.includes('saber')) {
+    return {
+      id,
+      title: 'Runebound Plasma Blade',
+      prompt: promptText,
+      category: 'weapons',
+      description: 'Legendary energy-infused blade with illuminated runic fuller channel, gilded crossguard, and mana crystal pommel.',
+      animation: 'spin',
+      camera: { position: [3, 2, 3], target: [0, 1.2, 0] },
+      parts: [
+        { name: 'Blade Core Steel', shape: 'box', size: [0.32, 2.6, 0.06], position: [0, 1.9, 0], rotation: [0, 0, 0], color: '#e2e8f0', metalness: 0.95, roughness: 0.1 },
+        { name: 'Blade Tip Wedge', shape: 'cone', size: [0.25, 0.6, 4], position: [0, 3.4, 0], rotation: [0, Math.PI / 4, 0], color: '#e2e8f0', metalness: 0.95, roughness: 0.1 },
+        { name: 'Runic Glowing Edge L', shape: 'box', size: [0.04, 2.4, 0.07], position: [-0.15, 1.9, 0], rotation: [0, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.9 },
+        { name: 'Runic Glowing Edge R', shape: 'box', size: [0.04, 2.4, 0.07], position: [0.15, 1.9, 0], rotation: [0, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.9 },
+        { name: 'Crossguard Bar', shape: 'box', size: [1.2, 0.16, 0.22], position: [0, 0.6, 0], rotation: [0, 0, 0], color: '#f59e0b', metalness: 0.9, roughness: 0.2 },
+        { name: 'Crossguard Gem', shape: 'dodecahedron', size: [0.14], position: [0, 0.6, 0.12], rotation: [0, 0, 0], color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 0.8 },
+        { name: 'Leather Grip', shape: 'cylinder', size: [0.09, 0.09, 0.7], position: [0, 0.2, 0], rotation: [0, 0, 0], color: '#451a03', roughness: 0.85 },
+        { name: 'Pommel Sphere', shape: 'sphere', size: [0.16, 14, 14], position: [0, -0.2, 0], rotation: [0, 0, 0], color: '#f59e0b', metalness: 0.9, roughness: 0.2 }
+      ]
+    };
+  }
+
+  // 8. TREASURE CHEST / LOOT CRATE
+  if (text.includes('chest') || text.includes('treasure') || text.includes('loot') || text.includes('crate') || text.includes('gold')) {
+    return {
+      id,
+      title: 'Vault of Ancient Spoils',
+      prompt: promptText,
+      category: 'collectibles',
+      description: 'Iron-banded dark oak treasure chest overflowing with glowing gold doubloons, emeralds, and rubies.',
+      animation: 'pulse',
+      camera: { position: [3, 2.5, 3], target: [0, 0.6, 0] },
+      parts: [
+        { name: 'Chest Base Body', shape: 'box', size: [1.8, 0.9, 1.2], position: [0, 0.45, 0], rotation: [0, 0, 0], color: '#451a03', roughness: 0.85 },
+        { name: 'Iron Corner Band 1', shape: 'box', size: [0.1, 0.92, 1.22], position: [-0.85, 0.45, 0], rotation: [0, 0, 0], color: '#334155', metalness: 0.85 },
+        { name: 'Iron Corner Band 2', shape: 'box', size: [0.1, 0.92, 1.22], position: [0.85, 0.45, 0], rotation: [0, 0, 0], color: '#334155', metalness: 0.85 },
+        { name: 'Arched Lid Dome', shape: 'cylinder', size: [0.6, 0.6, 1.82, 16], position: [0, 0.95, -0.1], rotation: [0, 0, Math.PI / 2], color: '#581c87', roughness: 0.7 },
+        { name: 'Gold Lock Clasp', shape: 'box', size: [0.25, 0.35, 0.12], position: [0, 0.8, 0.62], rotation: [0, 0, 0], color: '#facc15', metalness: 0.95, roughness: 0.1 },
+        { name: 'Keyhole', shape: 'cylinder', size: [0.04, 0.04, 0.15], position: [0, 0.78, 0.68], rotation: [Math.PI / 2, 0, 0], color: '#0f172a' },
+        { name: 'Overflowing Gold Pile', shape: 'sphere', size: [0.55, 12, 12], position: [0, 0.92, 0.25], rotation: [0, 0, 0], color: '#facc15', emissive: '#facc15', emissiveIntensity: 0.6, metalness: 0.9 },
+        { name: 'Ruby Gem Drop', shape: 'dodecahedron', size: [0.16], position: [-0.4, 1.05, 0.3], rotation: [0.3, 0.4, 0], color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 0.8 },
+        { name: 'Emerald Gem Drop', shape: 'dodecahedron', size: [0.14], position: [0.35, 1.1, 0.2], rotation: [0.1, 0.6, 0], color: '#10b981', emissive: '#10b981', emissiveIntensity: 0.8 }
+      ]
+    };
+  }
+
+  // 9. CYBER DRONE / QUADCOPTER
+  if (text.includes('drone') || text.includes('uav') || text.includes('quad') || text.includes('hover')) {
+    return {
+      id,
+      title: 'Omni-Scout Cyber Drone',
+      prompt: promptText,
+      category: 'scifi',
+      description: 'Autonomous high-altitude surveillance drone with carbon-fiber cross struts and glowing optical sensor array.',
+      animation: 'hover',
+      camera: { position: [3, 2.5, 3.5], target: [0, 0.5, 0] },
+      parts: [
+        { name: 'Central Avionics Pod', shape: 'sphere', size: [0.5, 16, 16], position: [0, 0.5, 0], rotation: [0, 0, 0], color: '#0f172a', metalness: 0.8, roughness: 0.2 },
+        { name: 'Optic Eye Lens', shape: 'sphere', size: [0.25, 16, 16], position: [0, 0.35, 0.42], rotation: [0, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.9 },
+        { name: 'Strut Arm Front-L', shape: 'cylinder', size: [0.06, 0.06, 1.6], position: [-0.6, 0.5, 0.6], rotation: [0.3, 0, -Math.PI / 4], color: '#334155', metalness: 0.9 },
+        { name: 'Strut Arm Front-R', shape: 'cylinder', size: [0.06, 0.06, 1.6], position: [0.6, 0.5, 0.6], rotation: [0.3, 0, Math.PI / 4], color: '#334155', metalness: 0.9 },
+        { name: 'Strut Arm Back-L', shape: 'cylinder', size: [0.06, 0.06, 1.6], position: [-0.6, 0.5, -0.6], rotation: [-0.3, 0, -Math.PI / 4], color: '#334155', metalness: 0.9 },
+        { name: 'Strut Arm Back-R', shape: 'cylinder', size: [0.06, 0.06, 1.6], position: [0.6, 0.5, -0.6], rotation: [-0.3, 0, Math.PI / 4], color: '#334155', metalness: 0.9 },
+        { name: 'Rotor Guard FL', shape: 'torus', size: [0.38, 0.03], position: [-1.15, 0.65, 1.15], rotation: [Math.PI / 2, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.4 },
+        { name: 'Rotor Guard FR', shape: 'torus', size: [0.38, 0.03], position: [1.15, 0.65, 1.15], rotation: [Math.PI / 2, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.4 },
+        { name: 'Rotor Guard BL', shape: 'torus', size: [0.38, 0.03], position: [-1.15, 0.65, -1.15], rotation: [Math.PI / 2, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.4 },
+        { name: 'Rotor Guard BR', shape: 'torus', size: [0.38, 0.03], position: [1.15, 0.65, -1.15], rotation: [Math.PI / 2, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.4 },
+        { name: 'Antenna Beacon', shape: 'cylinder', size: [0.02, 0.02, 0.6], position: [0, 0.9, 0], rotation: [0, 0, 0], color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 0.8 }
+      ]
+    };
+  }
+
+  // 10. DEFAULT DYNAMIC PROCEDURAL RECIPE (Matches any creative prompt)
+  const colors = [
+    { primary: '#7c6af7', secondary: '#00f0ff', accent: '#f59e0b', dark: '#181824' },
+    { primary: '#22c55e', secondary: '#10b981', accent: '#facc15', dark: '#052e16' },
+    { primary: '#ec4899', secondary: '#a855f7', accent: '#38bdf8', dark: '#1f132b' },
+    { primary: '#f97316', secondary: '#ef4444', accent: '#facc15', dark: '#2a1208' },
+    { primary: '#0ea5e9', secondary: '#6366f1', accent: '#10b981', dark: '#0c1a2f' }
+  ];
+  const theme = colors[Math.abs(hashString(promptText)) % colors.length];
+
+  return {
+    id,
+    title: promptText ? promptText.charAt(0).toUpperCase() + promptText.slice(1) : 'Cyber Crystal Artifact',
+    prompt: promptText,
+    category: categoryHint || 'general',
+    description: `Procedural 3D construct generated for "${promptText || 'custom model'}" with high-contrast low-poly aesthetic.`,
+    animation: 'spin',
+    camera: { position: [3.5, 3, 4], target: [0, 1.2, 0] },
+    parts: [
+      { name: 'Pedestal Base', shape: 'cylinder', size: [1.6, 1.8, 0.4, 8], position: [0, 0.2, 0], rotation: [0, 0, 0], color: theme.dark, metalness: 0.6, roughness: 0.4 },
+      { name: 'Runed Energy Ring', shape: 'torus', size: [1.2, 0.08], position: [0, 0.42, 0], rotation: [Math.PI / 2, 0, 0], color: theme.secondary, emissive: theme.secondary, emissiveIntensity: 0.8 },
+      { name: 'Lower Pylon Pillar', shape: 'cylinder', size: [0.4, 0.6, 1.2, 6], position: [0, 1.0, 0], rotation: [0, 0, 0], color: theme.primary, metalness: 0.8, roughness: 0.2 },
+      { name: 'Floating Central Relic', shape: 'dodecahedron', size: [0.8], position: [0, 2.0, 0], rotation: [0.3, 0.4, 0], color: theme.secondary, emissive: theme.secondary, emissiveIntensity: 0.9, metalness: 0.3, roughness: 0.1 },
+      { name: 'Satellite Orbital Node 1', shape: 'sphere', size: [0.2, 12, 12], position: [-1.2, 2.2, 0], rotation: [0, 0, 0], color: theme.accent, emissive: theme.accent, emissiveIntensity: 0.9 },
+      { name: 'Satellite Orbital Node 2', shape: 'sphere', size: [0.2, 12, 12], position: [1.2, 2.2, 0], rotation: [0, 0, 0], color: theme.accent, emissive: theme.accent, emissiveIntensity: 0.9 },
+      { name: 'Upper Spire Point', shape: 'cone', size: [0.4, 0.8, 6], position: [0, 2.85, 0], rotation: [0, 0, 0], color: theme.primary, metalness: 0.9, roughness: 0.2 }
+    ]
+  };
+}
+
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < (str || '').length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
+
+// 1. Generate 3D Model API
+app.post('/api/3d/generate', async (req, res) => {
+  try {
+    const { prompt, style = 'lowpoly', category = 'general' } = req.body || {};
+    const cleanPrompt = (prompt || '').trim();
+    if (!cleanPrompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    const geminiKey = getAiKey('google');
+    const groqKey = getAiKey('groq');
+
+    // Attempt AI Generation if keys exist
+    if (geminiKey) {
+      try {
+        const systemPrompt = `You are an expert 3D generative modeler. You convert natural language descriptions into clean, low-poly 3D scene recipes for Three.js.
+Return ONLY a valid JSON object without markdown fences, following this exact schema:
+{
+  "title": "Short descriptive title",
+  "description": "Brief description of model",
+  "category": "scifi|fantasy|vehicles|nature|arcade|weapons|collectibles",
+  "animation": "hover|spin|pulse|none",
+  "camera": { "position": [4, 3, 5], "target": [0, 1, 0] },
+  "parts": [
+    {
+      "name": "Part name (e.g. Fuselage, Left Wing, Core)",
+      "shape": "box|cylinder|sphere|cone|torus|dodecahedron",
+      "size": [width, height, depth],
+      "position": [x, y, z],
+      "rotation": [rx, ry, rz],
+      "color": "#HEX_COLOR",
+      "metalness": 0.0-1.0,
+      "roughness": 0.0-1.0,
+      "emissive": "#HEX_COLOR",
+      "emissiveIntensity": 0.0-1.0
+    }
+  ]
+}
+Construct between 8 and 18 distinct primitive parts assembled together to form the object accurately.`;
+
+        const geminiRes = await callGemini(geminiKey, 'gemini-3.8-flash', systemPrompt, `Generate a 3D model recipe for: "${cleanPrompt}". Style: ${style}.`);
+        const replyText = typeof geminiRes === 'object' ? geminiRes.text : geminiRes;
+        const cleaned = replyText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (parsed && Array.isArray(parsed.parts) && parsed.parts.length > 0) {
+          parsed.id = 'model_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+          parsed.prompt = cleanPrompt;
+          return res.json({ success: true, recipe: parsed, provider: 'gemini' });
+        }
+      } catch (aiErr) {
+        console.warn('AI 3D generation fallback to procedural:', aiErr.message);
+      }
+    }
+
+    // High quality procedural compiler fallback
+    const recipe = compileProcedural3DRecipe(cleanPrompt, category);
+    return res.json({ success: true, recipe, provider: 'procedural' });
+  } catch (err) {
+    console.error('3D generate error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Preset 3D Model Catalog API
+app.get('/api/3d/presets', (req, res) => {
+  const presets = [
+    {
+      id: 'preset_starfighter',
+      title: 'Aero-Starfighter Mk-IV',
+      category: 'scifi',
+      tags: ['space', 'spaceship', 'starfighter', 'fighter', 'scifi'],
+      prompt: 'futuristic starfighter with laser cannons and plasma thrusters',
+      badge: 'POPULAR'
+    },
+    {
+      id: 'preset_tank',
+      title: 'Apex Cyber Tank',
+      category: 'vehicles',
+      tags: ['tank', 'armor', 'military', 'cannon', 'combat'],
+      prompt: 'heavy cyber tank with treads and dual cannon turret',
+      badge: 'FEATURED'
+    },
+    {
+      id: 'preset_arcade',
+      title: 'Classic Neon Arcade Cabinet',
+      category: 'arcade',
+      tags: ['arcade', 'retro', 'cabinet', 'gaming', 'joystick'],
+      prompt: 'vintage 80s arcade cabinet with glowing marquee and joystick deck',
+      badge: 'RETRO'
+    },
+    {
+      id: 'preset_tree_island',
+      title: 'Floating Mystic Low-Poly Island',
+      category: 'nature',
+      tags: ['island', 'tree', 'nature', 'floating', 'lowpoly'],
+      prompt: 'low poly floating sky island with pine trees and crystal waterfall',
+      badge: 'PEACEFUL'
+    },
+    {
+      id: 'preset_castle',
+      title: 'Citadel of the Mystic Spires',
+      category: 'fantasy',
+      tags: ['castle', 'tower', 'fantasy', 'fortress', 'medieval'],
+      prompt: 'medieval fortress tower with battlements and hovering mana orb',
+      badge: 'FANTASY'
+    },
+    {
+      id: 'preset_mech',
+      title: 'Titan Sentinel Mech-01',
+      category: 'scifi',
+      tags: ['robot', 'mech', 'sentinel', 'bipedal', 'cyborg'],
+      prompt: 'bipedal defense mech with shoulder missile pods and arc reactor',
+      badge: 'ACTION'
+    },
+    {
+      id: 'preset_sword',
+      title: 'Runebound Plasma Blade',
+      category: 'weapons',
+      tags: ['sword', 'blade', 'katana', 'weapon', 'plasma'],
+      prompt: 'glowing plasma sword with runic channels and jeweled crossguard',
+      badge: 'WEAPON'
+    },
+    {
+      id: 'preset_chest',
+      title: 'Vault of Ancient Spoils',
+      category: 'collectibles',
+      tags: ['chest', 'treasure', 'gold', 'loot', 'coins'],
+      prompt: 'iron-banded treasure chest overflowing with gold and gems',
+      badge: 'LOOT'
+    },
+    {
+      id: 'preset_drone',
+      title: 'Omni-Scout Cyber Drone',
+      category: 'scifi',
+      tags: ['drone', 'uav', 'quadcopter', 'camera', 'hover'],
+      prompt: 'cyberpunk surveillance drone with glowing optic sensors and rotor guards',
+      badge: 'TECH'
+    }
+  ];
+
+  return res.json({ success: true, presets });
+});
+
+// 3. User Saved 3D Models (CRUD)
+app.get('/api/3d/models', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT id, name, prompt, category, recipe, thumbnail, created_at FROM models_3d ORDER BY created_at DESC').all();
+    const models = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      prompt: r.prompt,
+      category: r.category,
+      recipe: typeof r.recipe === 'string' ? JSON.parse(r.recipe) : r.recipe,
+      thumbnail: r.thumbnail,
+      created_at: r.created_at
+    }));
+    return res.json({ success: true, total: models.length, models });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/3d/models', (req, res) => {
+  try {
+    const { name, prompt, category = 'general', recipe, thumbnail = '' } = req.body || {};
+    if (!name || !recipe) {
+      return res.status(400).json({ error: 'Model name and recipe are required' });
+    }
+    const id = 'model_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    const recipeStr = typeof recipe === 'string' ? recipe : JSON.stringify(recipe);
+
+    db.prepare(`
+      INSERT INTO models_3d (id, name, prompt, category, recipe, thumbnail, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+    `).run(id, name, prompt || '', category, recipeStr, thumbnail || '');
+
+    return res.json({ success: true, id, message: '3D model saved to your vault!' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/3d/models/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    db.prepare('DELETE FROM models_3d WHERE id = ?').run(id);
+    return res.json({ success: true, message: '3D model deleted' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // Dynamic QR Code Generator Endpoint (for uploads, download links, and arbitrary text)

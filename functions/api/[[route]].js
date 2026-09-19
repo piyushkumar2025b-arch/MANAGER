@@ -7913,6 +7913,181 @@ Provide your response in JSON format with two keys:
       return new Response(JSON.stringify({ success: true, message: 'Bot activity logs cleared' }), { headers });
     }
 
+    // ============================================================================
+    // 3D MODEL GENERATOR & GAMING ENGINE APIS
+    // ============================================================================
+    if (path === '/3d/presets' && method === 'GET') {
+      const presets = [
+        {
+          id: 'preset_starfighter',
+          title: 'Aero-Starfighter Mk-IV',
+          category: 'scifi',
+          tags: ['space', 'spaceship', 'starfighter', 'fighter', 'scifi'],
+          prompt: 'futuristic starfighter with laser cannons and plasma thrusters',
+          badge: 'POPULAR'
+        },
+        {
+          id: 'preset_tank',
+          title: 'Apex Cyber Tank',
+          category: 'vehicles',
+          tags: ['tank', 'armor', 'military', 'cannon', 'combat'],
+          prompt: 'heavy cyber tank with treads and dual cannon turret',
+          badge: 'FEATURED'
+        },
+        {
+          id: 'preset_arcade',
+          title: 'Classic Neon Arcade Cabinet',
+          category: 'arcade',
+          tags: ['arcade', 'retro', 'cabinet', 'gaming', 'joystick'],
+          prompt: 'vintage 80s arcade cabinet with glowing marquee and joystick deck',
+          badge: 'RETRO'
+        },
+        {
+          id: 'preset_tree_island',
+          title: 'Floating Mystic Low-Poly Island',
+          category: 'nature',
+          tags: ['island', 'tree', 'nature', 'floating', 'lowpoly'],
+          prompt: 'low poly floating sky island with pine trees and crystal waterfall',
+          badge: 'PEACEFUL'
+        },
+        {
+          id: 'preset_castle',
+          title: 'Citadel of the Mystic Spires',
+          category: 'fantasy',
+          tags: ['castle', 'tower', 'fantasy', 'fortress', 'medieval'],
+          prompt: 'medieval fortress tower with battlements and hovering mana orb',
+          badge: 'FANTASY'
+        },
+        {
+          id: 'preset_mech',
+          title: 'Titan Sentinel Mech-01',
+          category: 'scifi',
+          tags: ['robot', 'mech', 'sentinel', 'bipedal', 'cyborg'],
+          prompt: 'bipedal defense mech with shoulder missile pods and arc reactor',
+          badge: 'ACTION'
+        },
+        {
+          id: 'preset_sword',
+          title: 'Runebound Plasma Blade',
+          category: 'weapons',
+          tags: ['sword', 'blade', 'katana', 'weapon', 'plasma'],
+          prompt: 'glowing plasma sword with runic channels and jeweled crossguard',
+          badge: 'WEAPON'
+        },
+        {
+          id: 'preset_chest',
+          title: 'Vault of Ancient Spoils',
+          category: 'collectibles',
+          tags: ['chest', 'treasure', 'gold', 'loot', 'coins'],
+          prompt: 'iron-banded treasure chest overflowing with gold and gems',
+          badge: 'LOOT'
+        },
+        {
+          id: 'preset_drone',
+          title: 'Omni-Scout Cyber Drone',
+          category: 'scifi',
+          tags: ['drone', 'uav', 'quadcopter', 'camera', 'hover'],
+          prompt: 'cyberpunk surveillance drone with glowing optic sensors and rotor guards',
+          badge: 'TECH'
+        }
+      ];
+      return new Response(JSON.stringify({ success: true, presets }), { headers });
+    }
+
+    if (path === '/3d/generate' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const promptText = (body.prompt || '').trim();
+      if (!promptText) {
+        return new Response(JSON.stringify({ error: 'Prompt is required' }), { headers, status: 400 });
+      }
+
+      // Procedural 3D model generator for Edge Workers
+      const text = promptText.toLowerCase();
+      const id = 'model_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+      // Starfighter / Spaceship
+      if (text.includes('space') || text.includes('ship') || text.includes('fighter') || text.includes('rocket') || text.includes('shuttle')) {
+        return new Response(JSON.stringify({
+          success: true,
+          provider: 'edge-procedural',
+          recipe: {
+            id,
+            title: 'Aero-Starfighter Mk-IV',
+            prompt: promptText,
+            category: 'scifi',
+            description: 'Futuristic atmospheric and orbital starfighter with dual wingtip laser cannons and hyperdrive nacelles.',
+            animation: 'hover',
+            camera: { position: [4, 3, 5], target: [0, 0, 0] },
+            parts: [
+              { name: 'Fuselage', shape: 'box', size: [1.2, 0.4, 3.2], position: [0, 0, 0], rotation: [0, 0, 0], color: '#38bdf8', metalness: 0.7, roughness: 0.3 },
+              { name: 'Nose Cone', shape: 'cone', size: [0.5, 1.4, 8], position: [0, 0, 2.1], rotation: [Math.PI / 2, 0, 0], color: '#0284c7', metalness: 0.8, roughness: 0.2 },
+              { name: 'Cockpit Canopy', shape: 'sphere', size: [0.45, 16, 16], position: [0, 0.25, 0.4], rotation: [0, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.6, transparent: true, opacity: 0.85 },
+              { name: 'Left Wing', shape: 'box', size: [2.2, 0.08, 1.4], position: [-1.4, 0, -0.4], rotation: [0, 0.2, 0], color: '#1e293b', metalness: 0.5, roughness: 0.4 },
+              { name: 'Right Wing', shape: 'box', size: [2.2, 0.08, 1.4], position: [1.4, 0, -0.4], rotation: [0, -0.2, 0], color: '#1e293b', metalness: 0.5, roughness: 0.4 },
+              { name: 'Left Wing Cannon', shape: 'cylinder', size: [0.08, 0.08, 1.6], position: [-2.4, 0.05, 0.1], rotation: [Math.PI / 2, 0, 0], color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 0.4 },
+              { name: 'Right Wing Cannon', shape: 'cylinder', size: [0.08, 0.08, 1.6], position: [2.4, 0.05, 0.1], rotation: [Math.PI / 2, 0, 0], color: '#ef4444', emissive: '#ef4444', emissiveIntensity: 0.4 },
+              { name: 'Vertical Stabilizer', shape: 'box', size: [0.08, 1.0, 1.2], position: [0, 0.6, -1.1], rotation: [-0.3, 0, 0], color: '#0284c7', metalness: 0.6, roughness: 0.3 },
+              { name: 'Engine Left', shape: 'cylinder', size: [0.25, 0.3, 0.8], position: [-0.4, 0, -1.8], rotation: [Math.PI / 2, 0, 0], color: '#0f172a', metalness: 0.9, roughness: 0.2 },
+              { name: 'Engine Right', shape: 'cylinder', size: [0.25, 0.3, 0.8], position: [0.4, 0, -1.8], rotation: [Math.PI / 2, 0, 0], color: '#0f172a', metalness: 0.9, roughness: 0.2 },
+              { name: 'Left Thruster Plasma', shape: 'cylinder', size: [0.2, 0.05, 0.5], position: [-0.4, 0, -2.3], rotation: [Math.PI / 2, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 1.2 },
+              { name: 'Right Thruster Plasma', shape: 'cylinder', size: [0.2, 0.05, 0.5], position: [0.4, 0, -2.3], rotation: [Math.PI / 2, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 1.2 }
+            ]
+          }
+        }), { headers });
+      }
+
+      // Arcade Cabinet
+      if (text.includes('arcade') || text.includes('cabinet') || text.includes('retro') || text.includes('gameboy')) {
+        return new Response(JSON.stringify({
+          success: true,
+          provider: 'edge-procedural',
+          recipe: {
+            id,
+            title: 'Classic Neon Arcade Cabinet',
+            prompt: promptText,
+            category: 'arcade',
+            description: 'Authentic coin-op arcade cabinet with illuminated marquee and CRT screen.',
+            animation: 'spin',
+            camera: { position: [3, 2.5, 4], target: [0, 1.4, 0] },
+            parts: [
+              { name: 'Cabinet Body Base', shape: 'box', size: [1.4, 1.2, 1.3], position: [0, 0.6, 0], rotation: [0, 0, 0], color: '#0f172a', metalness: 0.2, roughness: 0.8 },
+              { name: 'Coin Slot Yellow', shape: 'box', size: [0.15, 0.08, 0.03], position: [-0.15, 0.7, 0.7], rotation: [0, 0, 0], color: '#f59e0b', emissive: '#f59e0b', emissiveIntensity: 0.8 },
+              { name: 'Angled Control Deck', shape: 'box', size: [1.45, 0.12, 0.8], position: [0, 1.25, 0.6], rotation: [0.25, 0, 0], color: '#7c6af7', metalness: 0.4, roughness: 0.4 },
+              { name: 'Player 1 Joystick', shape: 'cylinder', size: [0.04, 0.04, 0.35], position: [-0.35, 1.45, 0.55], rotation: [0.25, 0, 0], color: '#ef4444' },
+              { name: 'Glowing CRT Screen', shape: 'box', size: [1.1, 0.85, 0.05], position: [0, 1.82, 0.4], rotation: [-0.25, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.85 },
+              { name: 'Marquee Header', shape: 'box', size: [1.4, 0.45, 0.6], position: [0, 2.45, 0.3], rotation: [0, 0, 0], color: '#ec4899', emissive: '#ec4899', emissiveIntensity: 0.7 }
+            ]
+          }
+        }), { headers });
+      }
+
+      // Default dynamic procedural recipe
+      return new Response(JSON.stringify({
+        success: true,
+        provider: 'edge-procedural',
+        recipe: {
+          id,
+          title: promptText.charAt(0).toUpperCase() + promptText.slice(1),
+          prompt: promptText,
+          category: 'general',
+          description: `Procedural 3D construct generated for "${promptText}".`,
+          animation: 'spin',
+          camera: { position: [3.5, 3, 4], target: [0, 1.2, 0] },
+          parts: [
+            { name: 'Pedestal Base', shape: 'cylinder', size: [1.6, 1.8, 0.4, 8], position: [0, 0.2, 0], rotation: [0, 0, 0], color: '#181824', metalness: 0.6, roughness: 0.4 },
+            { name: 'Runed Energy Ring', shape: 'torus', size: [1.2, 0.08], position: [0, 0.42, 0], rotation: [Math.PI / 2, 0, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.8 },
+            { name: 'Lower Pylon Pillar', shape: 'cylinder', size: [0.4, 0.6, 1.2, 6], position: [0, 1.0, 0], rotation: [0, 0, 0], color: '#7c6af7', metalness: 0.8, roughness: 0.2 },
+            { name: 'Floating Central Relic', shape: 'dodecahedron', size: [0.8], position: [0, 2.0, 0], rotation: [0.3, 0.4, 0], color: '#00f0ff', emissive: '#00f0ff', emissiveIntensity: 0.9, metalness: 0.3, roughness: 0.1 },
+            { name: 'Upper Spire Point', shape: 'cone', size: [0.4, 0.8, 6], position: [0, 2.85, 0], rotation: [0, 0, 0], color: '#7c6af7', metalness: 0.9, roughness: 0.2 }
+          ]
+        }
+      }), { headers });
+    }
+
+    if (path === '/3d/models' && method === 'GET') {
+      return new Response(JSON.stringify({ success: true, total: 0, models: [] }), { headers });
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {
