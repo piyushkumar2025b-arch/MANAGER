@@ -8,7 +8,8 @@
 <title>Vault</title>
 <meta name="description" content="Secure vault for credentials, tasks, Cloudflare Drive storage, Prompt-to-3D Model Generator, 3D Gaming Arcade, live AI News, Telegram & Discord Bot Controllers, developer toolbox suite, and AI tools."/>
 <meta property="og:title" content="Vault"/>
-<meta property="og:description" content="Secure vault for credentials, tasks, Cloudflare Drive storage, Prompt-to-3D Model Generator, 3D Gaming Arcade, live AI News, Telegram & Discord Bot Controllers, developer toolbox suite, and AI tools."/>
+<meta property="og:description" content="Secure vault with Infinite Canvas & Photo Editor, Photo to PDF Converter, Universal File Previewer, Cloudflare Drive storage, Prompt-to-3D Model Generator, 3D Gaming Arcade, live AI News, Telegram & Discord Bot Controllers, and AI tools."/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -505,6 +506,14 @@
   .cf-btn:hover { border-color: var(--accent); color: #fff; }
   .cf-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   .cf-btn-primary:hover { opacity: 0.88; }
+
+  .canvas-tool-btn {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 5px 9px; font-size: 12px; font-weight: 500; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px; transition: all 0.15s ease;
+  }
+  .canvas-tool-btn:hover { border-color: var(--accent); color: #fff; background: rgba(124,106,247,0.12); }
+  .canvas-tool-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 10px rgba(124,106,247,0.4); }
 
   /* TASK STATS & FILTERS */
   .task-stats-bar {
@@ -1705,6 +1714,9 @@
       <button class="tab" onclick="switchTab('gaming')" id="tab-gaming">
         <span>🎮</span> Gaming & 3D Lab
       </button>
+      <button class="tab" onclick="switchTab('canvas')" id="tab-canvas">
+        <span>🎨</span> Infinite Canvas
+      </button>
     </div>
   </div>
 
@@ -1996,6 +2008,9 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('gaming');">
       <span class="icon">🎮</span> Gaming & 3D Lab
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('canvas');">
+      <span class="icon">🎨</span> Infinite Canvas & Photo Lab
+    </button>
   `;
   overlay.appendChild(dropdown);
   document.body.appendChild(overlay);
@@ -2109,6 +2124,10 @@ async function loadTab() {
   } else if (currentTab === 'gaming' || currentTab === 'modelgen') {
     if (typeof window.renderGamingStudioTab === 'function') {
       window.renderGamingStudioTab(currentTab === 'modelgen' ? '3dgen' : null);
+    }
+  } else if (currentTab === 'canvas') {
+    if (typeof window.renderInfiniteCanvasSuite === 'function') {
+      window.renderInfiniteCanvasSuite();
     }
   }
 }
@@ -14707,5 +14726,6 @@ async function runHubWorkersAiTest() {
 <script src="/ai-news-apps.js"></script>
 <script src="/bot-controller.js"></script>
 <script src="/gaming-3d-studio.js"></script>
+<script src="/infinite-canvas-suite.js"></script>
 </body>
 </html>

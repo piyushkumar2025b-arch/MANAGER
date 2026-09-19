@@ -1,6 +1,6 @@
 {
   "name": "Vault",
-  "description": "Secure vault for credentials, tasks, Cloudflare Drive storage, Prompt-to-3D Model Generator, 3D Gaming Arcade, live AI News, Telegram & Discord Bot Controllers, developer toolbox suite, and AI tools.",
+  "description": "Secure vault with Infinite Canvas & Photo Editor, Photo to PDF Converter, Universal File Previewer, Cloudflare Drive storage, Prompt-to-3D Model Generator, 3D Gaming Arcade, live AI News, Telegram & Discord Bot Controllers, and AI tools.",
   "requestFramePermissions": ["microphone", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

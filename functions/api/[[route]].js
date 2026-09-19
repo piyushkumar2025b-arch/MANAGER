@@ -8088,6 +8088,63 @@ Provide your response in JSON format with two keys:
       return new Response(JSON.stringify({ success: true, total: 0, models: [] }), { headers });
     }
 
+    // ============================================================================
+    // INFINITE CANVAS & WHITEBOARD APIS
+    // ============================================================================
+    if (path === '/canvas/boards' && method === 'GET') {
+      let boards = [];
+      if (env && env.VAULT_KV) {
+        const raw = await env.VAULT_KV.get('canvas_boards');
+        if (raw) {
+          try { boards = JSON.parse(raw); } catch (_) {}
+        }
+      }
+      return new Response(JSON.stringify({ success: true, boards }), { headers });
+    }
+
+    if (path === '/canvas/boards' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const board = {
+        id: body.id || 'board_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        name: (body.name || 'Untitled Canvas').trim(),
+        elements: body.elements || [],
+        thumbnail: body.thumbnail || '',
+        updatedAt: new Date().toISOString()
+      };
+
+      if (env && env.VAULT_KV) {
+        let boards = [];
+        const raw = await env.VAULT_KV.get('canvas_boards');
+        if (raw) {
+          try { boards = JSON.parse(raw); } catch (_) {}
+        }
+        const existingIdx = boards.findIndex(b => b.id === board.id);
+        if (existingIdx >= 0) {
+          boards[existingIdx] = board;
+        } else {
+          boards.unshift(board);
+        }
+        if (boards.length > 50) boards = boards.slice(0, 50);
+        await env.VAULT_KV.put('canvas_boards', JSON.stringify(boards));
+      }
+
+      return new Response(JSON.stringify({ success: true, board }), { headers });
+    }
+
+    if (path.startsWith('/canvas/boards/') && method === 'DELETE') {
+      const id = path.replace('/canvas/boards/', '');
+      if (env && env.VAULT_KV) {
+        let boards = [];
+        const raw = await env.VAULT_KV.get('canvas_boards');
+        if (raw) {
+          try { boards = JSON.parse(raw); } catch (_) {}
+        }
+        boards = boards.filter(b => b.id !== id);
+        await env.VAULT_KV.put('canvas_boards', JSON.stringify(boards));
+      }
+      return new Response(JSON.stringify({ success: true, deletedId: id }), { headers });
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {
