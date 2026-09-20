@@ -1222,6 +1222,23 @@
       customStickersList = [];
     }
 
+    // Also fetch saved stickers from database
+    fetch('/api/stickers')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.stickers)) {
+          const dbStickers = data.stickers;
+          const merged = [...dbStickers];
+          customStickersList.forEach(local => {
+            if (!merged.some(m => m.id === local.id)) merged.push(local);
+          });
+          customStickersList = merged;
+          localStorage.setItem('vault_custom_stickers', JSON.stringify(customStickersList));
+          window.refreshStickersGrid();
+        }
+      })
+      .catch(() => {});
+
     content.innerHTML = `
       ${typeof renderStudioSubNav === 'function' ? renderStudioSubNav('stickers') : ''}
       <div class="web-media-container" id="stickersContainer">
@@ -1353,7 +1370,7 @@
         <div style="font-size:12px;font-weight:600;color:var(--text);margin-top:8px;text-align:center;">
           ${esc(s.name)}
         </div>
-        <div style="display:flex;gap:4px;margin-top:6px;">
+        <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;justify-content:center;">
           <button class="btn btn-secondary" onclick="event.stopPropagation();window.copyStickerBadge('${esc(s.id)}')" style="font-size:10.5px;padding:2px 6px;" title="Copy Emoji & Text">
             📋 Copy
           </button>
@@ -1363,6 +1380,11 @@
           <button class="btn btn-secondary" onclick="event.stopPropagation();window.downloadStickerPng('${esc(s.id)}')" style="font-size:10.5px;padding:2px 6px;" title="Download PNG">
             💾 PNG
           </button>
+          ${s.category === 'custom' ? `
+            <button class="btn btn-secondary" onclick="event.stopPropagation();window.deleteCustomSticker('${esc(s.id)}')" style="font-size:10.5px;padding:2px 6px;color:var(--red);" title="Delete custom sticker from database">
+              🗑️
+            </button>
+          ` : ''}
         </div>
       </div>
     `).join('');
@@ -1647,6 +1669,13 @@
       color: color
     };
 
+    // Save sticker to database
+    fetch('/api/stickers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSticker)
+    }).catch(() => {});
+
     // Call server-side vector badge generator
     fetch('/api/stickers/custom', {
       method: 'POST',
@@ -1657,6 +1686,11 @@
         newSticker.svg = res.sticker.svg;
         newSticker.dataUrl = res.sticker.dataUrl;
         localStorage.setItem('vault_custom_stickers', JSON.stringify(customStickersList));
+        fetch('/api/stickers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newSticker)
+        }).catch(() => {});
       }
     }).catch(() => {});
 
@@ -1665,7 +1699,16 @@
     closeModal();
     window.refreshStickersGrid();
     window.playSoundEffect('levelup');
-    if (typeof toast === 'function') toast('✓ Custom vector sticker created & saved!');
+    if (typeof toast === 'function') toast('✓ Custom vector sticker saved to database!');
+  };
+
+  window.deleteCustomSticker = function (id) {
+    if (!confirm('Delete this custom sticker?')) return;
+    customStickersList = customStickersList.filter(s => s.id !== id);
+    localStorage.setItem('vault_custom_stickers', JSON.stringify(customStickersList));
+    fetch('/api/stickers/' + id, { method: 'DELETE' }).catch(() => {});
+    window.refreshStickersGrid();
+    if (typeof toast === 'function') toast('Sticker deleted from database');
   };
 
 

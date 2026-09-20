@@ -28,6 +28,10 @@
   let dragStartY = 0;
   let currentStrokePoints = [];
   let boardName = 'My Creative Board';
+  let currentCanvasBoardId = 'default_board';
+  let currentCanvasBoardName = 'My Creative Board';
+  let autoSaveTimer = null;
+  let isCanvasLoadingFromDb = false;
   let activePhotoFilter = { brightness: 100, contrast: 100, saturation: 100, blur: 0, grayscale: 0, sepia: 0, invert: 0, hue: 0 };
 
   // --------------------------------------------------------------------------
@@ -200,6 +204,23 @@
           <button onclick="window.redoCanvasAction()" class="cf-btn" style="padding:4px 8px;font-size:11.5px;" title="Redo (Ctrl+Y)">↪️ Redo</button>
           <button onclick="window.clearCanvasConfirm()" class="cf-btn" style="padding:4px 8px;font-size:11.5px;color:var(--red);" title="Clear entire board">🗑️ Clear</button>
           
+          <div style="width:1px;height:22px;background:var(--border);margin:0 2px;"></div>
+
+          <!-- Database Sync & Board Management -->
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button onclick="window.saveCanvasBoardToDb()" class="cf-btn cf-btn-primary" style="padding:4px 10px;font-size:11.5px;font-weight:600;" id="canvasSaveDbBtn" title="Save current board directly to database">
+              💾 Save to DB
+            </button>
+            <button onclick="window.openCanvasBoardsModal()" class="cf-btn" style="padding:4px 9px;font-size:11.5px;" title="Browse and open saved canvas boards in database">
+              📂 My Boards
+            </button>
+            <span id="canvasSyncBadge" style="font-size:11px;color:#10b981;display:flex;align-items:center;gap:4px;font-weight:500;padding:2px 6px;background:rgba(16,185,129,0.1);border-radius:10px;">
+              <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10b981;"></span> Linked to DB
+            </span>
+          </div>
+
+          <div style="width:1px;height:22px;background:var(--border);margin:0 2px;"></div>
+
           <!-- Export & PDF Bridge -->
           <div style="display:flex;gap:5px;">
             <button onclick="window.exportCanvasImage('png')" class="cf-btn" style="padding:4px 8px;font-size:11.5px;" title="Export board as PNG">💾 PNG</button>
@@ -282,9 +303,9 @@
     // Keyboard shortcuts
     window.addEventListener('keydown', onKeyDown);
 
-    // Initial template if empty
+    // Initial database sync or fallback template
     if (canvasElements.length === 0) {
-      loadDefaultTemplate();
+      loadInitialBoardFromDatabase();
     }
 
     redrawCanvas();
@@ -1080,7 +1101,236 @@
     undoStack.push(JSON.stringify(canvasElements));
     if (undoStack.length > 30) undoStack.shift();
     redoStack = [];
+    triggerAutoSaveToDatabase();
   }
+
+  function serializeCanvasElements() {
+    return canvasElements.map(el => {
+      if (el.type === 'photo') {
+        const { imgObj, ...rest } = el;
+        return rest;
+      }
+      return el;
+    });
+  }
+
+  function triggerAutoSaveToDatabase() {
+    const badge = document.getElementById('canvasSyncBadge');
+    if (badge) {
+      badge.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#f59e0b;"></span> Saving to DB...';
+      badge.style.color = '#f59e0b';
+      badge.style.background = 'rgba(245,158,11,0.1)';
+    }
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(async () => {
+      try {
+        const canvas = document.getElementById('infiniteMainCanvas');
+        const thumbnail = canvas ? canvas.toDataURL('image/jpeg', 0.3) : '';
+        const payload = {
+          id: currentCanvasBoardId,
+          name: currentCanvasBoardName,
+          elements: serializeCanvasElements(),
+          thumbnail
+        };
+        const res = await fetch('/api/canvas/boards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success && badge) {
+          badge.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10b981;"></span> Linked to DB';
+          badge.style.color = '#10b981';
+          badge.style.background = 'rgba(16,185,129,0.1)';
+        }
+      } catch (_) {
+        if (badge) {
+          badge.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#ef4444;"></span> Offline Cache';
+          badge.style.color = '#ef4444';
+          badge.style.background = 'rgba(239,68,68,0.1)';
+        }
+      }
+    }, 1200);
+  }
+
+  window.saveCanvasBoardToDb = async function (silent = false) {
+    const btn = document.getElementById('canvasSaveDbBtn');
+    if (btn) btn.innerHTML = '⏳ Saving...';
+    try {
+      const canvas = document.getElementById('infiniteMainCanvas');
+      const thumbnail = canvas ? canvas.toDataURL('image/jpeg', 0.4) : '';
+      const payload = {
+        id: currentCanvasBoardId,
+        name: currentCanvasBoardName,
+        elements: serializeCanvasElements(),
+        thumbnail
+      };
+      const res = await fetch('/api/canvas/boards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (!silent) toast('💾 Board saved to Database!');
+        const badge = document.getElementById('canvasSyncBadge');
+        if (badge) {
+          badge.innerHTML = '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10b981;"></span> Linked to DB';
+          badge.style.color = '#10b981';
+          badge.style.background = 'rgba(16,185,129,0.1)';
+        }
+      } else {
+        throw new Error(data.error || 'Failed to save');
+      }
+    } catch (e) {
+      if (!silent) toast('Error saving to DB: ' + e.message);
+    } finally {
+      if (btn) btn.innerHTML = '💾 Save to DB';
+    }
+  };
+
+  async function loadInitialBoardFromDatabase() {
+    if (isCanvasLoadingFromDb) return;
+    isCanvasLoadingFromDb = true;
+    try {
+      const res = await fetch('/api/canvas/boards');
+      const data = await res.json();
+      if (data.success && data.boards && data.boards.length > 0) {
+        const latest = data.boards[0];
+        currentCanvasBoardId = latest.id;
+        currentCanvasBoardName = latest.name || 'My Creative Board';
+        restoreElements(latest.elements || []);
+        toast(`📂 Loaded "${currentCanvasBoardName}" from database`);
+        return;
+      }
+    } catch (_) {
+      // Fall through to default template
+    } finally {
+      isCanvasLoadingFromDb = false;
+    }
+    // If no boards in database, populate template and save it
+    loadDefaultTemplate();
+    redrawCanvas();
+    setTimeout(() => { window.saveCanvasBoardToDb(true); }, 800);
+  }
+
+  window.openCanvasBoardsModal = async function () {
+    let modal = document.getElementById('canvasBoardsModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'canvasBoardsModal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      document.body.appendChild(modal);
+    }
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);max-width:680px;width:100%;max-height:85vh;overflow-y:auto;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,0.6);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;border-bottom:1px solid var(--border);padding-bottom:14px;">
+          <strong style="font-size:16px;display:flex;align-items:center;gap:8px;">
+            <span>📂</span> Saved Canvas Boards in Database
+          </strong>
+          <div style="display:flex;gap:8px;">
+            <button onclick="window.createNewCanvasBoard()" class="cf-btn cf-btn-primary" style="padding:6px 12px;font-size:12px;">➕ New Board</button>
+            <button onclick="window.closeCanvasBoardsModal()" class="cf-btn" style="padding:6px 12px;font-size:12px;">✕ Close</button>
+          </div>
+        </div>
+        <div id="canvasBoardsList" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="text-align:center;padding:30px;color:var(--muted);">Loading boards from database...</div>
+        </div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/canvas/boards');
+      const data = await res.json();
+      const listEl = document.getElementById('canvasBoardsList');
+      if (!listEl) return;
+      if (!data.success || !data.boards || data.boards.length === 0) {
+        listEl.innerHTML = `
+          <div style="text-align:center;padding:30px;color:var(--muted);">
+            No saved boards found in database. Click "➕ New Board" or "Save to DB" to create one!
+          </div>
+        `;
+        return;
+      }
+      listEl.innerHTML = data.boards.map(b => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;${b.id === currentCanvasBoardId ? 'border-color:var(--accent);background:rgba(124,106,247,0.06);' : ''}">
+          <div style="display:flex;align-items:center;gap:12px;overflow:hidden;">
+            ${b.thumbnail ? `<img src="${b.thumbnail}" style="width:60px;height:45px;object-fit:cover;border-radius:4px;border:1px solid var(--border);background:#0d0d14;" />` : '<div style="width:60px;height:45px;border-radius:4px;background:#0d0d14;display:flex;align-items:center;justify-content:center;font-size:20px;">🎨</div>'}
+            <div style="overflow:hidden;">
+              <div style="font-weight:600;font-size:13.5px;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;">${b.name || 'Untitled Canvas'} ${b.id === currentCanvasBoardId ? '<span style="color:var(--accent);font-size:11px;font-weight:normal;">(Current)</span>' : ''}</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">${Array.isArray(b.elements) ? b.elements.length : 0} items • Updated ${new Date(b.updated_at || b.updatedAt || Date.now()).toLocaleDateString()}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button onclick="window.loadCanvasBoardById('${b.id}')" class="cf-btn cf-btn-primary" style="padding:6px 12px;font-size:12px;">Open</button>
+            <button onclick="window.deleteCanvasBoard('${b.id}')" class="cf-btn" style="padding:6px 10px;font-size:12px;color:var(--red);" title="Delete board from database">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      const listEl = document.getElementById('canvasBoardsList');
+      if (listEl) listEl.innerHTML = `<div style="color:var(--red);text-align:center;padding:20px;">Failed to load boards: ${e.message}</div>`;
+    }
+  };
+
+  window.closeCanvasBoardsModal = function () {
+    const modal = document.getElementById('canvasBoardsModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.loadCanvasBoardById = async function (id) {
+    try {
+      const res = await fetch('/api/canvas/boards');
+      const data = await res.json();
+      if (data.success && data.boards) {
+        const board = data.boards.find(b => b.id === id);
+        if (board) {
+          currentCanvasBoardId = board.id;
+          currentCanvasBoardName = board.name || 'My Creative Board';
+          restoreElements(board.elements || []);
+          window.closeCanvasBoardsModal();
+          toast(`📂 Loaded "${currentCanvasBoardName}"`);
+          return;
+        }
+      }
+      throw new Error('Board not found in database');
+    } catch (e) {
+      toast('Error loading board: ' + e.message);
+    }
+  };
+
+  window.createNewCanvasBoard = function () {
+    const name = prompt('Enter a name for your new canvas board:', 'Creative Project ' + (new Date().toLocaleDateString()));
+    if (!name) return;
+    currentCanvasBoardId = 'board_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    currentCanvasBoardName = name.trim();
+    canvasElements = [];
+    selectedElementId = null;
+    undoStack = [];
+    redoStack = [];
+    loadDefaultTemplate();
+    redrawCanvas();
+    window.closeCanvasBoardsModal();
+    window.saveCanvasBoardToDb(true);
+    toast(`✨ Created new board: "${currentCanvasBoardName}"`);
+  };
+
+  window.deleteCanvasBoard = async function (id) {
+    if (!confirm('Are you sure you want to permanently delete this board from the database?')) return;
+    try {
+      const res = await fetch(`/api/canvas/boards/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        toast('Board deleted from database');
+        window.openCanvasBoardsModal();
+      } else {
+        throw new Error(data.error || 'Failed to delete');
+      }
+    } catch (e) {
+      toast('Error deleting board: ' + e.message);
+    }
+  };
 
   window.undoCanvasAction = function () {
     if (undoStack.length === 0) return;

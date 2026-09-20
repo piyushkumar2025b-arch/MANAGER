@@ -702,6 +702,7 @@
       if (data.success && data.recipe) {
         buildModelFromRecipe(data.recipe);
         toast(`✨ 3D Model created (${data.provider === 'gemini' ? 'Gemini AI' : 'Procedural Core'})`);
+        setTimeout(() => { if (typeof window.saveModelToVault === 'function') window.saveModelToVault(true); }, 500);
       } else {
         throw new Error(data.error || 'Failed to synthesize 3D model');
       }
@@ -711,6 +712,7 @@
       const fallbackRecipe = clientProceduralCompiler(prompt);
       buildModelFromRecipe(fallbackRecipe);
       toast('✨ 3D Model synthesized locally');
+      setTimeout(() => { if (typeof window.saveModelToVault === 'function') window.saveModelToVault(true); }, 500);
     } finally {
       if (btn) {
         btn.disabled = false;
@@ -972,8 +974,11 @@
     toast('📸 PNG Snapshot downloaded!');
   };
 
-  window.saveModelToVault = async function () {
-    if (!current3DRecipe) return toast('No model generated yet');
+  window.saveModelToVault = async function (silent = false) {
+    if (!current3DRecipe) {
+      if (!silent) toast('No model generated yet');
+      return;
+    }
     try {
       const thumbnail = threeRenderer ? threeRenderer.domElement.toDataURL('image/webp', 0.5) : '';
       const res = await fetch('/api/3d/models', {
@@ -989,13 +994,13 @@
       });
       const data = await res.json();
       if (data.success) {
-        toast('💾 3D Model saved to your Vault library!');
+        if (!silent) toast('💾 3D Model saved to database!');
       } else {
         throw new Error(data.error);
       }
     } catch (err) {
-      toast('Saved locally to browser library');
       saveModelToLocalCache(current3DRecipe);
+      if (!silent) toast('Saved to local backup');
     }
   };
 

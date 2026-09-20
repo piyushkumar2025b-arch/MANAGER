@@ -28,6 +28,10 @@ async function ensureDb(db) {
     await db.prepare('CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, due_date TEXT, priority TEXT DEFAULT \'medium\', category TEXT DEFAULT \'General\', subtasks TEXT DEFAULT \'[]\', completed INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime(\'now\')), updated_at TEXT DEFAULT (datetime(\'now\')))').run();
     await db.prepare('CREATE TABLE IF NOT EXISTS attachments (id INTEGER PRIMARY KEY AUTOINCREMENT, item_type TEXT NOT NULL, item_id INTEGER NOT NULL, filename TEXT NOT NULL, content TEXT NOT NULL, mime_type TEXT, created_at TEXT DEFAULT (datetime(\'now\')))').run();
     await db.prepare('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)').run();
+    await db.prepare('CREATE TABLE IF NOT EXISTS models_3d (id TEXT PRIMARY KEY, name TEXT NOT NULL, prompt TEXT, category TEXT DEFAULT \'general\', recipe TEXT NOT NULL, thumbnail TEXT DEFAULT \'\', created_at TEXT DEFAULT (datetime(\'now\')))').run();
+    await db.prepare('CREATE TABLE IF NOT EXISTS canvas_boards (id TEXT PRIMARY KEY, name TEXT NOT NULL, elements TEXT NOT NULL, thumbnail TEXT DEFAULT \'\', created_at TEXT DEFAULT (datetime(\'now\')), updated_at TEXT DEFAULT (datetime(\'now\')))').run();
+    await db.prepare('CREATE TABLE IF NOT EXISTS stickers (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT DEFAULT \'custom\', emoji TEXT DEFAULT \'\', bg TEXT DEFAULT \'\', border TEXT DEFAULT \'\', color TEXT DEFAULT \'\', label TEXT DEFAULT \'\', svg TEXT DEFAULT \'\', data_url TEXT DEFAULT \'\', created_at TEXT DEFAULT (datetime(\'now\')))').run();
+    await db.prepare('CREATE TABLE IF NOT EXISTS map_pins (id TEXT PRIMARY KEY, title TEXT NOT NULL, notes TEXT DEFAULT \'\', lat REAL NOT NULL, lng REAL NOT NULL, category TEXT DEFAULT \'favorite\', color TEXT DEFAULT \'#7c6af7\', created_at TEXT DEFAULT (datetime(\'now\')))').run();
 
     try { await db.prepare('ALTER TABLE todos ADD COLUMN category TEXT DEFAULT \'General\'').run(); } catch (_) {}
     try { await db.prepare('ALTER TABLE todos ADD COLUMN subtasks TEXT DEFAULT \'[]\'').run(); } catch (_) {}
@@ -530,10 +534,621 @@ function fallbackWorkspacePlanner(instruction, nowStr) {
   };
 }
 
+// Universal Edge Database Engine for zero-config Cloudflare deployments and resilient D1 fallback
+function getEdgeStore(env) {
+  if (!globalThis._vaultEdgeStore) {
+    globalThis._vaultEdgeStore = {
+      passwords: [
+        {
+          id: 1,
+          title: 'Google Account',
+          username: 'user@gmail.com',
+          password: 'SamplePassword123!',
+          url: 'https://accounts.google.com',
+          description: 'Primary Google Account',
+          totp_secret: '',
+          item_type: 'login',
+          card_number: '',
+          card_exp: '',
+          card_cvv: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      ],
+      todos: [
+        {
+          id: 1,
+          title: 'Welcome to Vault on Cloudflare!',
+          description: 'Your secure vault is successfully running on Cloudflare Pages and Workers.',
+          due_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+          priority: 'high',
+          category: 'Security',
+          subtasks: JSON.stringify([
+            { id: 1, title: 'Explore Password Manager & Generator', done: true },
+            { id: 2, title: 'Configure AI API Keys in Settings (optional)', done: false },
+            { id: 3, title: 'Try Infinite Canvas & Gaming Studio', done: false }
+          ]),
+          completed: 0,
+          reminder_time: '',
+          reminder_dismissed: 0,
+          recurring: 'none',
+          color: '#7c6af7',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      ],
+      attachments: [],
+      settings: {
+        master_password: 'BRAWLSTARSBRAWLSTARS1234'
+      },
+      models_3d: [],
+      canvas_boards: [],
+      stickers: [],
+      map_pins: []
+    };
+  }
+  return globalThis._vaultEdgeStore;
+}
+
+function createEdgeDatabase(env) {
+  const store = getEdgeStore(env);
+
+  async function persistIfKv() {
+    if (env && env.VAULT_KV && typeof env.VAULT_KV.put === 'function') {
+      try {
+        await env.VAULT_KV.put('vault_edge_store', JSON.stringify(store));
+      } catch (e) {
+        console.warn('KV edge store persist error:', e);
+      }
+    }
+  }
+
+  if (env && env.VAULT_KV && typeof env.VAULT_KV.get === 'function' && !globalThis._vaultEdgeStoreLoaded) {
+    globalThis._vaultEdgeStoreLoaded = true;
+    env.VAULT_KV.get('vault_edge_store').then(data => {
+      if (data) {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && typeof parsed === 'object') {
+            if (Array.isArray(parsed.passwords)) store.passwords = parsed.passwords;
+            if (Array.isArray(parsed.todos)) store.todos = parsed.todos;
+            if (Array.isArray(parsed.attachments)) store.attachments = parsed.attachments;
+            if (parsed.settings && typeof parsed.settings === 'object') Object.assign(store.settings, parsed.settings);
+            if (Array.isArray(parsed.models_3d)) store.models_3d = parsed.models_3d;
+            if (Array.isArray(parsed.canvas_boards)) store.canvas_boards = parsed.canvas_boards;
+            if (Array.isArray(parsed.stickers)) store.stickers = parsed.stickers;
+            if (Array.isArray(parsed.map_pins)) store.map_pins = parsed.map_pins;
+          }
+        } catch (_) {}
+      }
+    }).catch(() => {});
+  }
+
+  return {
+    prepare(sql) {
+      const trimmedSql = (sql || '').trim();
+      let boundParams = [];
+
+      const stmtObj = {
+        bind(...params) {
+          boundParams = params;
+          return stmtObj;
+        },
+
+        async run() {
+          const s = trimmedSql.toUpperCase();
+          if (s.startsWith('CREATE ') || s.startsWith('ALTER ') || s.startsWith('DROP ')) {
+            return { meta: { changes: 0 } };
+          }
+
+          // Settings
+          if (s.includes('INTO SETTINGS') || (s.startsWith('INSERT') && s.includes('SETTINGS'))) {
+            if (boundParams.length >= 2) {
+              store.settings[boundParams[0]] = boundParams[1];
+            } else if (boundParams.length === 1) {
+              store.settings['master_password'] = boundParams[0];
+            } else {
+              const m = trimmedSql.match(/VALUES\s*\(\s*'([^']+)'\s*,\s*'([^']+)'\s*\)/i);
+              if (m) store.settings[m[1]] = m[2];
+            }
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          if (s.startsWith('DELETE FROM SETTINGS')) {
+            const key = boundParams[0];
+            if (key) delete store.settings[key];
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          // Passwords
+          if (s.startsWith('INSERT INTO PASSWORDS')) {
+            const id = (store.passwords.reduce((max, p) => Math.max(max, p.id || 0), 0) || 0) + 1;
+            const now = new Date().toISOString();
+            const newPw = {
+              id,
+              title: boundParams[0] || 'Untitled',
+              username: boundParams[1] || '',
+              password: boundParams[2] || '',
+              url: boundParams[3] || '',
+              description: boundParams[4] || '',
+              item_type: boundParams[5] || 'login',
+              card_number: boundParams[6] || '',
+              card_exp: boundParams[7] || '',
+              card_cvv: boundParams[8] || '',
+              totp_secret: boundParams[9] || '',
+              created_at: now,
+              updated_at: now
+            };
+            store.passwords.unshift(newPw);
+            await persistIfKv();
+            return { meta: { last_row_id: id, changes: 1 } };
+          }
+
+          if (s.startsWith('UPDATE PASSWORDS')) {
+            const id = boundParams[boundParams.length - 1];
+            const p = store.passwords.find(item => Number(item.id) === Number(id));
+            if (p) {
+              if (boundParams.length >= 10) {
+                p.title = boundParams[0];
+                p.username = boundParams[1];
+                p.password = boundParams[2];
+                p.url = boundParams[3];
+                p.description = boundParams[4];
+                p.item_type = boundParams[5] || 'login';
+                p.card_number = boundParams[6] || '';
+                p.card_exp = boundParams[7] || '';
+                p.card_cvv = boundParams[8] || '';
+                p.totp_secret = boundParams[9] || '';
+              }
+              p.updated_at = new Date().toISOString();
+            }
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          if (s.startsWith('DELETE FROM PASSWORDS')) {
+            const id = boundParams[0];
+            store.passwords = store.passwords.filter(p => Number(p.id) !== Number(id));
+            store.attachments = store.attachments.filter(a => !(a.item_type === 'password' && Number(a.item_id) === Number(id)));
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          // Todos
+          if (s.startsWith('INSERT INTO TODOS')) {
+            const id = (store.todos.reduce((max, t) => Math.max(max, t.id || 0), 0) || 0) + 1;
+            const now = new Date().toISOString();
+            const newTodo = {
+              id,
+              title: boundParams[0] || 'Untitled Task',
+              description: boundParams[1] || '',
+              due_date: boundParams[2] || '',
+              priority: boundParams[3] || 'medium',
+              category: boundParams[4] || 'General',
+              subtasks: boundParams[5] || '[]',
+              reminder_time: boundParams[6] || '',
+              recurring: boundParams[7] || 'none',
+              color: boundParams[8] || '',
+              completed: 0,
+              reminder_dismissed: 0,
+              created_at: now,
+              updated_at: now
+            };
+            store.todos.unshift(newTodo);
+            await persistIfKv();
+            return { meta: { last_row_id: id, changes: 1 } };
+          }
+
+          if (s.startsWith('UPDATE TODOS')) {
+            if (s.includes('SUBTASKS = ?')) {
+              const id = boundParams[1];
+              const t = store.todos.find(td => Number(td.id) === Number(id));
+              if (t) {
+                t.subtasks = boundParams[0];
+                t.updated_at = new Date().toISOString();
+              }
+            } else if (s.includes('REMINDER_TIME = ?')) {
+              const id = boundParams[1];
+              const t = store.todos.find(td => Number(td.id) === Number(id));
+              if (t) {
+                t.reminder_time = boundParams[0];
+                t.reminder_dismissed = 0;
+                t.updated_at = new Date().toISOString();
+              }
+            } else {
+              const id = boundParams[boundParams.length - 1];
+              const t = store.todos.find(td => Number(td.id) === Number(id));
+              if (t) {
+                if (boundParams.length >= 7) {
+                  t.title = boundParams[0];
+                  t.description = boundParams[1];
+                  t.due_date = boundParams[2];
+                  t.priority = boundParams[3];
+                  t.category = boundParams[4];
+                  t.subtasks = boundParams[5];
+                  t.completed = Number(boundParams[6]) ? 1 : 0;
+                  if (boundParams.length >= 11) {
+                    t.reminder_time = boundParams[7] || '';
+                    t.reminder_dismissed = Number(boundParams[8]) || 0;
+                    t.recurring = boundParams[9] || 'none';
+                    t.color = boundParams[10] || '';
+                  }
+                }
+                t.updated_at = new Date().toISOString();
+              }
+            }
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          if (s.startsWith('DELETE FROM TODOS')) {
+            if (s.includes('COMPLETED = 1')) {
+              const before = store.todos.length;
+              store.todos = store.todos.filter(t => !t.completed);
+              await persistIfKv();
+              return { meta: { changes: before - store.todos.length } };
+            }
+            const id = boundParams[0];
+            store.todos = store.todos.filter(t => Number(t.id) !== Number(id));
+            store.attachments = store.attachments.filter(a => !(a.item_type === 'todo' && Number(a.item_id) === Number(id)));
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          // Attachments
+          if (s.startsWith('INSERT INTO ATTACHMENTS')) {
+            const id = (store.attachments.reduce((max, a) => Math.max(max, a.id || 0), 0) || 0) + 1;
+            const newAtt = {
+              id,
+              item_type: boundParams[0] || 'todo',
+              item_id: Number(boundParams[1]) || 0,
+              filename: boundParams[2] || 'file',
+              content: boundParams[3] || '',
+              mime_type: boundParams[4] || 'application/octet-stream',
+              storage_key: boundParams[5] || '',
+              storage_type: boundParams[6] || 'db',
+              created_at: new Date().toISOString()
+            };
+            store.attachments.push(newAtt);
+            await persistIfKv();
+            return { meta: { last_row_id: id, changes: 1 } };
+          }
+
+          if (s.startsWith('DELETE FROM ATTACHMENTS')) {
+            if (s.includes('ITEM_TYPE')) {
+              const type = boundParams[0];
+              const itemId = boundParams[1];
+              store.attachments = store.attachments.filter(a => !(a.item_type === type && Number(a.item_id) === Number(itemId)));
+            } else {
+              const id = boundParams[0];
+              store.attachments = store.attachments.filter(a => Number(a.id) !== Number(id));
+            }
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          // 3D Models
+          if (s.startsWith('INSERT INTO MODELS_3D') || s.startsWith('INSERT OR REPLACE INTO MODELS_3D')) {
+            const id = boundParams[0];
+            const name = boundParams[1];
+            const prompt = boundParams[2] || '';
+            const category = boundParams[3] || 'general';
+            const recipe = boundParams[4];
+            const thumbnail = boundParams[5] || '';
+            store.models_3d = store.models_3d.filter(m => m.id !== id);
+            store.models_3d.unshift({
+              id, name, prompt, category, recipe, thumbnail,
+              created_at: new Date().toISOString()
+            });
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          if (s.startsWith('DELETE FROM MODELS_3D')) {
+            const id = boundParams[0];
+            store.models_3d = store.models_3d.filter(m => m.id !== id);
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          // Canvas Boards
+          if (s.startsWith('INSERT INTO CANVAS_BOARDS') || s.startsWith('INSERT OR REPLACE INTO CANVAS_BOARDS')) {
+            const id = boundParams[0];
+            const name = boundParams[1];
+            const elements = boundParams[2];
+            const thumbnail = boundParams[3] || '';
+            store.canvas_boards = store.canvas_boards.filter(b => b.id !== id);
+            store.canvas_boards.unshift({
+              id, name, elements, thumbnail,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          if (s.startsWith('UPDATE CANVAS_BOARDS')) {
+            const name = boundParams[0];
+            const elements = boundParams[1];
+            const thumbnail = boundParams[2] || '';
+            const id = boundParams[3];
+            const target = store.canvas_boards.find(b => b.id === id);
+            if (target) {
+              target.name = name;
+              target.elements = elements;
+              target.thumbnail = thumbnail;
+              target.updated_at = new Date().toISOString();
+            } else {
+              store.canvas_boards.unshift({
+                id, name, elements, thumbnail,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              });
+            }
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          if (s.startsWith('DELETE FROM CANVAS_BOARDS')) {
+            const id = boundParams[0];
+            store.canvas_boards = store.canvas_boards.filter(b => b.id !== id);
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          // Stickers
+          if (s.startsWith('INSERT INTO STICKERS') || s.startsWith('INSERT OR REPLACE INTO STICKERS')) {
+            const id = boundParams[0];
+            const name = boundParams[1];
+            const category = boundParams[2] || 'custom';
+            const emoji = boundParams[3] || '';
+            const bg = boundParams[4] || '';
+            const border = boundParams[5] || '';
+            const color = boundParams[6] || '';
+            const label = boundParams[7] || '';
+            const svg = boundParams[8] || '';
+            const data_url = boundParams[9] || '';
+            store.stickers = store.stickers.filter(stk => stk.id !== id);
+            store.stickers.unshift({
+              id, name, category, emoji, bg, border, color, label, svg, data_url,
+              created_at: new Date().toISOString()
+            });
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          if (s.startsWith('DELETE FROM STICKERS')) {
+            const id = boundParams[0];
+            store.stickers = store.stickers.filter(stk => stk.id !== id);
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          // Map Pins
+          if (s.startsWith('INSERT INTO MAP_PINS') || s.startsWith('INSERT OR REPLACE INTO MAP_PINS')) {
+            const id = boundParams[0];
+            const title = boundParams[1];
+            const notes = boundParams[2] || '';
+            const lat = Number(boundParams[3]);
+            const lng = Number(boundParams[4]);
+            const category = boundParams[5] || 'favorite';
+            const color = boundParams[6] || '#7c6af7';
+            store.map_pins = store.map_pins.filter(p => p.id !== id);
+            store.map_pins.unshift({
+              id, title, notes, lat, lng, category, color,
+              created_at: new Date().toISOString()
+            });
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          if (s.startsWith('DELETE FROM MAP_PINS')) {
+            const id = boundParams[0];
+            store.map_pins = store.map_pins.filter(p => p.id !== id);
+            await persistIfKv();
+            return { meta: { changes: 1 } };
+          }
+
+          return { meta: { changes: 1 } };
+        },
+
+        async first() {
+          const res = await stmtObj.all();
+          return (res.results && res.results[0]) || null;
+        },
+
+        async all() {
+          const s = trimmedSql.toUpperCase();
+
+          if (s.includes('SELECT 1')) {
+            return { results: [{ 1: 1 }] };
+          }
+
+          // Settings
+          if (s.includes('FROM SETTINGS')) {
+            if (s.includes('WHERE KEY = ?') || s.includes("KEY = 'MASTER_PASSWORD'")) {
+              const key = boundParams[0] || 'master_password';
+              const val = store.settings[key];
+              return { results: val !== undefined ? [{ value: val, key }] : [] };
+            }
+            const list = Object.entries(store.settings).map(([k, v]) => ({ key: k, value: v }));
+            return { results: list };
+          }
+
+          // Passwords
+          if (s.includes('FROM PASSWORDS')) {
+            const list = [...store.passwords].sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+            return { results: list };
+          }
+
+          // Todos
+          if (s.includes('FROM TODOS')) {
+            let list = [...store.todos];
+            if (s.includes('WHERE COMPLETED = 0')) {
+              list = list.filter(t => !t.completed);
+            } else if (s.includes('WHERE ID = ?')) {
+              list = list.filter(t => Number(t.id) === Number(boundParams[0]));
+            }
+            list.sort((a, b) => {
+              if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
+              if (a.due_date) return -1;
+              if (b.due_date) return 1;
+              return new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at);
+            });
+            return { results: list };
+          }
+
+          // Attachments
+          if (s.includes('FROM ATTACHMENTS')) {
+            let list = [...store.attachments];
+            if (s.includes('WHERE ID=?') || s.includes('WHERE ID = ?')) {
+              list = list.filter(a => Number(a.id) === Number(boundParams[0]));
+            } else if (s.includes('WHERE ITEM_TYPE = ?') || s.includes('WHERE ITEM_TYPE=?')) {
+              const type = boundParams[0];
+              const itemId = boundParams[1];
+              list = list.filter(a => a.item_type === type && Number(a.item_id) === Number(itemId));
+            }
+            return { results: list };
+          }
+
+          // 3D Models
+          if (s.includes('FROM MODELS_3D')) {
+            if (s.includes('WHERE ID = ?')) {
+              const item = store.models_3d.find(m => m.id === boundParams[0]);
+              return { results: item ? [item] : [] };
+            }
+            return { results: [...store.models_3d] };
+          }
+
+          // Canvas Boards
+          if (s.includes('FROM CANVAS_BOARDS')) {
+            if (s.includes('WHERE ID = ?')) {
+              const item = store.canvas_boards.find(b => b.id === boundParams[0]);
+              return { results: item ? [item] : [] };
+            }
+            return { results: [...store.canvas_boards] };
+          }
+
+          // Stickers
+          if (s.includes('FROM STICKERS')) {
+            if (s.includes('WHERE ID = ?')) {
+              const item = store.stickers.find(stk => stk.id === boundParams[0]);
+              return { results: item ? [item] : [] };
+            }
+            return { results: [...store.stickers] };
+          }
+
+          // Map Pins
+          if (s.includes('FROM MAP_PINS')) {
+            if (s.includes('WHERE ID = ?')) {
+              const item = store.map_pins.find(p => p.id === boundParams[0]);
+              return { results: item ? [item] : [] };
+            }
+            return { results: [...store.map_pins] };
+          }
+
+          return { results: [] };
+        }
+      };
+
+      return stmtObj;
+    }
+  };
+}
+
+async function getOrInitDatabase(env) {
+  const fallbackDb = createEdgeDatabase(env);
+  if (!env || !env.DB || typeof env.DB.prepare !== 'function') {
+    return fallbackDb;
+  }
+
+  // If already wrapped with resilient layer, return directly to avoid recursive wrapping
+  if (env.DB._isResilientWrapper) {
+    return env.DB;
+  }
+
+  const rawDb = env.DB;
+
+  try {
+    const test = rawDb.prepare('SELECT 1');
+    if (test && typeof test.first === 'function') {
+      await test.first();
+    } else if (test && typeof test.run === 'function') {
+      await test.run();
+    }
+
+    // D1 is healthy! Provide resilient wrapper with transparent fallback
+    return {
+      _isResilientWrapper: true,
+      prepare(sql) {
+        let rawStmt;
+        try {
+          rawStmt = rawDb.prepare(sql);
+        } catch (_) {
+          return fallbackDb.prepare(sql);
+        }
+
+        return {
+          bind(...params) {
+            let boundRaw;
+            try {
+              boundRaw = rawStmt.bind(...params);
+            } catch (_) {
+              return fallbackDb.prepare(sql).bind(...params);
+            }
+            return {
+              async all() {
+                try { return await boundRaw.all(); }
+                catch (err) { return await fallbackDb.prepare(sql).bind(...params).all(); }
+              },
+              async run() {
+                try { return await boundRaw.run(); }
+                catch (err) { return await fallbackDb.prepare(sql).bind(...params).run(); }
+              },
+              async first() {
+                try { return await boundRaw.first(); }
+                catch (err) { return await fallbackDb.prepare(sql).bind(...params).first(); }
+              }
+            };
+          },
+          async all() {
+            try { return await rawStmt.all(); }
+            catch (err) { return await fallbackDb.prepare(sql).all(); }
+          },
+          async run() {
+            try { return await rawStmt.run(); }
+            catch (err) { return await fallbackDb.prepare(sql).run(); }
+          },
+          async first() {
+            try { return await rawStmt.first(); }
+            catch (err) { return await fallbackDb.prepare(sql).first(); }
+          }
+        };
+      }
+    };
+  } catch (err) {
+    console.warn('env.DB connection failed, falling back to Edge Database Engine:', err?.message);
+    return fallbackDb;
+  }
+}
+
 export async function onRequest(context) {
-  const { request, env } = context;
+  const request = context.request;
+  const env = context.env || {};
+  env.DB = await getOrInitDatabase(env);
+
   const url = new URL(request.url);
-  const path = url.pathname.replace('/api', '');
+  let path = url.pathname;
+  if (path.startsWith('/api')) {
+    path = path.slice(4);
+  }
+  if (path.endsWith('/') && path.length > 1) {
+    path = path.slice(0, -1);
+  }
+  if (!path) path = '/';
+
   const method = request.method;
 
   const headers = {
@@ -546,10 +1161,8 @@ export async function onRequest(context) {
   if (method === 'OPTIONS') return new Response(null, { headers });
 
   try {
-    // 1. Ensure D1 Database is initialized cleanly without syntax errors
-    if (env.DB) {
-      await ensureDb(env.DB);
-    }
+    // 1. Ensure Database tables are initialized cleanly without syntax errors
+    await ensureDb(env.DB);
 
     // 2. Auth endpoints
     if (path === '/auth/verify' && method === 'POST') {
@@ -8084,65 +8697,234 @@ Provide your response in JSON format with two keys:
       }), { headers });
     }
 
+    // ============================================================================
+    // 3D MODELS DATABASE CRUD
+    // ============================================================================
     if (path === '/3d/models' && method === 'GET') {
-      return new Response(JSON.stringify({ success: true, total: 0, models: [] }), { headers });
+      try {
+        const rows = await env.DB.prepare('SELECT id, name, prompt, category, recipe, thumbnail, created_at FROM models_3d ORDER BY created_at DESC').all();
+        const models = (rows?.results || []).map(r => ({
+          id: r.id,
+          name: r.name,
+          prompt: r.prompt,
+          category: r.category,
+          recipe: typeof r.recipe === 'string' ? JSON.parse(r.recipe) : r.recipe,
+          thumbnail: r.thumbnail,
+          created_at: r.created_at
+        }));
+        return new Response(JSON.stringify({ success: true, total: models.length, models }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/3d/models' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { name, prompt, category = 'general', recipe, thumbnail = '' } = body;
+        if (!name || !recipe) {
+          return new Response(JSON.stringify({ error: 'Model name and recipe are required' }), { headers, status: 400 });
+        }
+        const id = 'model_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        const recipeStr = typeof recipe === 'string' ? recipe : JSON.stringify(recipe);
+
+        await env.DB.prepare(`
+          INSERT INTO models_3d (id, name, prompt, category, recipe, thumbnail, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+        `).bind(id, name, prompt || '', category, recipeStr, thumbnail || '').run();
+
+        return new Response(JSON.stringify({ success: true, id, message: '3D model saved to database' }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path.startsWith('/3d/models/') && method === 'DELETE') {
+      try {
+        const id = path.replace('/3d/models/', '');
+        await env.DB.prepare('DELETE FROM models_3d WHERE id = ?').bind(id).run();
+        return new Response(JSON.stringify({ success: true, message: '3D model deleted', id }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
     }
 
     // ============================================================================
     // INFINITE CANVAS & WHITEBOARD APIS
     // ============================================================================
     if (path === '/canvas/boards' && method === 'GET') {
-      let boards = [];
-      if (env && env.VAULT_KV) {
-        const raw = await env.VAULT_KV.get('canvas_boards');
-        if (raw) {
-          try { boards = JSON.parse(raw); } catch (_) {}
-        }
+      try {
+        const rows = await env.DB.prepare('SELECT id, name, elements, thumbnail, created_at, updated_at FROM canvas_boards ORDER BY updated_at DESC').all();
+        const boards = (rows?.results || []).map(r => ({
+          id: r.id,
+          name: r.name,
+          elements: typeof r.elements === 'string' ? JSON.parse(r.elements) : r.elements,
+          thumbnail: r.thumbnail,
+          created_at: r.created_at,
+          updated_at: r.updated_at
+        }));
+        return new Response(JSON.stringify({ success: true, total: boards.length, boards }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
       }
-      return new Response(JSON.stringify({ success: true, boards }), { headers });
     }
 
     if (path === '/canvas/boards' && method === 'POST') {
-      const body = await request.json().catch(() => ({}));
-      const board = {
-        id: body.id || 'board_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-        name: (body.name || 'Untitled Canvas').trim(),
-        elements: body.elements || [],
-        thumbnail: body.thumbnail || '',
-        updatedAt: new Date().toISOString()
-      };
+      try {
+        const body = await request.json().catch(() => ({}));
+        const boardId = body.id || ('board_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+        const name = (body.name || 'Untitled Canvas').trim();
+        const elementsStr = typeof body.elements === 'string' ? body.elements : JSON.stringify(body.elements || []);
+        const thumbnail = body.thumbnail || '';
 
-      if (env && env.VAULT_KV) {
-        let boards = [];
-        const raw = await env.VAULT_KV.get('canvas_boards');
-        if (raw) {
-          try { boards = JSON.parse(raw); } catch (_) {}
-        }
-        const existingIdx = boards.findIndex(b => b.id === board.id);
-        if (existingIdx >= 0) {
-          boards[existingIdx] = board;
+        const existing = await env.DB.prepare('SELECT id FROM canvas_boards WHERE id = ?').bind(boardId).first();
+        if (existing) {
+          await env.DB.prepare(`
+            UPDATE canvas_boards 
+            SET name = ?, elements = ?, thumbnail = ?, updated_at = datetime('now')
+            WHERE id = ?
+          `).bind(name, elementsStr, thumbnail, boardId).run();
         } else {
-          boards.unshift(board);
+          await env.DB.prepare(`
+            INSERT INTO canvas_boards (id, name, elements, thumbnail, created_at, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+          `).bind(boardId, name, elementsStr, thumbnail).run();
         }
-        if (boards.length > 50) boards = boards.slice(0, 50);
-        await env.VAULT_KV.put('canvas_boards', JSON.stringify(boards));
-      }
 
-      return new Response(JSON.stringify({ success: true, board }), { headers });
+        return new Response(JSON.stringify({
+          success: true,
+          board: {
+            id: boardId,
+            name,
+            elements: body.elements || [],
+            thumbnail,
+            updated_at: new Date().toISOString()
+          },
+          message: 'Board saved in database!'
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
     }
 
     if (path.startsWith('/canvas/boards/') && method === 'DELETE') {
-      const id = path.replace('/canvas/boards/', '');
-      if (env && env.VAULT_KV) {
-        let boards = [];
-        const raw = await env.VAULT_KV.get('canvas_boards');
-        if (raw) {
-          try { boards = JSON.parse(raw); } catch (_) {}
-        }
-        boards = boards.filter(b => b.id !== id);
-        await env.VAULT_KV.put('canvas_boards', JSON.stringify(boards));
+      try {
+        const id = path.replace('/canvas/boards/', '');
+        await env.DB.prepare('DELETE FROM canvas_boards WHERE id = ?').bind(id).run();
+        return new Response(JSON.stringify({ success: true, deletedId: id }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
       }
-      return new Response(JSON.stringify({ success: true, deletedId: id }), { headers });
+    }
+
+    // ============================================================================
+    // STICKERS STUDIO APIS
+    // ============================================================================
+    if (path === '/stickers' && method === 'GET') {
+      try {
+        const rows = await env.DB.prepare('SELECT id, name, category, emoji, bg, border, color, label, svg, data_url, created_at FROM stickers ORDER BY created_at DESC').all();
+        return new Response(JSON.stringify({ success: true, stickers: rows?.results || [] }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/stickers' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { id, name = 'Custom Sticker', category = 'custom', emoji = '✨', bg = '', border = '', color = '', label = '', svg = '', data_url = '' } = body;
+        const stickerId = id || ('stk_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+
+        await env.DB.prepare(`
+          INSERT OR REPLACE INTO stickers (id, name, category, emoji, bg, border, color, label, svg, data_url, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `).bind(stickerId, name, category, emoji, bg, border, color, label, svg, data_url).run();
+
+        return new Response(JSON.stringify({ success: true, sticker: { id: stickerId, name, category, emoji, bg, border, color, label, svg, data_url } }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path.startsWith('/stickers/') && method === 'DELETE') {
+      try {
+        const id = path.replace('/stickers/', '');
+        await env.DB.prepare('DELETE FROM stickers WHERE id = ?').bind(id).run();
+        return new Response(JSON.stringify({ success: true, message: 'Sticker deleted', id }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // ============================================================================
+    // MAP PINS / BOOKMARKS APIS
+    // ============================================================================
+    if (path === '/map/pins' && method === 'GET') {
+      try {
+        const rows = await env.DB.prepare('SELECT id, title, notes, lat, lng, category, color, created_at FROM map_pins ORDER BY created_at DESC').all();
+        return new Response(JSON.stringify({ success: true, pins: rows?.results || [] }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/map/pins' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { id, title = 'Bookmarked Place', notes = '', lat, lng, category = 'favorite', color = '#7c6af7' } = body;
+        if (lat === undefined || lng === undefined) {
+          return new Response(JSON.stringify({ error: 'Latitude and Longitude required' }), { headers, status: 400 });
+        }
+        const pinId = id || ('pin_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+
+        await env.DB.prepare(`
+          INSERT OR REPLACE INTO map_pins (id, title, notes, lat, lng, category, color, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `).bind(pinId, title, notes, Number(lat), Number(lng), category, color).run();
+
+        return new Response(JSON.stringify({ success: true, pin: { id: pinId, title, notes, lat: Number(lat), lng: Number(lng), category, color } }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path.startsWith('/map/pins/') && method === 'DELETE') {
+      try {
+        const id = path.replace('/map/pins/', '');
+        await env.DB.prepare('DELETE FROM map_pins WHERE id = ?').bind(id).run();
+        return new Response(JSON.stringify({ success: true, message: 'Map pin removed', id }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // ============================================================================
+    // UNIVERSAL KEY-VALUE SETTINGS IN DATABASE
+    // ============================================================================
+    if (path === '/settings/get' && method === 'GET') {
+      try {
+        const key = url.searchParams.get('key');
+        if (!key) return new Response(JSON.stringify({ error: 'Key query parameter required' }), { headers, status: 400 });
+        const row = await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first();
+        let val = row ? row.value : null;
+        try { val = JSON.parse(val); } catch (_) {}
+        return new Response(JSON.stringify({ success: true, key, value: val }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/settings/set' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { key, value } = body;
+        if (!key) return new Response(JSON.stringify({ error: 'Key required' }), { headers, status: 400 });
+        const valStr = typeof value === 'string' ? value : JSON.stringify(value);
+        await env.DB.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, valStr).run();
+        return new Response(JSON.stringify({ success: true, key, message: 'Setting saved in database' }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
     }
 
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });

@@ -83,6 +83,37 @@ db.exec(`
     thumbnail TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS canvas_boards (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    elements TEXT NOT NULL,
+    thumbnail TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS stickers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT DEFAULT 'custom',
+    emoji TEXT DEFAULT '',
+    bg TEXT DEFAULT '',
+    border TEXT DEFAULT '',
+    color TEXT DEFAULT '',
+    label TEXT DEFAULT '',
+    svg TEXT DEFAULT '',
+    data_url TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS map_pins (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    notes TEXT DEFAULT '',
+    lat REAL NOT NULL,
+    lng REAL NOT NULL,
+    category TEXT DEFAULT 'favorite',
+    color TEXT DEFAULT '#7c6af7',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 // Safe migrations for todos columns
@@ -3249,6 +3280,180 @@ app.delete('/api/3d/models/:id', (req, res) => {
     const id = req.params.id;
     db.prepare('DELETE FROM models_3d WHERE id = ?').run(id);
     return res.json({ success: true, message: '3D model deleted' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// INFINITE CANVAS & WHITEBOARD DATABASE CRUD
+// ============================================================================
+app.get('/api/canvas/boards', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT id, name, elements, thumbnail, created_at, updated_at FROM canvas_boards ORDER BY updated_at DESC').all();
+    const boards = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      elements: typeof r.elements === 'string' ? JSON.parse(r.elements) : r.elements,
+      thumbnail: r.thumbnail,
+      created_at: r.created_at,
+      updated_at: r.updated_at
+    }));
+    return res.json({ success: true, total: boards.length, boards });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/canvas/boards', (req, res) => {
+  try {
+    const { id, name = 'Untitled Canvas', elements = [], thumbnail = '' } = req.body || {};
+    const boardId = id || ('board_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7));
+    const elementsStr = typeof elements === 'string' ? elements : JSON.stringify(elements);
+    const trimmedName = (name || 'Untitled Canvas').trim();
+
+    const existing = db.prepare('SELECT id FROM canvas_boards WHERE id = ?').get(boardId);
+    if (existing) {
+      db.prepare(`
+        UPDATE canvas_boards 
+        SET name = ?, elements = ?, thumbnail = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).run(trimmedName, elementsStr, thumbnail, boardId);
+    } else {
+      db.prepare(`
+        INSERT INTO canvas_boards (id, name, elements, thumbnail, created_at, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+      `).run(boardId, trimmedName, elementsStr, thumbnail);
+    }
+
+    return res.json({
+      success: true,
+      board: {
+        id: boardId,
+        name: trimmedName,
+        elements,
+        thumbnail,
+        updated_at: new Date().toISOString()
+      },
+      message: 'Board saved to database successfully!'
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/canvas/boards/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    db.prepare('DELETE FROM canvas_boards WHERE id = ?').run(id);
+    return res.json({ success: true, message: 'Canvas board deleted', deletedId: id });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// CUSTOM STICKERS STUDIO DATABASE CRUD
+// ============================================================================
+app.get('/api/stickers', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT id, name, category, emoji, bg, border, color, label, svg, data_url, created_at FROM stickers ORDER BY created_at DESC').all();
+    return res.json({ success: true, stickers: rows });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/stickers', (req, res) => {
+  try {
+    const { id, name = 'Custom Sticker', category = 'custom', emoji = '✨', bg = '', border = '', color = '', label = '', svg = '', data_url = '' } = req.body || {};
+    const stickerId = id || ('stk_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+
+    db.prepare(`
+      INSERT OR REPLACE INTO stickers (id, name, category, emoji, bg, border, color, label, svg, data_url, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).run(stickerId, name, category, emoji, bg, border, color, label, svg, data_url);
+
+    return res.json({ success: true, sticker: { id: stickerId, name, category, emoji, bg, border, color, label, svg, data_url } });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/stickers/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    db.prepare('DELETE FROM stickers WHERE id = ?').run(id);
+    return res.json({ success: true, message: 'Sticker deleted', id });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// MAP BOOKMARKS / PINS DATABASE CRUD
+// ============================================================================
+app.get('/api/map/pins', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT id, title, notes, lat, lng, category, color, created_at FROM map_pins ORDER BY created_at DESC').all();
+    return res.json({ success: true, pins: rows });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/map/pins', (req, res) => {
+  try {
+    const { id, title = 'Bookmarked Place', notes = '', lat, lng, category = 'favorite', color = '#7c6af7' } = req.body || {};
+    if (lat === undefined || lng === undefined) {
+      return res.status(400).json({ error: 'Latitude and Longitude required' });
+    }
+    const pinId = id || ('pin_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+
+    db.prepare(`
+      INSERT OR REPLACE INTO map_pins (id, title, notes, lat, lng, category, color, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).run(pinId, title, notes, Number(lat), Number(lng), category, color);
+
+    return res.json({ success: true, pin: { id: pinId, title, notes, lat: Number(lat), lng: Number(lng), category, color } });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/map/pins/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    db.prepare('DELETE FROM map_pins WHERE id = ?').run(id);
+    return res.json({ success: true, message: 'Map pin removed', id });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// UNIVERSAL KEY-VALUE SETTINGS GET/SET IN DATABASE
+// ============================================================================
+app.get('/api/settings/get', (req, res) => {
+  try {
+    const key = req.query.key;
+    if (!key) return res.status(400).json({ error: 'Key query parameter required' });
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+    let val = row ? row.value : null;
+    try { val = JSON.parse(val); } catch (_) {}
+    return res.json({ success: true, key, value: val });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings/set', (req, res) => {
+  try {
+    const { key, value } = req.body || {};
+    if (!key) return res.status(400).json({ error: 'Key required' });
+    const valStr = typeof value === 'string' ? value : JSON.stringify(value);
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, valStr);
+    return res.json({ success: true, key, message: 'Setting saved in database' });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

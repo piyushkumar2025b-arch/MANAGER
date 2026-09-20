@@ -2136,13 +2136,55 @@ async function loadTab() {
 async function api(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + masterKey } };
   if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(API + path, opts);
-  if (r.status === 401 && !path.startsWith('/auth/')) {
-    lockApp();
-    showLockError('Session expired. Please enter master password.');
-    throw new Error('Unauthorized');
+  try {
+    const r = await fetch(API + path, opts);
+    if (r.status === 401 && !path.startsWith('/auth/')) {
+      lockApp();
+      showLockError('Session expired. Please enter master password.');
+      throw new Error('Unauthorized');
+    }
+    const data = await r.json();
+
+    if (method === 'GET' && path === '/todos') {
+      if (Array.isArray(data)) {
+        localStorage.setItem('vault_cached_todos', JSON.stringify(data));
+        return data;
+      }
+      try {
+        const cached = JSON.parse(localStorage.getItem('vault_cached_todos') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return cached;
+      } catch (_) {}
+      return [];
+    }
+
+    if (method === 'GET' && path === '/passwords') {
+      if (Array.isArray(data)) {
+        localStorage.setItem('vault_cached_passwords', JSON.stringify(data));
+        return data;
+      }
+      try {
+        const cached = JSON.parse(localStorage.getItem('vault_cached_passwords') || '[]');
+        if (Array.isArray(cached) && cached.length > 0) return cached;
+      } catch (_) {}
+      return [];
+    }
+
+    return data;
+  } catch (err) {
+    if (method === 'GET' && path === '/todos') {
+      try {
+        const cached = JSON.parse(localStorage.getItem('vault_cached_todos') || '[]');
+        return Array.isArray(cached) ? cached : [];
+      } catch (_) { return []; }
+    }
+    if (method === 'GET' && path === '/passwords') {
+      try {
+        const cached = JSON.parse(localStorage.getItem('vault_cached_passwords') || '[]');
+        return Array.isArray(cached) ? cached : [];
+      } catch (_) { return []; }
+    }
+    throw err;
   }
-  return r.json();
 }
 
 // ---- TODOS ----
@@ -2163,7 +2205,13 @@ function getCategoryStyle(cat) {
 
 async function renderTodos() {
   const content = document.getElementById('mainContent');
-  const todos = await api('GET', '/todos');
+  let rawTodos = [];
+  try {
+    rawTodos = await api('GET', '/todos');
+  } catch (e) {
+    console.warn('Todos load warning:', e);
+  }
+  const todos = Array.isArray(rawTodos) ? rawTodos : [];
   const now = new Date();
 
   // Parse subtasks safely
@@ -3245,7 +3293,13 @@ async function runBreachCheck() {
 
 async function renderPasswords() {
   const content = document.getElementById('mainContent');
-  const passwords = await api('GET', '/passwords');
+  let rawPasswords = [];
+  try {
+    rawPasswords = await api('GET', '/passwords');
+  } catch (e) {
+    console.warn('Passwords load warning:', e);
+  }
+  const passwords = Array.isArray(rawPasswords) ? rawPasswords : [];
 
   // Compute reused and weak maps
   const pwCounts = {};
@@ -4782,11 +4836,23 @@ let isYtLooping = false;
 // YouTube Channel Metadata State
 let currentYtChannelId = '';
 
-// Load saved YouTube history from localStorage
+// Load saved YouTube history from localStorage & database
 try {
   const savedHistory = localStorage.getItem('vault_yt_history');
   if (savedHistory) ytHistory = JSON.parse(savedHistory);
 } catch (_) {}
+
+fetch('/api/settings/get?key=vault_yt_history')
+  .then(r => r.json())
+  .then(data => {
+    if (data.success && Array.isArray(data.value) && data.value.length > 0) {
+      ytHistory = data.value;
+      try { localStorage.setItem('vault_yt_history', JSON.stringify(ytHistory)); } catch (_) {}
+      if (typeof currentTab !== 'undefined' && currentTab === 'ytplayer' && typeof renderYouTubeStudio === 'function') {
+        renderYouTubeStudio();
+      }
+    }
+  }).catch(() => {});
 
 const YT_PRESETS = [
   { id: 'jfKfPfyJRdk', title: 'Lofi Hip Hop Radio (Beats to Relax/Study)', channel: 'Lofi Girl', category: 'lofi', icon: '🎧' },
@@ -5581,6 +5647,11 @@ function playYouTubeVideo(id, title = 'YouTube Video', channel = 'YouTube', chan
   if (ytHistory.length > 20) ytHistory.pop();
   try {
     localStorage.setItem('vault_yt_history', JSON.stringify(ytHistory));
+    fetch('/api/settings/set', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'vault_yt_history', value: ytHistory })
+    }).catch(() => {});
   } catch (_) {}
 
   // If in YouTube tab, update player
@@ -8253,6 +8324,16 @@ let currentDictData = null;
 let dictAudioElement = null;
 let dictSearchHistory = JSON.parse(localStorage.getItem('vault_dict_history') || '["serendipity", "resilient", "ephemeral"]');
 
+// Sync dictionary history from database
+fetch('/api/settings/get?key=vault_dict_history')
+  .then(r => r.json())
+  .then(data => {
+    if (data.success && Array.isArray(data.value) && data.value.length > 0) {
+      dictSearchHistory = data.value;
+      try { localStorage.setItem('vault_dict_history', JSON.stringify(dictSearchHistory)); } catch (_) {}
+    }
+  }).catch(() => {});
+
 const DICT_DISCOVERY_WORDS = [
   'Serendipity', 'Resilient', 'Ephemeral', 'Ineffable', 'Ubiquitous',
   'Quintessential', 'Mellifluous', 'Halcyon', 'Petrichor', 'Solitude',
@@ -8329,7 +8410,14 @@ async function renderDictionaryTab() {
 
 function clearDictHistory() {
   dictSearchHistory = [];
-  localStorage.removeItem('vault_dict_history');
+  try {
+    localStorage.removeItem('vault_dict_history');
+    fetch('/api/settings/set', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'vault_dict_history', value: [] })
+    }).catch(() => {});
+  } catch (_) {}
   renderDictionaryTab();
 }
 
@@ -8420,7 +8508,14 @@ async function executeDictionarySearch(customWord) {
     if (!dictSearchHistory.includes(word)) {
       dictSearchHistory.unshift(word);
       if (dictSearchHistory.length > 20) dictSearchHistory.pop();
-      localStorage.setItem('vault_dict_history', JSON.stringify(dictSearchHistory));
+      try {
+        localStorage.setItem('vault_dict_history', JSON.stringify(dictSearchHistory));
+        fetch('/api/settings/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'vault_dict_history', value: dictSearchHistory })
+        }).catch(() => {});
+      } catch (_) {}
     }
 
     renderDictionaryResultHtml();
@@ -13560,6 +13655,7 @@ function initLeafletMapInstance(containerId, initialCenter = [40.7128, -74.0060]
   });
 
   renderSavedPinsOnMap();
+  loadMapPinsFromDatabase();
   updateMapHud();
 
   setTimeout(() => {
@@ -13917,6 +14013,35 @@ function copyMapCoordinates(lat, lng) {
   toast(`Copied coordinates: ${str} 📋`);
 }
 
+async function loadMapPinsFromDatabase() {
+  try {
+    const res = await fetch('/api/map/pins');
+    const data = await res.json();
+    if (data.success && Array.isArray(data.pins) && data.pins.length > 0) {
+      const dbPins = data.pins.map(p => ({
+        id: p.id,
+        title: p.title,
+        address: p.notes || '',
+        lat: Number(p.lat),
+        lng: Number(p.lng),
+        savedAt: p.created_at
+      }));
+      // Merge with any offline pins
+      const map = new Map();
+      dbPins.forEach(p => map.set(p.id, p));
+      vaultMapSavedPins.forEach(p => { if (!map.has(p.id)) map.set(p.id, p); });
+      vaultMapSavedPins = Array.from(map.values());
+      localStorage.setItem('vault_saved_map_pins', JSON.stringify(vaultMapSavedPins));
+
+      const listEl = document.getElementById('mapSavedPlacesList');
+      if (listEl) listEl.innerHTML = renderSavedPlacesCardsHtml();
+      const countBadge = document.getElementById('mapPinCountBadge');
+      if (countBadge) countBadge.textContent = `${vaultMapSavedPins.length} Bookmarks`;
+      renderSavedPinsOnMap();
+    }
+  } catch (_) {}
+}
+
 function bookmarkCurrentPin(title, address, lat, lng) {
   const newPin = {
     id: 'pin_' + Date.now(),
@@ -13928,7 +14053,21 @@ function bookmarkCurrentPin(title, address, lat, lng) {
   };
   vaultMapSavedPins.unshift(newPin);
   localStorage.setItem('vault_saved_map_pins', JSON.stringify(vaultMapSavedPins));
-  toast(`Bookmarked "${newPin.title}" ⭐`);
+
+  // Sync to database
+  fetch('/api/map/pins', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: newPin.id,
+      title: newPin.title,
+      notes: newPin.address,
+      lat: newPin.lat,
+      lng: newPin.lng
+    })
+  }).catch(() => {});
+
+  toast(`Bookmarked "${newPin.title}" ⭐ (Saved to DB)`);
   
   const listEl = document.getElementById('mapSavedPlacesList');
   if (listEl) listEl.innerHTML = renderSavedPlacesCardsHtml();
@@ -13942,7 +14081,10 @@ function bookmarkCurrentPin(title, address, lat, lng) {
 function deleteSavedMapPin(id) {
   vaultMapSavedPins = vaultMapSavedPins.filter(p => p.id !== id);
   localStorage.setItem('vault_saved_map_pins', JSON.stringify(vaultMapSavedPins));
-  toast('Removed bookmark');
+
+  // Delete from database
+  fetch('/api/map/pins/' + id, { method: 'DELETE' }).catch(() => {});
+  toast('Removed bookmark from DB');
 
   const listEl = document.getElementById('mapSavedPlacesList');
   if (listEl) listEl.innerHTML = renderSavedPlacesCardsHtml();
@@ -13954,10 +14096,13 @@ function deleteSavedMapPin(id) {
 }
 
 function clearAllSavedMapPins() {
-  if (!confirm('Clear all saved map bookmarks?')) return;
+  if (!confirm('Clear all saved map bookmarks from database?')) return;
+  vaultMapSavedPins.forEach(p => {
+    fetch('/api/map/pins/' + p.id, { method: 'DELETE' }).catch(() => {});
+  });
   vaultMapSavedPins = [];
   localStorage.setItem('vault_saved_map_pins', '[]');
-  toast('All bookmarks cleared');
+  toast('All bookmarks cleared from DB');
 
   const listEl = document.getElementById('mapSavedPlacesList');
   if (listEl) listEl.innerHTML = renderSavedPlacesCardsHtml();
@@ -14552,11 +14697,16 @@ function triggerImport() {
 
 function toggleTurnstile(enabled) {
   localStorage.setItem('vault_turnstile_enabled', enabled ? 'true' : 'false');
+  fetch('/api/settings/set', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: 'vault_turnstile_enabled', value: enabled })
+  }).catch(() => {});
   const widget = document.getElementById('turnstileWidget');
   if (widget) {
     widget.style.display = enabled ? 'flex' : 'none';
   }
-  toast(enabled ? 'Turnstile protection enabled' : 'Turnstile protection disabled');
+  toast(enabled ? 'Turnstile protection enabled (Saved to DB)' : 'Turnstile protection disabled (Saved to DB)');
 }
 
 async function testTurnstileWidget() {
