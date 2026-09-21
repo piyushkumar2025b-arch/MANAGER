@@ -2143,7 +2143,11 @@ async function api(method, path, body) {
       showLockError('Session expired. Please enter master password.');
       throw new Error('Unauthorized');
     }
-    const data = await r.json();
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const errorMsg = data?.error || data?.message || `Request failed with status ${r.status}`;
+      throw new Error(errorMsg);
+    }
 
     if (method === 'GET' && path === '/todos') {
       if (Array.isArray(data)) {
@@ -3328,11 +3332,15 @@ async function renderPasswords() {
     return true;
   });
 
+  const isInputFocused = (document.activeElement?.id === 'pw-search-input');
+  const selStart = isInputFocused ? document.activeElement.selectionStart : null;
+  const selEnd = isInputFocused ? document.activeElement.selectionEnd : null;
+
   let html = `
     <div class="toolbar-row">
       <div class="search-box">
         <span class="search-icon">🔍</span>
-        <input class="search-input" placeholder="Search passwords, accounts, URLs…" oninput="setPwSearch(this.value)" value="${esc(pwSearchFilter)}"/>
+        <input id="pw-search-input" class="search-input" placeholder="Search passwords, accounts, URLs…" oninput="setPwSearch(this.value)" value="${esc(pwSearchFilter)}"/>
       </div>
       <div class="toolbar-actions">
         <button class="btn-sm" onclick="openPwGeneratorModal()" title="Instant strong password generator">⚡ Generator</button>
@@ -3358,6 +3366,14 @@ async function renderPasswords() {
   }
 
   content.innerHTML = html;
+
+  if (isInputFocused) {
+    const el = document.getElementById('pw-search-input');
+    if (el) {
+      el.focus();
+      if (selStart !== null && selEnd !== null) el.setSelectionRange(selStart, selEnd);
+    }
+  }
 }
 
 function getCardBrand(num) {
@@ -3376,9 +3392,10 @@ function maskCardNumber(num) {
   return `•••• •••• •••• ${last4}`;
 }
 
-function toggleCardReveal(id, fullNumber) {
+function toggleCardReveal(id) {
   const el = document.getElementById('card-num-disp-' + id);
   if (!el) return;
+  const fullNumber = el.getAttribute('data-full') || '';
   if (el.textContent.includes('•')) {
     el.textContent = fullNumber.replace(/(\d{4})/g, '$1 ').trim();
   } else {
@@ -3386,10 +3403,27 @@ function toggleCardReveal(id, fullNumber) {
   }
 }
 
-function toggleCvvReveal(id, cvv) {
+function toggleCvvReveal(id) {
   const el = document.getElementById('card-cvv-' + id);
   if (!el) return;
+  const cvv = el.getAttribute('data-cvv') || '';
   el.textContent = el.textContent.includes('•') ? cvv : '•••';
+}
+
+function copyCardNumber(id) {
+  const el = document.getElementById('card-num-disp-' + id);
+  if (el) copyText(el.getAttribute('data-full') || '');
+}
+
+function copyCvv(id) {
+  const el = document.getElementById('card-cvv-' + id);
+  if (el) copyText(el.getAttribute('data-cvv') || '');
+}
+
+function copyElementText(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  copyText(el.innerText || el.textContent || '');
 }
 
 function passwordCard(p) {
@@ -3426,9 +3460,9 @@ function passwordCard(p) {
             <div class="card-brand-badge">${getCardBrand(p.card_number)}</div>
           </div>
           <div class="card-number-display">
-            <span id="card-num-disp-${p.id}">${maskCardNumber(p.card_number)}</span>
-            <button class="copy-btn" style="background:rgba(255,255,255,0.15);border:none;" onclick="toggleCardReveal('${p.id}', '${esc(p.card_number||'')}')">👁️</button>
-            <button class="copy-btn" style="background:rgba(255,255,255,0.15);border:none;" onclick="copyText('${esc(p.card_number||'')}')">Copy</button>
+            <span id="card-num-disp-${p.id}" data-full="${esc(p.card_number||'')}">${maskCardNumber(p.card_number)}</span>
+            <button class="copy-btn" style="background:rgba(255,255,255,0.15);border:none;" onclick="toggleCardReveal('${p.id}')">👁️</button>
+            <button class="copy-btn" style="background:rgba(255,255,255,0.15);border:none;" onclick="copyCardNumber('${p.id}')">Copy</button>
           </div>
           <div class="card-mockup-bottom">
             <div>
@@ -3441,18 +3475,19 @@ function passwordCard(p) {
             </div>
           </div>
         </div>
-        ${p.card_cvv ? `<div class="card-field"><label>Security Code (CVV)</label><div class="val"><span id="card-cvv-${p.id}">•••</span><button class="copy-btn" onclick="toggleCvvReveal('${p.id}', '${esc(p.card_cvv)}')">👁️</button><button class="copy-btn" onclick="copyText('${esc(p.card_cvv)}')">Copy</button></div></div>` : ''}
+        ${p.card_cvv ? `<div class="card-field"><label>Security Code (CVV)</label><div class="val"><span id="card-cvv-${p.id}" data-cvv="${esc(p.card_cvv)}">•••</span><button class="copy-btn" onclick="toggleCvvReveal('${p.id}')">👁️</button><button class="copy-btn" onclick="copyCvv('${p.id}')">Copy</button></div></div>` : ''}
+        ${p.description ? `<div class="card-field"><label>Billing Notes</label><div class="val" style="white-space:pre-wrap;">${esc(p.description)}</div></div>` : ''}
       ` : p.item_type === 'note' ? `
         <!-- NOTE DETAILS -->
         <div class="card-field"><label>Secure Note Content</label>
-          <div class="val" style="white-space:pre-wrap;line-height:1.5;font-size:13px;background:var(--surface2);padding:10px;border-radius:6px;width:100%;">${esc(p.description || p.password || 'No note content')}</div>
+          <div class="val" id="note-val-${p.id}" style="white-space:pre-wrap;line-height:1.5;font-size:13px;background:var(--surface2);padding:10px;border-radius:6px;width:100%;">${esc(p.description || p.password || 'No note content')}</div>
         </div>
-        <div style="margin-top:6px;"><button class="copy-btn" onclick="copyText('${esc(p.description || p.password || '').replace(/'/g,"\\'")}')">📋 Copy Note Text</button></div>
+        <div style="margin-top:6px;"><button class="copy-btn" onclick="copyElementText('note-val-${p.id}')">📋 Copy Note Text</button></div>
       ` : `
         <!-- LOGIN DETAILS -->
-        ${p.username ? `<div class="card-field"><label>Username</label><div class="val">${esc(p.username)}<button class="copy-btn" onclick="copyText('${esc(p.username)}')">Copy</button></div></div>` : ''}
+        ${p.username ? `<div class="card-field"><label>Username</label><div class="val"><span id="pw-user-${p.id}">${esc(p.username)}</span><button class="copy-btn" onclick="copyElementText('pw-user-${p.id}')">Copy</button></div></div>` : ''}
         <div class="card-field"><label>Password</label>
-          <div class="val"><span class="pw-hidden" title="Hover to reveal">${esc(p.password)}</span><button class="copy-btn" onclick="copyText('${p.password.replace(/'/g,"\\'")}')">Copy</button></div>
+          <div class="val"><span class="pw-hidden" id="pw-val-${p.id}" title="Hover to reveal">${esc(p.password)}</span><button class="copy-btn" onclick="copyElementText('pw-val-${p.id}')">Copy</button></div>
         </div>
         ${p.url ? `<div class="card-field"><label>URL</label><div class="val"><a href="${esc(p.url)}" target="_blank" style="color:var(--accent)">${esc(p.url)}</a></div></div>` : ''}
         ${p.description ? `<div class="card-desc">${esc(p.description)}</div>` : ''}
@@ -3484,11 +3519,17 @@ function passwordCard(p) {
 }
 
 async function deletePassword(id) {
-  if (!confirm('Delete this password?')) return;
-  await api('DELETE', '/passwords/' + id);
-  expandedCards.delete('password-' + id);
-  renderPasswords();
-  toast('Password deleted');
+  if (!confirm('Delete this item from vault?')) return;
+  try {
+    await api('DELETE', '/passwords/' + id);
+    expandedCards.delete('password-' + id);
+    if (currentTab === 'cards') renderCardsAndNotes();
+    else if (currentTab === 'audit') renderSecurityAudit();
+    else renderPasswords();
+    toast('Item deleted from vault');
+  } catch (err) {
+    toast('Error deleting item: ' + err.message);
+  }
 }
 
 // ---- EXPAND / COLLAPSE ----
@@ -3500,6 +3541,8 @@ async function toggleExpand(type, id) {
     expandedCards.add(key);
   }
   if (currentTab === 'todos') renderTodos();
+  else if (currentTab === 'cards') renderCardsAndNotes();
+  else if (currentTab === 'audit') renderSecurityAudit();
   else renderPasswords();
 
   if (expandedCards.has(key)) {
@@ -3715,6 +3758,8 @@ function fillRandomTotpSecret() {
   }
 }
 
+let editingItemData = null;
+
 function switchFormType(type, p = null) {
   currentFormItemType = type;
   document.querySelectorAll('.segmented-btn').forEach(b => b.classList.remove('active'));
@@ -3724,33 +3769,55 @@ function switchFormType(type, p = null) {
   const container = document.getElementById('dynamic-fields');
   if (!container) return;
 
+  // Preserve existing inputs if user entered anything
+  const prevTitle = document.getElementById('f-title')?.value;
+  const prevUsername = document.getElementById('f-username')?.value;
+  const prevPassword = document.getElementById('f-password')?.value;
+  const prevUrl = document.getElementById('f-url')?.value;
+  const prevDesc = document.getElementById('f-desc')?.value;
+  const prevTotp = document.getElementById('f-totp')?.value;
+  const prevCardNum = document.getElementById('f-card-num')?.value;
+  const prevCardExp = document.getElementById('f-card-exp')?.value;
+  const prevCardCvv = document.getElementById('f-card-cvv')?.value;
+
+  const item = p || editingItemData || {};
+  const title = prevTitle !== undefined ? prevTitle : (item.title || '');
+  const username = prevUsername !== undefined ? prevUsername : (item.username || '');
+  const desc = prevDesc !== undefined ? prevDesc : (item.description || (item.item_type === 'note' ? item.password : '') || '');
+  const password = prevPassword !== undefined ? prevPassword : (item.password || '');
+  const url = prevUrl !== undefined ? prevUrl : (item.url || '');
+  const totp = prevTotp !== undefined ? prevTotp : (item.totp_secret || '');
+  const cardNum = prevCardNum !== undefined ? prevCardNum : (item.card_number || '');
+  const cardExp = prevCardExp !== undefined ? prevCardExp : (item.card_exp || '');
+  const cardCvv = prevCardCvv !== undefined ? prevCardCvv : (item.card_cvv || '');
+
   if (type === 'card') {
     container.innerHTML = `
-      <div class="field"><label>Card Name / Title *</label><input id="f-title" value="${p ? esc(p.title) : ''}" placeholder="e.g. Chase Sapphire, Apple Card…"/></div>
-      <div class="field"><label>Cardholder Name</label><input id="f-username" value="${p ? esc(p.username||'') : ''}" placeholder="e.g. ALEX JOHNSON"/></div>
+      <div class="field"><label>Card Name / Title *</label><input id="f-title" value="${esc(title)}" placeholder="e.g. Chase Sapphire, Apple Card…"/></div>
+      <div class="field"><label>Cardholder Name</label><input id="f-username" value="${esc(username)}" placeholder="e.g. ALEX JOHNSON"/></div>
       <div class="field">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
           <label style="margin:0;">Card Number *</label>
           <span id="f-card-brand-badge" style="font-size:11px;font-weight:700;color:var(--accent);">CARD</span>
         </div>
-        <input id="f-card-num" value="${p ? esc(p.card_number||'') : ''}" placeholder="4532 1100 8821 9901" oninput="formatCardInput(this)"/>
+        <input id="f-card-num" value="${esc(cardNum)}" placeholder="4532 1100 8821 9901" oninput="formatCardInput(this)"/>
       </div>
       <div class="form-row">
-        <div class="field"><label>Expiration (MM/YY)</label><input id="f-card-exp" value="${p ? esc(p.card_exp||'') : ''}" placeholder="12/28" maxlength="5"/></div>
-        <div class="field"><label>Security Code (CVV)</label><input id="f-card-cvv" type="password" value="${p ? esc(p.card_cvv||'') : ''}" placeholder="•••" maxlength="4"/></div>
+        <div class="field"><label>Expiration (MM/YY)</label><input id="f-card-exp" value="${esc(cardExp)}" placeholder="12/28" maxlength="5"/></div>
+        <div class="field"><label>Security Code (CVV)</label><input id="f-card-cvv" type="password" value="${esc(cardCvv)}" placeholder="•••" maxlength="4"/></div>
       </div>
-      <div class="field"><label>Billing Address / Notes</label><textarea id="f-desc" rows="2" placeholder="Billing postal code, support phone…">${p ? esc(p.description||'') : ''}</textarea></div>
+      <div class="field"><label>Billing Address / Notes</label><textarea id="f-desc" rows="2" placeholder="Billing postal code, support phone…">${esc(desc)}</textarea></div>
       <input type="hidden" id="f-password" value="CARD_DATA"/>
       <input type="hidden" id="f-url" value=""/>
       <input type="hidden" id="f-totp" value=""/>
     `;
     const numInput = document.getElementById('f-card-num');
-    if (numInput && p?.card_number) formatCardInput(numInput);
+    if (numInput && cardNum) formatCardInput(numInput);
   } else if (type === 'note') {
     container.innerHTML = `
-      <div class="field"><label>Note Title *</label><input id="f-title" value="${p ? esc(p.title) : ''}" placeholder="e.g. Server SSH Recovery Keys…"/></div>
-      <div class="field"><label>Category / Tags</label><input id="f-username" value="${p ? esc(p.username||'') : ''}" placeholder="e.g. Infrastructure, Legal, Recovery"/></div>
-      <div class="field"><label>Secure Note Content *</label><textarea id="f-desc" rows="6" placeholder="Write confidential text, recovery codes, or seed phrases here…">${p ? esc(p.description || p.password || '') : ''}</textarea></div>
+      <div class="field"><label>Note Title *</label><input id="f-title" value="${esc(title)}" placeholder="e.g. Server SSH Recovery Keys…"/></div>
+      <div class="field"><label>Category / Tags</label><input id="f-username" value="${esc(username)}" placeholder="e.g. Infrastructure, Legal, Recovery"/></div>
+      <div class="field"><label>Secure Note Content *</label><textarea id="f-desc" rows="6" placeholder="Write confidential text, recovery codes, or seed phrases here…">${esc(desc)}</textarea></div>
       <input type="hidden" id="f-password" value="SECURE_NOTE"/>
       <input type="hidden" id="f-url" value=""/>
       <input type="hidden" id="f-totp" value=""/>
@@ -3761,15 +3828,15 @@ function switchFormType(type, p = null) {
   } else {
     // Login password
     container.innerHTML = `
-      <div class="field"><label>Title *</label><input id="f-title" value="${p ? esc(p.title) : ''}" placeholder="e.g. Google Account, GitHub, AWS…"/></div>
-      <div class="field"><label>Username / Email</label><input id="f-username" value="${p ? esc(p.username||'') : ''}" placeholder="user@example.com"/></div>
+      <div class="field"><label>Title *</label><input id="f-title" value="${esc(title)}" placeholder="e.g. Google Account, GitHub, AWS…"/></div>
+      <div class="field"><label>Username / Email</label><input id="f-username" value="${esc(username)}" placeholder="user@example.com"/></div>
       <div class="field">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
           <label style="margin:0;">Password *</label>
           <button type="button" class="filter-pill" style="padding:2px 8px;font-size:10px;" onclick="generateStrongPassword()">⚡ Generate Strong</button>
         </div>
         <div style="display:flex;gap:6px;">
-          <input id="f-password" type="text" style="flex:1;" value="${p ? esc(p.password) : ''}" placeholder="••••••••"/>
+          <input id="f-password" type="text" style="flex:1;" value="${esc(password)}" placeholder="••••••••"/>
           <button type="button" class="copy-btn" onclick="const f=document.getElementById('f-password'); f.type = f.type==='password'?'text':'password';">👁️</button>
         </div>
       </div>
@@ -3778,11 +3845,11 @@ function switchFormType(type, p = null) {
           <label style="margin:0;">2FA / TOTP Secret Key (Optional)</label>
           <button type="button" class="filter-pill" style="padding:2px 8px;font-size:10px;" onclick="fillRandomTotpSecret()">⚡ Generate Key</button>
         </div>
-        <input id="f-totp" value="${p ? esc(p.totp_secret||'') : ''}" placeholder="e.g. JBSWY3DPEHPK3PXP (Base32)"/>
+        <input id="f-totp" value="${esc(totp)}" placeholder="e.g. JBSWY3DPEHPK3PXP (Base32)"/>
         <span style="font-size:10px;color:var(--muted);margin-top:4px;display:block;">Generates live 6-digit rolling authenticator codes directly in your vault.</span>
       </div>
-      <div class="field"><label>Website URL</label><input id="f-url" value="${p ? esc(p.url||'') : ''}" placeholder="https://…"/></div>
-      <div class="field"><label>Notes</label><textarea id="f-desc" rows="2" placeholder="Security questions, recovery codes…">${p ? esc(p.description||'') : ''}</textarea></div>
+      <div class="field"><label>Website URL</label><input id="f-url" value="${esc(url)}" placeholder="https://…"/></div>
+      <div class="field"><label>Notes</label><textarea id="f-desc" rows="2" placeholder="Security questions, recovery codes…">${esc(desc)}</textarea></div>
       <input type="hidden" id="f-card-num" value=""/>
       <input type="hidden" id="f-card-exp" value=""/>
       <input type="hidden" id="f-card-cvv" value=""/>
@@ -3798,6 +3865,7 @@ function formatCardInput(input) {
 }
 
 function showPasswordForm(p, defaultType = 'login') {
+  editingItemData = p || null;
   const initialType = p?.item_type || defaultType || 'login';
   currentFormItemType = initialType;
 
@@ -3894,6 +3962,8 @@ async function savePassword() {
 
   if (type === 'note') {
     password = description;
+  } else if (type === 'card' && (!password || password === '')) {
+    password = 'CARD_DATA';
   }
 
   const body = {
@@ -3909,18 +3979,24 @@ async function savePassword() {
     card_cvv
   };
 
-  if (editingId) {
-    await api('PUT', '/passwords/' + editingId, body);
-    toast('Item updated in vault');
-  } else {
-    await api('POST', '/passwords', body);
-    toast('Item saved to vault');
-  }
-  closeModal();
+  try {
+    if (editingId) {
+      await api('PUT', '/passwords/' + editingId, body);
+      toast('Item updated in vault');
+    } else {
+      await api('POST', '/passwords', body);
+      toast('Item saved to vault');
+    }
+    editingId = null;
+    editingItemData = null;
+    closeModal();
 
-  if (currentTab === 'cards') renderCardsAndNotes();
-  else if (currentTab === 'audit') renderSecurityAudit();
-  else renderPasswords();
+    if (currentTab === 'cards') renderCardsAndNotes();
+    else if (currentTab === 'audit') renderSecurityAudit();
+    else renderPasswords();
+  } catch (err) {
+    toast('Error saving item: ' + (err.message || 'Unknown error'));
+  }
 }
 
 // ---- MODAL UTILS ----
@@ -3931,6 +4007,8 @@ function openModal(html) {
 function closeModal(e) {
   if (e && e.target !== document.getElementById('modalOverlay')) return;
   document.getElementById('modalOverlay').classList.remove('open');
+  editingId = null;
+  editingItemData = null;
   const m = document.getElementById('modal');
   if (m) m.classList.remove('modal-wide');
 }
@@ -4063,12 +4141,16 @@ async function renderCardsAndNotes() {
   const cardsCount = items.filter(p => p.item_type === 'card').length;
   const notesCount = items.filter(p => p.item_type === 'note').length;
 
+  const isInputFocused = (document.activeElement?.id === 'cards-search-input');
+  const selStart = isInputFocused ? document.activeElement.selectionStart : null;
+  const selEnd = isInputFocused ? document.activeElement.selectionEnd : null;
+
   let html = `
     <div style="display:flex;flex-direction:column;gap:12px;">
       <div class="toolbar-row">
         <div class="search-box">
           <span class="search-icon">🔍</span>
-          <input class="search-input" placeholder="Search cards & notes…" oninput="cardsSearchQuery=this.value;renderCardsAndNotes();" value="${esc(cardsSearchQuery)}"/>
+          <input id="cards-search-input" class="search-input" placeholder="Search cards & notes…" oninput="cardsSearchQuery=this.value;renderCardsAndNotes();" value="${esc(cardsSearchQuery)}"/>
         </div>
         <div class="toolbar-actions">
           <button class="btn-sm" onclick="showPasswordForm(null, 'card')">➕ Add Card</button>
@@ -4102,6 +4184,14 @@ async function renderCardsAndNotes() {
 
   html += `</div>`;
   content.innerHTML = html;
+
+  if (isInputFocused) {
+    const el = document.getElementById('cards-search-input');
+    if (el) {
+      el.focus();
+      if (selStart !== null && selEnd !== null) el.setSelectionRange(selStart, selEnd);
+    }
+  }
 }
 
 // ---- AI VISUAL STUDIO (IMAGE GENERATION) ----

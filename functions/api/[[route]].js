@@ -3193,57 +3193,12 @@ ${completed.length ? `#### ✅ Recent Accomplishments\n${completed.slice(-5).map
       return new Response(JSON.stringify({ id: result.meta?.last_row_id, storage_type: storageType }), { headers, status: 201 });
     }
 
-    if (path.startsWith('/attachments/') && method === 'GET') {
-      const parts = path.split('/');
-      const item_type = parts[2];
-      const item_id = parts[3];
-      const { results } = await env.DB.prepare(
-        'SELECT id, item_type, item_id, filename, mime_type, storage_type, created_at FROM attachments WHERE item_type=? AND item_id=?'
-      ).bind(item_type, item_id).all();
-      return new Response(JSON.stringify(results || []), { headers });
-    }
-
-    if (path.startsWith('/attachments/delete/') && method === 'DELETE') {
-      const id = path.split('/')[3];
-      const row = await env.DB.prepare('SELECT storage_key, storage_type FROM attachments WHERE id=?').bind(id).first();
-      if (row?.storage_key && env.ATTACHMENTS_BUCKET) {
-        try { await env.ATTACHMENTS_BUCKET.delete(row.storage_key); } catch (_) {}
-      }
-      await env.DB.prepare('DELETE FROM attachments WHERE id=?').bind(id).run();
-      return new Response(JSON.stringify({ success: true }), { headers });
-    }
-
-    if (path.startsWith('/attachments/download/') && method === 'GET') {
-      const id = path.split('/')[3];
-      const row = await env.DB.prepare('SELECT * FROM attachments WHERE id=?').bind(id).first();
-      if (!row) return new Response('Not found', { status: 404 });
-
-      if ((row.storage_type === 'r2' || (row.content && row.content.startsWith('r2://'))) && env.ATTACHMENTS_BUCKET) {
-        try {
-          const r2Key = row.storage_key || row.content.replace('r2://', '');
-          const obj = await env.ATTACHMENTS_BUCKET.get(r2Key);
-          if (obj) {
-            const arrBuf = await obj.arrayBuffer();
-            let binary = '';
-            const bytes = new Uint8Array(arrBuf);
-            for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-            const b64 = btoa(binary);
-            return new Response(JSON.stringify({
-              ...row,
-              content: `data:${row.mime_type || 'application/octet-stream'};base64,${b64}`,
-              storage: 'cloudflare-r2'
-            }), { headers });
-          }
-        } catch (_) {}
-      }
-      return new Response(JSON.stringify(row), { headers });
-    }
-
-    // Direct binary raw download for QR code scanning & mobile browser downloads
+    // Dedicated raw and download endpoints MUST come before generic /attachments/:type/:id
+    // 1. Direct binary raw download for QR code scanning & mobile browser downloads
     if ((path.startsWith('/attachments/raw/') || path.startsWith('/uploads/raw/')) && method === 'GET') {
       const id = path.split('/')[3];
       const row = await env.DB.prepare('SELECT * FROM attachments WHERE id=?').bind(id).first();
-      if (!row) return new Response('File not found', { status: 404 });
+      if (!row) return new Response('File not found', { status: 404, headers });
 
       // If stored in Cloudflare R2, stream directly with zero egress fees
       if ((row.storage_type === 'r2' || (row.content && row.content.startsWith('r2://'))) && env.ATTACHMENTS_BUCKET) {
@@ -3272,22 +3227,83 @@ ${completed.length ? `#### ✅ Recent Accomplishments\n${completed.slice(-5).map
         base64Data = parts[1];
       }
 
-      // Convert base64 string to binary Uint8Array
-      const binaryStr = atob(base64Data);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i);
-      }
-
-      return new Response(bytes, {
-        headers: {
-          'Content-Type': mime,
-          'Content-Disposition': `inline; filename="${encodeURIComponent(row.filename)}"`,
-          'Content-Length': bytes.byteLength.toString(),
-          'Cache-Control': 'public, max-age=86400',
-          'Access-Control-Allow-Origin': '*'
+      try {
+        const binaryStr = atob(base64Data);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
         }
-      });
+
+        return new Response(bytes, {
+          headers: {
+            'Content-Type': mime,
+            'Content-Disposition': `inline; filename="${encodeURIComponent(row.filename)}"`,
+            'Content-Length': bytes.byteLength.toString(),
+            'Cache-Control': 'public, max-age=86400',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      } catch (_) {
+        return new Response(row.content || '', {
+          headers: {
+            'Content-Type': mime,
+            'Content-Disposition': `inline; filename="${encodeURIComponent(row.filename)}"`,
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+    }
+
+    // 2. Download endpoint returning JSON with full data URL
+    if ((path.startsWith('/attachments/download/') || path.startsWith('/uploads/download/')) && method === 'GET') {
+      const id = path.split('/')[3];
+      const row = await env.DB.prepare('SELECT * FROM attachments WHERE id=?').bind(id).first();
+      if (!row) return new Response('Not found', { status: 404, headers });
+
+      if ((row.storage_type === 'r2' || (row.content && row.content.startsWith('r2://'))) && env.ATTACHMENTS_BUCKET) {
+        try {
+          const r2Key = row.storage_key || row.content.replace('r2://', '');
+          const obj = await env.ATTACHMENTS_BUCKET.get(r2Key);
+          if (obj) {
+            const arrBuf = await obj.arrayBuffer();
+            let binary = '';
+            const bytes = new Uint8Array(arrBuf);
+            for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+            const b64 = btoa(binary);
+            return new Response(JSON.stringify({
+              ...row,
+              content: `data:${row.mime_type || 'application/octet-stream'};base64,${b64}`,
+              storage: 'cloudflare-r2'
+            }), { headers });
+          }
+        } catch (_) {}
+      }
+      return new Response(JSON.stringify(row), { headers });
+    }
+
+    // 3. Delete attachment endpoint
+    if (path.startsWith('/attachments/delete/') && method === 'DELETE') {
+      const id = path.split('/')[3];
+      const row = await env.DB.prepare('SELECT storage_key, storage_type FROM attachments WHERE id=?').bind(id).first();
+      if (row?.storage_key && env.ATTACHMENTS_BUCKET) {
+        try { await env.ATTACHMENTS_BUCKET.delete(row.storage_key); } catch (_) {}
+      }
+      await env.DB.prepare('DELETE FROM attachments WHERE id=?').bind(id).run();
+      return new Response(JSON.stringify({ success: true }), { headers });
+    }
+
+    // 4. Item-specific attachments list (e.g. /attachments/password/1 or /attachments/todo/2)
+    if (path.startsWith('/attachments/') && method === 'GET') {
+      const parts = path.split('/');
+      const item_type = parts[2];
+      const item_id = parts[3];
+      if (!item_type || !item_id || ['raw', 'download', 'delete'].includes(item_type)) {
+        return new Response(JSON.stringify([]), { headers });
+      }
+      const { results } = await env.DB.prepare(
+        'SELECT id, item_type, item_id, filename, mime_type, storage_type, created_at FROM attachments WHERE item_type=? AND item_id=?'
+      ).bind(item_type, item_id).all();
+      return new Response(JSON.stringify(results || []), { headers });
     }
 
     // Dedicated upload endpoints for "Upload Anything & Save" vault drive
