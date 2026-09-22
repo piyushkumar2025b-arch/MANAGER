@@ -1175,17 +1175,37 @@
   }
   .quick-task-bar {
     display: flex; gap: 8px; background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-sm); padding: 4px; margin-bottom: 12px;
+    border-radius: var(--radius-sm); padding: 5px 8px; margin-bottom: 12px;
+    align-items: center; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .quick-task-bar:focus-within {
+    border-color: rgba(99, 102, 241, 0.45);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
   }
   .quick-task-input {
-    flex: 1; background: transparent; border: none; padding: 8px 12px; color: var(--text);
-    font-size: 13px; outline: none;
+    flex: 1; background: transparent; border: none; padding: 7px 10px; color: var(--text);
+    font-size: 13px; outline: none; min-width: 140px;
+  }
+  .quick-task-select {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text-secondary); font-size: 11.5px; font-weight: 500;
+    padding: 6px 8px; outline: none; cursor: pointer; transition: all 0.15s ease;
+  }
+  .quick-task-select:hover, .quick-task-select:focus {
+    border-color: var(--accent); color: var(--text);
   }
   .quick-task-btn {
-    padding: 8px 16px; background: var(--accent); color: #fff; border: none;
+    padding: 7px 16px; background: var(--accent); color: #fff; border: none;
     border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer;
+    white-space: nowrap; transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
   }
-  .quick-task-btn:hover { opacity: 0.9; }
+  .quick-task-btn:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+  }
+  .quick-task-btn:active { transform: translateY(0); }
 
   /* API KEY TESTING & BADGES */
   .ai-key-test-btn {
@@ -2220,6 +2240,9 @@ async function unlock() {
       document.getElementById('lockScreen').style.display = 'none';
       document.getElementById('app').classList.add('visible');
       loadTab();
+      probeEdgeStatus();
+      if (edgePingTimer) clearInterval(edgePingTimer);
+      edgePingTimer = setInterval(probeEdgeStatus, 45000);
       toast('Vault unlocked');
     } else {
       showLockError(data.error || 'Incorrect master password. Please try again.');
@@ -2232,6 +2255,9 @@ async function unlock() {
       document.getElementById('lockScreen').style.display = 'none';
       document.getElementById('app').classList.add('visible');
       loadTab();
+      probeEdgeStatus();
+      if (edgePingTimer) clearInterval(edgePingTimer);
+      edgePingTimer = setInterval(probeEdgeStatus, 45000);
       toast('Vault unlocked');
     } else {
       showLockError('Incorrect master password. Please try again.');
@@ -2241,6 +2267,25 @@ async function unlock() {
       btn.disabled = false;
       btn.textContent = 'Unlock Vault';
     }
+  }
+}
+
+let edgePingTimer = null;
+async function probeEdgeStatus() {
+  const pill = document.getElementById('edgeStatusPill');
+  if (!pill) return;
+  const t0 = performance.now();
+  try {
+    const res = await fetch(`${API}/edge/ping`);
+    if (!res.ok) throw new Error('Status ' + res.status);
+    const data = await res.json();
+    const latency = Math.round(performance.now() - t0);
+    const colo = data.colo || 'EDGE';
+    pill.innerHTML = `<span class="edge-pulse-dot" style="background:var(--green)"></span> <span class="edge-pill-text">Edge ${latency}ms • ${colo}</span>`;
+    pill.title = `Cloudflare Edge: Online (${colo})\nRound-trip: ${latency}ms\nD1 Latency: ${data.d1_latency_ms}ms\nRay: ${data.ray || 'N/A'}`;
+  } catch (_) {
+    pill.innerHTML = `<span class="edge-pulse-dot" style="background:var(--orange)"></span> <span class="edge-pill-text">Edge Standby</span>`;
+    pill.title = 'Edge ping standby (Local/Cache mode)';
   }
 }
 
@@ -3101,8 +3146,21 @@ async function renderTodos() {
 
     <!-- QUICK TASK INPUT BAR -->
     <div class="quick-task-bar">
-      <input class="quick-task-input" id="quickTaskInput" placeholder="⚡ Quick task e.g. Audit API keys tomorrow 5pm #Security !high" onkeydown="if(event.key==='Enter') submitQuickTask()"/>
-      <button class="quick-task-btn" onclick="submitQuickTask()">＋ Quick Add</button>
+      <div style="display:flex;align-items:center;padding-left:10px;font-size:14px;color:var(--accent);user-select:none;">⚡</div>
+      <input class="quick-task-input" id="quickTaskInput" placeholder="Quick task (e.g. Rotate AWS tokens tomorrow 4pm #Security !high)…" onkeydown="if(event.key==='Enter') submitQuickTask()"/>
+      <select id="quickTaskCat" class="quick-task-select" title="Default Category">
+        <option value="General">General</option>
+        <option value="Security">Security</option>
+        <option value="Dev">Dev</option>
+        <option value="Work">Work</option>
+        <option value="Personal">Personal</option>
+      </select>
+      <select id="quickTaskPri" class="quick-task-select" title="Default Priority">
+        <option value="medium">⚡ Medium</option>
+        <option value="high">🚨 High</option>
+        <option value="low">🌱 Low</option>
+      </select>
+      <button class="quick-task-btn" onclick="submitQuickTask()">＋ Add Task</button>
     </div>
 
     <!-- SEARCH & ACTION TOOLBAR -->
@@ -3122,6 +3180,7 @@ async function renderTodos() {
         <button class="btn-sm" onclick="openEisenhowerPrioritizerModal()" title="Eisenhower urgency & importance prioritization matrix">🎯 Prioritize</button>
         <button class="btn-sm" onclick="openStandupSummaryModal()" title="Generate daily executive productivity brief">📊 Standup Brief</button>
         <button class="btn-sm" onclick="openTaskTemplatesModal()" title="Import security & workflow checklists">📋 Templates</button>
+        ${pendingCount > 0 ? `<button class="btn-sm" onclick="markAllTodosDone()" title="Mark all pending tasks as done">✓ Complete All (${pendingCount})</button>` : ''}
         ${completedCount > 0 ? `<button class="btn-sm danger" onclick="clearCompletedTodos()" title="Clear all completed tasks">🧹 Clear Done (${completedCount})</button>` : ''}
       </div>
     </div>
@@ -3409,6 +3468,9 @@ async function submitQuickTask() {
   if (catMatch) {
     category = catMatch[1];
     title = title.replace(/#\w+/, '').trim();
+  } else {
+    const selCat = document.getElementById('quickTaskCat')?.value;
+    if (selCat) category = selCat;
   }
 
   // Match !Priority
@@ -3421,6 +3483,9 @@ async function submitQuickTask() {
   } else if (/!med/i.test(title)) {
     priority = 'medium';
     title = title.replace(/!med(ium)?/i, '').trim();
+  } else {
+    const selPri = document.getElementById('quickTaskPri')?.value;
+    if (selPri) priority = selPri;
   }
 
   // Match dates
@@ -3793,6 +3858,32 @@ async function clearCompletedTodos() {
     renderTodos();
   } catch (err) {
     toast('Error clearing completed: ' + err.message);
+  }
+}
+
+async function markAllTodosDone() {
+  if (!confirm('Mark all pending tasks as completed?')) return;
+  try {
+    const res = await api('POST', '/todos/complete-all');
+    toast(`Completed ${res.updated || 0} tasks!`);
+    renderTodos();
+  } catch (err) {
+    toast('Error completing tasks: ' + err.message);
+  }
+}
+
+async function quickCopyTotpDirect(secret) {
+  if (!secret) return;
+  try {
+    const res = await computeTOTP(secret);
+    if (res) {
+      await copyText(res.raw);
+      toast(`Copied 2FA Code: ${res.formatted} (${res.remaining}s left)`);
+    } else {
+      toast('Failed to compute 2FA code');
+    }
+  } catch (e) {
+    toast('2FA Error: ' + e.message);
   }
 }
 
@@ -4299,7 +4390,7 @@ function passwordCard(p) {
   const has2fa = Boolean(p.totp_secret && p.totp_secret.trim());
   const typeBadge = p.item_type === 'card' ? '<span class="badge" style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);font-size:10px;">💳 Card</span>' :
                     p.item_type === 'note' ? '<span class="badge" style="background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.3);font-size:10px;">📝 Note</span>' : '';
-  const totpBadge = has2fa ? '<span class="badge" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);font-size:10px;">⚡ 2FA Active</span>' : '';
+  const totpBadge = has2fa ? `<button class="badge" onclick="event.stopPropagation();quickCopyTotpDirect('${esc(p.totp_secret)}')" title="Click to copy live 2FA code" style="cursor:pointer;border:none;background:rgba(34,197,94,0.18);color:#4ade80;border:1px solid rgba(34,197,94,0.35);font-size:10px;display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:12px;font-weight:600;">⚡ 2FA: Copy Code</button>` : '';
   const pwStrength = p.password && (!p.item_type || p.item_type === 'login') ? evaluatePasswordStrength(p.password) : null;
 
   return `<div class="card" id="card-password-${p.id}">
@@ -4315,6 +4406,9 @@ function passwordCard(p) {
         <div id="pw-peek-${p.id}" style="display:none;"></div>
       </div>
       <div class="card-actions">
+        ${has2fa ? `
+          <button class="icon-btn" onclick="event.stopPropagation();quickCopyTotpDirect('${esc(p.totp_secret)}')" title="Copy Live 2FA Code" style="color:var(--green);">⚡</button>
+        ` : ''}
         ${p.password && (!p.item_type || p.item_type === 'login') ? `
           <button class="icon-btn" onclick="event.stopPropagation();quickPeekPw(this, '${p.id}', '${esc(p.password)}')" title="Peek / Reveal Password">👁️</button>
           <button class="icon-btn" onclick="event.stopPropagation();quickCopyPw(this, '${esc(p.password)}')" title="Quick Copy Password">🔑</button>

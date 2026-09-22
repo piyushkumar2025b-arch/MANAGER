@@ -3566,6 +3566,12 @@ app.delete('/api/todos/completed', (req, res) => {
   return res.json({ success: true, deleted: result.changes });
 });
 
+// Complete All Pending Tasks Endpoint
+app.post('/api/todos/complete-all', (req, res) => {
+  const result = db.prepare('UPDATE todos SET completed = 1 WHERE completed = 0').run();
+  return res.json({ success: true, updated: result.changes });
+});
+
 // Turnstile verification endpoint
 app.post('/api/turnstile/verify', async (req, res) => {
   const { token } = req.body || {};

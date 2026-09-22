@@ -1916,6 +1916,11 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({ success: true, deleted: res.meta?.changes || 0 }), { headers });
     }
 
+    if (path === '/todos/complete-all' && method === 'POST') {
+      const res = await env.DB.prepare('UPDATE todos SET completed = 1 WHERE completed = 0').run();
+      return new Response(JSON.stringify({ success: true, updated: res.meta?.changes || 0 }), { headers });
+    }
+
     if (path.startsWith('/todos/') && path.endsWith('/snooze') && method === 'POST') {
       const id = path.split('/')[2];
       const snoozeUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
