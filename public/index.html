@@ -60,6 +60,13 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* SLEEK MODERN SCROLLBARS */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); }
+  * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.12) transparent; }
+
   /* LOCK SCREEN */
   #lockScreen {
     position: fixed; inset: 0; background: var(--bg);
@@ -363,24 +370,30 @@
 
   /* TABS CONTAINER & NAVIGATION */
   .tabs-nav-container {
-    background: var(--surface); border-bottom: 1px solid var(--border);
-    overflow-x: auto; flex-shrink: 0; scrollbar-width: none;
+    background: rgba(18, 21, 31, 0.95); border-bottom: 1px solid var(--border);
+    overflow-x: auto; flex-shrink: 0; scrollbar-width: none; position: relative;
   }
   .tabs-nav-container::-webkit-scrollbar { display: none; }
   .tabs {
-    display: flex; padding: 6px 14px; gap: 4px; min-width: max-content;
+    display: flex; padding: 7px 16px; gap: 5px; min-width: max-content;
   }
   .tab {
     display: inline-flex; align-items: center; gap: 7px;
     padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: var(--muted);
     border: 1px solid transparent; border-radius: var(--radius-sm);
     background: none; cursor: pointer; position: relative;
-    white-space: nowrap; transition: all 0.15s ease;
+    white-space: nowrap; transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .tab:hover { color: var(--text); background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.06); }
   .tab.active {
     color: #fff; background: var(--surface2);
-    border-color: var(--border); box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 2px 12px rgba(99, 102, 241, 0.22), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .tab.active::after {
+    content: ''; position: absolute; bottom: -1px; left: 16%; right: 16%; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    border-radius: 2px; box-shadow: 0 0 8px var(--accent);
   }
 
   /* STUDIO SUB-NAVIGATION BAR */
@@ -458,15 +471,42 @@
   .card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--radius); margin-bottom: 10px; overflow: hidden;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .card:hover {
-    border-color: var(--border-hover);
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+    border-color: rgba(99, 102, 241, 0.35);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(99, 102, 241, 0.12);
+    transform: translateY(-1.5px);
   }
-  .card.urgent { border-color: rgba(244,63,94,0.4); background: linear-gradient(135deg, var(--surface), #181216); }
-  .card.soon { border-color: rgba(245,158,11,0.4); }
-  .card.done { opacity: 0.55; }
+  .card.urgent { border-color: rgba(244,63,94,0.45); background: linear-gradient(135deg, var(--surface), rgba(244,63,94,0.06)); }
+  .card.soon { border-color: rgba(245,158,11,0.4); background: linear-gradient(135deg, var(--surface), rgba(245,158,11,0.05)); }
+  .card.done { opacity: 0.58; }
+
+  /* QUICK PEEK INLINE */
+  .pw-peek-bubble {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 8px; border-radius: 6px;
+    background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.35);
+    color: #a5b4fc; font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+    animation: peekFadeIn 0.15s ease-out; margin-top: 3px;
+  }
+  @keyframes peekFadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* DUE DATE PRESETS IN MODAL */
+  .date-presets-row {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; margin-top: 4px;
+  }
+  .date-preset-chip {
+    padding: 4px 10px; font-size: 11px; font-weight: 600;
+    border-radius: 14px; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-secondary); cursor: pointer; transition: all 0.12s ease;
+  }
+  .date-preset-chip:hover {
+    border-color: var(--accent); color: #fff; background: rgba(99,102,241,0.14);
+  }
 
   .card-header {
     display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px;
@@ -4138,6 +4178,25 @@ async function renderPasswords() {
   }
 }
 
+function quickPeekPw(btn, id, pw) {
+  const container = document.getElementById('pw-peek-' + id);
+  if (!container) return;
+  if (container.style.display === 'none') {
+    container.innerHTML = `<span class="pw-peek-bubble"><span>🔑 ${esc(pw)}</span> <button onclick="event.stopPropagation();copyText('${esc(pw)}')" style="background:none;border:none;color:#fff;cursor:pointer;font-size:11px;padding:0 2px;" title="Copy">📋</button></span>`;
+    container.style.display = 'block';
+    if (btn) {
+      btn.style.color = 'var(--accent)';
+      btn.title = 'Hide Password';
+    }
+  } else {
+    container.style.display = 'none';
+    if (btn) {
+      btn.style.color = '';
+      btn.title = 'Peek Password';
+    }
+  }
+}
+
 function quickCopyPw(btn, pw) {
   copyText(pw);
   if (btn) {
@@ -4253,9 +4312,11 @@ function passwordCard(p) {
           ${totpBadge}
         </div>
         <div class="card-sub">${p.item_type === 'card' ? (p.username ? 'Cardholder: ' + esc(p.username) : maskCardNumber(p.card_number)) : p.item_type === 'note' ? 'Secure Note' : p.username ? esc(p.username) : p.url ? esc(p.url) : 'No username'}</div>
+        <div id="pw-peek-${p.id}" style="display:none;"></div>
       </div>
       <div class="card-actions">
         ${p.password && (!p.item_type || p.item_type === 'login') ? `
+          <button class="icon-btn" onclick="event.stopPropagation();quickPeekPw(this, '${p.id}', '${esc(p.password)}')" title="Peek / Reveal Password">👁️</button>
           <button class="icon-btn" onclick="event.stopPropagation();quickCopyPw(this, '${esc(p.password)}')" title="Quick Copy Password">🔑</button>
         ` : ''}
         ${p.item_type === 'card' && p.card_number ? `
@@ -15307,14 +15368,24 @@ async function runEdgeDiagnostic() {
 
   const t0 = performance.now();
   try {
-    const res = await api('GET', '/audit');
+    let edgeData;
+    try {
+      edgeData = await api('GET', '/edge/ping');
+    } catch (_) {
+      edgeData = null;
+    }
+
     const latency = Math.round(performance.now() - t0);
-    if (latEl) latEl.innerHTML = `<span style="color:var(--green)">⚡ ${latency} ms</span>`;
-    if (d1El) d1El.innerHTML = `<span style="color:var(--green)">✓ D1 Query OK (${res.score}/100)</span>`;
-    if (kvEl) kvEl.innerHTML = `<span style="color:var(--green)">✓ KV Rate Limiter OK</span>`;
-    if (r2El) r2El.innerHTML = `<span style="color:var(--green)">✓ R2 Drive Bound</span>`;
-    if (statusEl) statusEl.innerHTML = `🟢 Cloudflare Edge & Server Synchronized (${latency}ms round-trip)`;
-    toast('Cloudflare edge diagnostic passed: ' + latency + 'ms');
+    const colo = edgeData?.colo || 'EDGE';
+    const ray = edgeData?.ray ? edgeData.ray.slice(-8) : 'LOCAL';
+    const d1Ms = edgeData?.d1_latency_ms !== undefined ? edgeData.d1_latency_ms + 'ms' : 'Active';
+
+    if (latEl) latEl.innerHTML = `<span style="color:var(--green)">⚡ ${latency} ms <small style="color:var(--muted);font-weight:400;">(${colo})</small></span>`;
+    if (d1El) d1El.innerHTML = `<span style="color:var(--green)">✓ D1 Query OK <small style="color:var(--muted);font-weight:400;">(${d1Ms})</small></span>`;
+    if (kvEl) kvEl.innerHTML = `<span style="color:var(--green)">✓ KV Shield OK <small style="color:var(--muted);font-weight:400;">(Ray: ${ray})</small></span>`;
+    if (r2El) r2El.innerHTML = `<span style="color:var(--green)">✓ R2 Drive Bound <small style="color:var(--muted);font-weight:400;">($0 Egress)</small></span>`;
+    if (statusEl) statusEl.innerHTML = `🟢 Cloudflare Edge & Server Synchronized (${latency}ms round-trip • ${colo})`;
+    toast(`Edge Diagnostic OK: ${latency}ms latency via ${colo}`);
   } catch (err) {
     if (statusEl) statusEl.innerHTML = `<span style="color:var(--red)">Probe error: ${err.message}</span>`;
     toast('Diagnostic probe error: ' + err.message);

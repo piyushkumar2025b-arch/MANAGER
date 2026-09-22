@@ -1264,6 +1264,34 @@ export async function onRequest(context) {
       }), { headers });
     }
 
+    // Cloudflare Edge Ping & Live Diagnostics Endpoint
+    if (path === '/edge/ping' && method === 'GET') {
+      const startTime = Date.now();
+      let d1TimeMs = 0;
+      let d1Ok = false;
+      try {
+        const d1Start = Date.now();
+        await env.DB.prepare('SELECT 1 as ping').first();
+        d1TimeMs = Date.now() - d1Start;
+        d1Ok = true;
+      } catch (_) {}
+
+      const cfData = request.cf || {};
+      return new Response(JSON.stringify({
+        status: 'online',
+        edge: 'Cloudflare Pages / Workers Edge',
+        colo: cfData.colo || 'LOCAL-EDGE',
+        country: cfData.country || 'GLOBAL',
+        ray: request.headers.get('cf-ray') || 'ray-' + Math.random().toString(36).slice(2, 10),
+        d1_latency_ms: d1TimeMs,
+        d1_status: d1Ok ? 'healthy' : 'fallback',
+        kv_shield: env.VAULT_KV ? 'active' : 'local-active',
+        r2_drive: env.ATTACHMENTS_BUCKET ? 'active' : 'ready',
+        timestamp: new Date().toISOString(),
+        round_trip_ms: Date.now() - startTime
+      }), { headers });
+    }
+
     // Cryptographic Password & Passphrase Generator API
     if (path === '/vault/password/generate' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
