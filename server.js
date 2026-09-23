@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import tls from 'node:tls';
 import { DatabaseSync } from 'node:sqlite';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, GenerateVideosOperation } from '@google/genai';
 import QRCode from 'qrcode';
 import { onRequest } from './functions/api/[[route]].js';
 
@@ -112,6 +112,19 @@ db.exec(`
     lng REAL NOT NULL,
     category TEXT DEFAULT 'favorite',
     color TEXT DEFAULT '#7c6af7',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS ai_creations (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    model TEXT NOT NULL,
+    title TEXT DEFAULT '',
+    media_url TEXT DEFAULT '',
+    content TEXT DEFAULT '',
+    metadata TEXT DEFAULT '{}',
+    storage_type TEXT DEFAULT 'db',
+    storage_key TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now'))
   );
 `);
@@ -3979,6 +3992,505 @@ const d1 = {
     };
   },
 };
+
+// ============================================================================
+// AI STUDIO CAPABILITIES (Lyria 3 Music, Veo 3 Video, Search/Maps Grounding, Audio Transcribe)
+// ============================================================================
+
+function getGeminiInstance(customKey) {
+  const key = customKey || getAiKey('google');
+  if (!key || !key.trim() || key.includes('placeholder')) {
+    throw new Error('Gemini API key is required. Please verify GEMINI_API_KEY is configured in your environment or Settings.');
+  }
+  return new GoogleGenAI({ apiKey: key.trim(), httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
+}
+
+// 1. Music Generation via lyria-3-clip-preview (<=30s) or lyria-3-pro-preview (full track)
+app.post('/api/ai/music/generate', async (req, res) => {
+  try {
+    const { prompt, model, genre, title } = req.body || {};
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({ error: 'Music prompt is required' });
+    }
+
+    const ai = getGeminiInstance();
+    const modelToUse = (model === 'lyria-3-pro-preview') ? 'lyria-3-pro-preview' : 'lyria-3-clip-preview';
+    const isPro = modelToUse === 'lyria-3-pro-preview';
+
+    const fullPrompt = genre ? `${genre} style: ${prompt.trim()}` : prompt.trim();
+
+    let audioBase64 = '';
+    let lyrics = '';
+    let mimeType = 'audio/wav';
+
+    try {
+      const responseStream = await ai.models.generateContentStream({
+        model: modelToUse,
+        contents: fullPrompt,
+      });
+
+      for await (const chunk of responseStream) {
+        const parts = chunk.candidates?.[0]?.content?.parts;
+        if (!parts) continue;
+        for (const part of parts) {
+          if (part.inlineData?.data) {
+            if (part.inlineData.mimeType) mimeType = part.inlineData.mimeType;
+            audioBase64 += part.inlineData.data;
+          }
+          if (part.text && !lyrics) {
+            lyrics = part.text;
+          }
+        }
+      }
+    } catch (genErr) {
+      console.error('Lyria generation stream error:', genErr);
+      throw new Error(`Music generation with ${modelToUse} failed: ${genErr.message}`);
+    }
+
+    const creationId = `mus_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const trackTitle = (title && title.trim()) || `Music: ${prompt.slice(0, 32)}`;
+
+    // Store in ai_creations
+    try {
+      db.prepare(`
+        INSERT INTO ai_creations (id, type, prompt, model, title, media_url, content, metadata, storage_type, storage_key)
+        VALUES (?, 'music', ?, ?, ?, ?, ?, ?, 'db', ?)
+      `).run(
+        creationId,
+        prompt.trim(),
+        modelToUse,
+        trackTitle,
+        `data:${mimeType};base64,${audioBase64.slice(0, 80)}...`,
+        lyrics || '',
+        JSON.stringify({ duration: isPro ? 'Full Track' : '30s Clip', genre: genre || 'General', mimeType }),
+        creationId
+      );
+    } catch (dbErr) {
+      console.warn('Failed to record music creation to db:', dbErr.message);
+    }
+
+    return res.json({
+      success: true,
+      id: creationId,
+      audioBase64,
+      mimeType,
+      lyrics,
+      model: modelToUse,
+      duration: isPro ? 'Full Track' : '30s Clip',
+      title: trackTitle
+    });
+  } catch (err) {
+    console.error('Music Generation Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/ai/music/list', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT id, type, prompt, model, title, content, metadata, created_at FROM ai_creations WHERE type = 'music' ORDER BY created_at DESC LIMIT 30").all();
+    return res.json({ success: true, tracks: rows });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Google Search Grounding via gemini-3.5-flash with googleSearch tool
+app.post('/api/ai/search-grounding', async (req, res) => {
+  try {
+    const { query, systemInstruction } = req.body || {};
+    if (!query || !query.trim()) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    const ai = getGeminiInstance();
+    const config = {
+      tools: [{ googleSearch: {} }]
+    };
+    if (systemInstruction) {
+      config.systemInstruction = systemInstruction;
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: query.trim(),
+      config
+    });
+
+    const text = response.text || '';
+    const candidate = response.candidates?.[0];
+    const metadata = candidate?.groundingMetadata || {};
+    const queries = metadata.webSearchQueries || [];
+    const sources = (metadata.groundingChunks || []).map(chunk => ({
+      title: chunk.web?.title || 'Web Result',
+      url: chunk.web?.uri || ''
+    })).filter(s => Boolean(s.url));
+
+    const creationId = `sea_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    try {
+      db.prepare(`
+        INSERT INTO ai_creations (id, type, prompt, model, title, content, metadata)
+        VALUES (?, 'search_grounding', ?, 'gemini-3.5-flash', ?, ?, ?)
+      `).run(
+        creationId,
+        query.trim(),
+        `Search: ${query.slice(0, 32)}`,
+        text,
+        JSON.stringify({ queries, sourcesCount: sources.length, sources: sources.slice(0, 10) })
+      );
+    } catch (_) {}
+
+    return res.json({
+      success: true,
+      id: creationId,
+      text,
+      model: 'gemini-3.5-flash',
+      grounding: {
+        queries,
+        sources,
+        searchEntryPoint: metadata.searchEntryPoint?.renderedContent || ''
+      }
+    });
+  } catch (err) {
+    console.error('Search Grounding Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Google Maps Grounding via gemini-3.5-flash with googleMaps tool
+app.post('/api/ai/maps-grounding', async (req, res) => {
+  try {
+    const { query, lat, lng, city, country } = req.body || {};
+    if (!query || !query.trim()) {
+      return res.status(400).json({ error: 'Location search query is required' });
+    }
+
+    const ai = getGeminiInstance();
+    let locationPrefix = '';
+    if (city || country) {
+      locationPrefix = `[User Location Context: ${city || ''}${city && country ? ', ' : ''}${country || ''}${lat && lng ? ` (${lat.toFixed(4)}, ${lng.toFixed(4)})` : ''}]\n`;
+    }
+
+    const promptText = `${locationPrefix}Provide specific location details, addresses, and geographic coordinates if available for this request: ${query.trim()}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-flash',
+      contents: promptText,
+      config: {
+        tools: [{ googleMaps: {} }]
+      }
+    });
+
+    const text = response.text || '';
+    const candidate = response.candidates?.[0];
+    const metadata = candidate?.groundingMetadata || {};
+
+    // Heuristically extract candidate places/coordinates for 1-click Pin to Map
+    const places = [];
+    const coordMatches = text.matchAll(/([A-Z0-9][A-Za-z0-9\s,&.'-]{2,40})[:\-—]?\s*(?:lat|coordinates?|located at)?\s*\(?(-?\d+\.\d{3,}),\s*(-?\d+\.\d{3,})\)?/g);
+    for (const match of coordMatches) {
+      const pLat = parseFloat(match[2]);
+      const pLng = parseFloat(match[3]);
+      if (!isNaN(pLat) && !isNaN(pLng) && pLat >= -90 && pLat <= 90 && pLng >= -180 && pLng <= 180) {
+        places.push({
+          title: match[1].trim(),
+          lat: pLat,
+          lng: pLng,
+          notes: `Discovered via Google Maps Grounding (${query.slice(0, 30)})`
+        });
+      }
+    }
+
+    const creationId = `map_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    try {
+      db.prepare(`
+        INSERT INTO ai_creations (id, type, prompt, model, title, content, metadata)
+        VALUES (?, 'maps_grounding', ?, 'gemini-3.5-flash', ?, ?, ?)
+      `).run(
+        creationId,
+        query.trim(),
+        `Map: ${query.slice(0, 32)}`,
+        text,
+        JSON.stringify({ places, edgeCity: city || '', edgeCountry: country || '' })
+      );
+    } catch (_) {}
+
+    return res.json({
+      success: true,
+      id: creationId,
+      text,
+      model: 'gemini-3.5-flash',
+      grounding: metadata,
+      places,
+      edgeLocation: { city, country, lat, lng }
+    });
+  } catch (err) {
+    console.error('Maps Grounding Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Veo 3 Video Generation via veo-3.1-fast-generate-preview (16:9 landscape or 9:16 portrait)
+app.post('/api/ai/video/generate', async (req, res) => {
+  try {
+    const { prompt, aspectRatio, resolution } = req.body || {};
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({ error: 'Video prompt is required' });
+    }
+
+    const ai = getGeminiInstance();
+    // Validate aspect ratio strictly to 16:9 or 9:16
+    const validAspectRatio = (aspectRatio === '9:16') ? '9:16' : '16:9';
+    const validResolution = (resolution === '1080p') ? '1080p' : '720p';
+
+    const operation = await ai.models.generateVideos({
+      model: 'veo-3.1-fast-generate-preview',
+      prompt: prompt.trim(),
+      config: {
+        numberOfVideos: 1,
+        aspectRatio: validAspectRatio,
+        resolution: validResolution
+      }
+    });
+
+    return res.json({
+      success: true,
+      operationName: operation.name,
+      model: 'veo-3.1-fast-generate-preview',
+      aspectRatio: validAspectRatio,
+      resolution: validResolution
+    });
+  } catch (err) {
+    console.error('Veo Video Generation Start Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/video/status', async (req, res) => {
+  try {
+    const { operationName } = req.body || {};
+    if (!operationName) {
+      return res.status(400).json({ error: 'operationName is required' });
+    }
+
+    const ai = getGeminiInstance();
+    const op = new GenerateVideosOperation();
+    op.name = operationName;
+
+    const updated = await ai.operations.getVideosOperation({ operation: op });
+    const isDone = Boolean(updated.done);
+    const videoUri = updated.response?.generatedVideos?.[0]?.video?.uri || null;
+
+    return res.json({
+      success: true,
+      done: isDone,
+      error: updated.error || null,
+      videoUri: videoUri ? true : false,
+      metadata: updated.metadata
+    });
+  } catch (err) {
+    console.error('Veo Video Status Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/video/download', async (req, res) => {
+  try {
+    const { operationName } = req.body || {};
+    if (!operationName) {
+      return res.status(400).json({ error: 'operationName is required' });
+    }
+
+    const ai = getGeminiInstance();
+    const op = new GenerateVideosOperation();
+    op.name = operationName;
+
+    const updated = await ai.operations.getVideosOperation({ operation: op });
+    const videoUri = updated.response?.generatedVideos?.[0]?.video?.uri;
+    if (!videoUri) {
+      return res.status(404).json({ error: 'Video is not yet ready or failed to generate' });
+    }
+
+    const apiKey = getAiKey('google');
+    const videoRes = await fetch(videoUri, {
+      headers: { 'x-goog-api-key': apiKey }
+    });
+
+    if (!videoRes.ok) {
+      return res.status(videoRes.status).json({ error: 'Failed to download video from Google service' });
+    }
+
+    const arrayBuf = await videoRes.arrayBuffer();
+    const base64Video = Buffer.from(arrayBuf).toString('base64');
+
+    const creationId = `vid_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    try {
+      db.prepare(`
+        INSERT INTO ai_creations (id, type, prompt, model, title, media_url, storage_type, storage_key)
+        VALUES (?, 'video', 'Veo 3 Generated Video', 'veo-3.1-fast-generate-preview', 'Veo 3 AI Video', ?, 'db', ?)
+      `).run(creationId, `data:video/mp4;base64,${base64Video.slice(0, 100)}...`, creationId);
+    } catch (_) {}
+
+    return res.json({
+      success: true,
+      id: creationId,
+      videoBase64: base64Video,
+      mimeType: 'video/mp4'
+    });
+  } catch (err) {
+    console.error('Veo Video Download Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/ai/video/stream', async (req, res) => {
+  try {
+    const operationName = req.query.operationName;
+    if (!operationName) {
+      return res.status(400).send('operationName query param required');
+    }
+
+    const ai = getGeminiInstance();
+    const op = new GenerateVideosOperation();
+    op.name = String(operationName);
+
+    const updated = await ai.operations.getVideosOperation({ operation: op });
+    const videoUri = updated.response?.generatedVideos?.[0]?.video?.uri;
+    if (!videoUri) {
+      return res.status(404).send('Video not ready');
+    }
+
+    const apiKey = getAiKey('google');
+    const videoRes = await fetch(videoUri, {
+      headers: { 'x-goog-api-key': apiKey }
+    });
+
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    const arrayBuf = await videoRes.arrayBuffer();
+    return res.send(Buffer.from(arrayBuf));
+  } catch (err) {
+    return res.status(500).send(err.message);
+  }
+});
+
+// 5. Audio Transcription via gemini-3.5-transcribe
+app.post('/api/ai/transcribe', async (req, res) => {
+  try {
+    const { audioBase64, mimeType, prompt } = req.body || {};
+    if (!audioBase64 || !audioBase64.trim()) {
+      return res.status(400).json({ error: 'Audio data is required' });
+    }
+
+    const cleanBase64 = audioBase64.replace(/^data:[^;]+;base64,/, '');
+    const cleanMime = mimeType || 'audio/webm';
+
+    const ai = getGeminiInstance();
+    const audioPart = {
+      inlineData: {
+        mimeType: cleanMime,
+        data: cleanBase64
+      }
+    };
+
+    const instruction = prompt || 'Transcribe this audio recording verbatim with accurate spelling, punctuation, speaker cues, and capitalization.';
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.5-transcribe',
+      contents: {
+        parts: [
+          audioPart,
+          { text: instruction }
+        ]
+      }
+    });
+
+    const text = response.text || '';
+    const creationId = `tra_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+
+    try {
+      db.prepare(`
+        INSERT INTO ai_creations (id, type, prompt, model, title, content, metadata)
+        VALUES (?, 'transcription', ?, 'gemini-3.5-transcribe', 'Voice Transcription', ?, ?)
+      `).run(
+        creationId,
+        instruction.slice(0, 80),
+        text,
+        JSON.stringify({ mimeType: cleanMime, lengthChars: text.length, wordsCount: text.split(/\s+/).filter(Boolean).length })
+      );
+    } catch (_) {}
+
+    return res.json({
+      success: true,
+      id: creationId,
+      text,
+      model: 'gemini-3.5-transcribe'
+    });
+  } catch (err) {
+    console.error('Audio Transcription Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Save AI creations directly to Cloudflare Drive / Vault Attachments
+app.post('/api/ai/save-to-drive', async (req, res) => {
+  try {
+    const { filename, content, mime_type, item_type = 'creation', item_id = 0 } = req.body || {};
+    if (!filename || !content) {
+      return res.status(400).json({ error: 'Filename and content are required' });
+    }
+
+    const fileExt = path.extname(filename) || '.bin';
+    const storageKey = `cf_ai_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${fileExt}`;
+    const storageType = 'r2'; // Mark as Cloudflare R2 / Drive ready
+
+    const insertResult = db.prepare(`
+      INSERT INTO attachments (item_type, item_id, filename, content, mime_type, storage_key, storage_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(item_type, item_id, filename, content, mime_type || 'application/octet-stream', storageKey, storageType);
+
+    return res.json({
+      success: true,
+      id: Number(insertResult.lastInsertRowid),
+      storage_key: storageKey,
+      storage_type: storageType,
+      message: 'Saved to Vault Cloudflare Drive'
+    });
+  } catch (err) {
+    console.error('Save to drive error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. General AI Creations Gallery Management
+app.get('/api/ai/creations', (req, res) => {
+  try {
+    const typeFilter = req.query.type;
+    let query = 'SELECT id, type, prompt, model, title, content, metadata, storage_type, storage_key, created_at FROM ai_creations';
+    const params = [];
+    if (typeFilter) {
+      query += ' WHERE type = ?';
+      params.push(typeFilter);
+    }
+    query += ' ORDER BY created_at DESC LIMIT 50';
+
+    const items = db.prepare(query).all(...params);
+    return res.json({ success: true, creations: items });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/creations/delete', (req, res) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'Creation ID is required' });
+    db.prepare('DELETE FROM ai_creations WHERE id = ?').run(id);
+    return res.json({ success: true, message: 'Deleted creation' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // API routes handling via Cloudflare Pages function handler
 app.all(['/api', '/api/*'], async (req, res) => {

@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#0f0f13"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <title>Vault</title>
-<meta name="description" content="Secure vault for credentials, tasks, Cloudflare Drive storage, Prompt-to-3D Model Generator, 3D Gaming Arcade, live AI News, Telegram & Discord Bot Controllers, developer toolbox suite, and AI tools."/>
+<meta name="description" content="Secure vault with Lyria music generation, Veo 3 video creation, Google Search & Maps grounding, voice transcription, Cloudflare R2/D1/KV edge features, Infinite Canvas, and AI tools."/>
 <meta property="og:title" content="Vault"/>
-<meta property="og:description" content="Secure vault with Infinite Canvas & Photo Editor, Photo to PDF Converter, Universal File Previewer, Cloudflare Drive storage, Prompt-to-3D Model Generator, 3D Gaming Arcade, live AI News, Telegram & Discord Bot Controllers, and AI tools."/>
+<meta property="og:description" content="Secure vault with Lyria music generation, Veo 3 video creation, Google Search & Maps grounding, voice transcription, Cloudflare R2/D1/KV edge features, Infinite Canvas, and AI tools."/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -2657,7 +2657,13 @@ function renderStudioSubNav(activeSub) {
         <span>📖</span> Story Writer
       </button>
       <button class="studio-subtab ${activeSub === 'videogen' ? 'active' : ''}" onclick="switchStudioSubtab('videogen')">
-        <span>🎬</span> Video Studio
+        <span>🎬</span> Veo 3 Video
+      </button>
+      <button class="studio-subtab ${activeSub === 'musicgen' ? 'active' : ''}" onclick="switchStudioSubtab('musicgen')">
+        <span>🎵</span> Lyria 3 Music
+      </button>
+      <button class="studio-subtab ${activeSub === 'transcribe' ? 'active' : ''}" onclick="switchStudioSubtab('transcribe')">
+        <span>🎙️</span> Audio Transcribe
       </button>
       <button class="studio-subtab ${activeSub === 'soundgen' ? 'active' : ''}" onclick="switchStudioSubtab('soundgen')">
         <span>🔊</span> Sound FX
@@ -2856,6 +2862,18 @@ async function loadTab() {
   } else if (currentTab === 'canvas') {
     if (typeof window.renderInfiniteCanvasSuite === 'function') {
       window.renderInfiniteCanvasSuite();
+    }
+  } else if (currentTab === 'musicgen') {
+    if (typeof window.renderLyriaMusicStudio === 'function') {
+      window.renderLyriaMusicStudio();
+    }
+  } else if (currentTab === 'transcribe') {
+    if (typeof window.renderAudioTranscribeStudio === 'function') {
+      window.renderAudioTranscribeStudio();
+    }
+  } else if (currentTab === 'veovideo') {
+    if (typeof window.renderVeoVideoStudio === 'function') {
+      window.renderVeoVideoStudio();
     }
   }
 }
@@ -12272,6 +12290,7 @@ function renderWebSearchSubtab(container) {
 
   const engines = [
     { id: 'google', label: 'Google Search', icon: '🔍' },
+    { id: 'gemini_grounding', label: 'Gemini 3.5 Grounding', icon: '✨' },
     { id: 'duckduckgo', label: 'DuckDuckGo', icon: '🦆' },
     { id: 'brave', label: 'Brave Search', icon: '🦁' },
     { id: 'tavily', label: 'Tavily AI', icon: '⚡' },
@@ -12324,6 +12343,9 @@ function renderWebSearchSubtab(container) {
         </div>
         <button class="btn btn-primary" id="btnSearchInternet" onclick="executeInternetSearch()" style="padding:12px 20px;">
           🔍 Search
+        </button>
+        <button class="btn btn-secondary" onclick="if(typeof window.openSearchGroundingModal==='function') window.openSearchGroundingModal(document.getElementById('internetSearchInput')?.value)" title="Query real-time Google Search Grounding with Gemini 3.5 Flash" style="border-color:var(--accent);color:var(--accent);padding:12px 16px;">
+          <span>✨</span> Grounded Search
         </button>
         <button class="btn btn-secondary" onclick="openDirectGoogleSearch()" title="Open official Google Search in new window">
           <span>🌐</span> Google ↗
@@ -12465,6 +12487,14 @@ async function executeInternetSearch() {
   const q = input ? input.value.trim() : internetSearchQuery;
   if (!q) return toast('Please enter a search query');
   internetSearchQuery = q;
+
+  if (currentSearchEngine === 'gemini_grounding') {
+    if (typeof window.openSearchGroundingModal === 'function') {
+      window.openSearchGroundingModal(q);
+      return;
+    }
+  }
+
   isSearchingInternet = true;
   renderCurrentInternetSubtab();
 
@@ -14506,6 +14536,9 @@ function getMapUiHtml(containerId) {
         <button class="btn btn-primary" id="btnSearchMap" onclick="executeMapSearch()" style="padding:12px 20px;white-space:nowrap;">
           🔍 Search Map
         </button>
+        <button class="btn btn-secondary" onclick="if(typeof window.openMapsGroundingModal==='function') window.openMapsGroundingModal()" title="Discover local places and landmarks with Google Maps Grounding & Gemini 3.5 Flash" style="padding:12px 16px;white-space:nowrap;border-color:var(--accent);color:var(--accent);">
+          <span>🗺️</span> Maps Grounding (AI)
+        </button>
       </div>
 
       <!-- SEARCH RESULTS DROPDOWN -->
@@ -16032,5 +16065,6 @@ async function runHubWorkersAiTest() {
 <script src="/bot-controller.js"></script>
 <script src="/gaming-3d-studio.js"></script>
 <script src="/infinite-canvas-suite.js"></script>
+<script src="/ai-cloud-studio.js"></script>
 </body>
 </html>

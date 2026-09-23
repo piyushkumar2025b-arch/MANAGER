@@ -32,6 +32,7 @@ async function ensureDb(db) {
     await db.prepare('CREATE TABLE IF NOT EXISTS canvas_boards (id TEXT PRIMARY KEY, name TEXT NOT NULL, elements TEXT NOT NULL, thumbnail TEXT DEFAULT \'\', created_at TEXT DEFAULT (datetime(\'now\')), updated_at TEXT DEFAULT (datetime(\'now\')))').run();
     await db.prepare('CREATE TABLE IF NOT EXISTS stickers (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT DEFAULT \'custom\', emoji TEXT DEFAULT \'\', bg TEXT DEFAULT \'\', border TEXT DEFAULT \'\', color TEXT DEFAULT \'\', label TEXT DEFAULT \'\', svg TEXT DEFAULT \'\', data_url TEXT DEFAULT \'\', created_at TEXT DEFAULT (datetime(\'now\')))').run();
     await db.prepare('CREATE TABLE IF NOT EXISTS map_pins (id TEXT PRIMARY KEY, title TEXT NOT NULL, notes TEXT DEFAULT \'\', lat REAL NOT NULL, lng REAL NOT NULL, category TEXT DEFAULT \'favorite\', color TEXT DEFAULT \'#7c6af7\', created_at TEXT DEFAULT (datetime(\'now\')))').run();
+    await db.prepare('CREATE TABLE IF NOT EXISTS ai_creations (id TEXT PRIMARY KEY, type TEXT NOT NULL, prompt TEXT NOT NULL, model TEXT NOT NULL, title TEXT DEFAULT \'\', media_url TEXT DEFAULT \'\', content TEXT DEFAULT \'\', metadata TEXT DEFAULT \'{}\', storage_type TEXT DEFAULT \'db\', storage_key TEXT DEFAULT \'\', created_at TEXT DEFAULT (datetime(\'now\')))').run();
 
     try { await db.prepare('ALTER TABLE todos ADD COLUMN category TEXT DEFAULT \'General\'').run(); } catch (_) {}
     try { await db.prepare('ALTER TABLE todos ADD COLUMN subtasks TEXT DEFAULT \'[]\'').run(); } catch (_) {}
@@ -8971,6 +8972,496 @@ Provide your response in JSON format with two keys:
         const valStr = typeof value === 'string' ? value : JSON.stringify(value);
         await env.DB.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').bind(key, valStr).run();
         return new Response(JSON.stringify({ success: true, key, message: 'Setting saved in database' }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // ============================================================================
+    // CLOUDFLARE AI & MEDIA ENDPOINTS (Lyria Music, Veo 3 Video, Search/Maps Grounding, Voice Transcribe)
+    // ============================================================================
+
+    // 1. Lyria 3 Music Generation (lyria-3-clip-preview / lyria-3-pro-preview)
+    if (path === '/ai/music/generate' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { prompt, model, genre, title } = body;
+        if (!prompt || !prompt.trim()) {
+          return new Response(JSON.stringify({ error: 'Music prompt is required' }), { headers, status: 400 });
+        }
+
+        const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+        if (!geminiKey) {
+          return new Response(JSON.stringify({ error: 'Gemini API key is required for Lyria music generation. Please add your key in Settings.' }), { headers, status: 401 });
+        }
+
+        const modelToUse = (model === 'lyria-3-pro-preview') ? 'lyria-3-pro-preview' : 'lyria-3-clip-preview';
+        const isPro = modelToUse === 'lyria-3-pro-preview';
+        const fullPrompt = genre ? `${genre} style: ${prompt.trim()}` : prompt.trim();
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${geminiKey}`;
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'aistudio-build'
+          },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: fullPrompt }] }]
+          })
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          return new Response(JSON.stringify({ error: `Lyria ${modelToUse} error (${res.status}): ${errText.slice(0, 200)}` }), { headers, status: res.status });
+        }
+
+        const data = await res.json();
+        let audioBase64 = '';
+        let lyrics = '';
+        let mimeType = 'audio/wav';
+
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        for (const p of parts) {
+          if (p.inlineData?.data) {
+            audioBase64 += p.inlineData.data;
+            if (p.inlineData.mimeType) mimeType = p.inlineData.mimeType;
+          }
+          if (p.text && !lyrics) lyrics = p.text;
+        }
+
+        const creationId = `mus_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const trackTitle = title || `Music: ${prompt.slice(0, 32)}`;
+
+        try {
+          await env.DB.prepare(`
+            INSERT INTO ai_creations (id, type, prompt, model, title, media_url, content, metadata, storage_type, storage_key)
+            VALUES (?, 'music', ?, ?, ?, ?, ?, ?, 'db', ?)
+          `).bind(
+            creationId,
+            prompt.trim(),
+            modelToUse,
+            trackTitle,
+            `data:${mimeType};base64,${audioBase64.slice(0, 60)}...`,
+            lyrics,
+            JSON.stringify({ duration: isPro ? 'Full Track' : '30s Clip', genre: genre || 'General' }),
+            creationId
+          ).run();
+        } catch (_) {}
+
+        return new Response(JSON.stringify({
+          success: true,
+          id: creationId,
+          audioBase64,
+          mimeType,
+          lyrics,
+          model: modelToUse,
+          duration: isPro ? 'Full Track' : '30s Clip',
+          title: trackTitle
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/ai/music/list' && method === 'GET') {
+      try {
+        const rows = (await env.DB.prepare("SELECT id, type, prompt, model, title, content, metadata, created_at FROM ai_creations WHERE type = 'music' ORDER BY created_at DESC LIMIT 30").all()).results || [];
+        return new Response(JSON.stringify({ success: true, tracks: rows }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 2. Google Search Grounding with gemini-3.5-flash & googleSearch tool
+    if (path === '/ai/search-grounding' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { query } = body;
+        if (!query || !query.trim()) {
+          return new Response(JSON.stringify({ error: 'Search query is required' }), { headers, status: 400 });
+        }
+
+        // Check Cloudflare Workers KV Cache (1 hour edge cache for identical lookups)
+        const cacheKey = `search_cache:${query.trim().toLowerCase().slice(0, 80)}`;
+        if (env.VAULT_KV) {
+          try {
+            const cached = await env.VAULT_KV.get(cacheKey);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              return new Response(JSON.stringify({ ...parsed, cached: true }), {
+                headers: { ...headers, 'CF-Cache-Status': 'HIT' }
+              });
+            }
+          } catch (_) {}
+        }
+
+        const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+        if (!geminiKey) {
+          return new Response(JSON.stringify({ error: 'Gemini API key is required. Please add your key in Settings.' }), { headers, status: 401 });
+        }
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`;
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'aistudio-build'
+          },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: query.trim() }] }],
+            tools: [{ googleSearch: {} }]
+          })
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          return new Response(JSON.stringify({ error: `Search Grounding error (${res.status}): ${errText.slice(0, 200)}` }), { headers, status: res.status });
+        }
+
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const metadata = data.candidates?.[0]?.groundingMetadata || {};
+        const queries = metadata.webSearchQueries || [];
+        const sources = (metadata.groundingChunks || []).map(chunk => ({
+          title: chunk.web?.title || 'Web Result',
+          url: chunk.web?.uri || ''
+        })).filter(s => Boolean(s.url));
+
+        const resultPayload = {
+          success: true,
+          text,
+          model: 'gemini-3.5-flash',
+          grounding: {
+            queries,
+            sources,
+            searchEntryPoint: metadata.searchEntryPoint?.renderedContent || ''
+          }
+        };
+
+        if (env.VAULT_KV) {
+          try {
+            await env.VAULT_KV.put(cacheKey, JSON.stringify(resultPayload), { expirationTtl: 3600 });
+          } catch (_) {}
+        }
+
+        return new Response(JSON.stringify(resultPayload), {
+          headers: { ...headers, 'CF-Cache-Status': 'MISS' }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 3. Google Maps Grounding with gemini-3.5-flash & googleMaps tool (Integrated with Cloudflare Edge Geo)
+    if (path === '/ai/maps-grounding' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { query } = body;
+        if (!query || !query.trim()) {
+          return new Response(JSON.stringify({ error: 'Location search query is required' }), { headers, status: 400 });
+        }
+
+        const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+        if (!geminiKey) {
+          return new Response(JSON.stringify({ error: 'Gemini API key is required. Please add your key in Settings.' }), { headers, status: 401 });
+        }
+
+        // Cloudflare Edge Geolocation integration from request.cf
+        const cfData = request.cf || {};
+        const edgeCity = cfData.city || body.city || '';
+        const edgeCountry = cfData.country || body.country || '';
+        const edgeLat = cfData.latitude ? Number(cfData.latitude) : body.lat;
+        const edgeLng = cfData.longitude ? Number(cfData.longitude) : body.lng;
+
+        let locationPrefix = '';
+        if (edgeCity || edgeCountry) {
+          locationPrefix = `[Cloudflare Edge Geo: ${edgeCity}${edgeCity && edgeCountry ? ', ' : ''}${edgeCountry}${edgeLat && edgeLng ? ` (${edgeLat.toFixed(4)}, ${edgeLng.toFixed(4)})` : ''}]\n`;
+        }
+
+        const promptText = `${locationPrefix}Provide specific venue details, addresses, and coordinates for this request: ${query.trim()}`;
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`;
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'aistudio-build'
+          },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: promptText }] }],
+            tools: [{ googleMaps: {} }]
+          })
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          return new Response(JSON.stringify({ error: `Maps Grounding error (${res.status}): ${errText.slice(0, 200)}` }), { headers, status: res.status });
+        }
+
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const metadata = data.candidates?.[0]?.groundingMetadata || {};
+
+        const places = [];
+        const matches = text.matchAll(/([A-Z0-9][A-Za-z0-9\s,&.'-]{2,40})[:\-—]?\s*(?:lat|coordinates?|located at)?\s*\(?(-?\d+\.\d{3,}),\s*(-?\d+\.\d{3,})\)?/g);
+        for (const m of matches) {
+          const pLat = parseFloat(m[2]);
+          const pLng = parseFloat(m[3]);
+          if (!isNaN(pLat) && !isNaN(pLng)) {
+            places.push({ title: m[1].trim(), lat: pLat, lng: pLng });
+          }
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          text,
+          model: 'gemini-3.5-flash',
+          grounding: metadata,
+          places,
+          edgeLocation: { city: edgeCity, country: edgeCountry, lat: edgeLat, lng: edgeLng, colo: cfData.colo || 'Edge' }
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 4. Veo 3 Video Generation (veo-3.1-fast-generate-preview)
+    if (path === '/ai/video/generate' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { prompt, aspectRatio = '16:9', resolution = '720p' } = body;
+        if (!prompt || !prompt.trim()) {
+          return new Response(JSON.stringify({ error: 'Video prompt is required' }), { headers, status: 400 });
+        }
+
+        const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+        if (!geminiKey) {
+          return new Response(JSON.stringify({ error: 'Gemini API key is required for Veo video generation.' }), { headers, status: 401 });
+        }
+
+        const validAspectRatio = (aspectRatio === '9:16') ? '9:16' : '16:9';
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-fast-generate-preview:generateVideos?key=${geminiKey}`;
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'aistudio-build'
+          },
+          body: JSON.stringify({
+            prompt: prompt.trim(),
+            config: {
+              numberOfVideos: 1,
+              aspectRatio: validAspectRatio,
+              resolution
+            }
+          })
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          return new Response(JSON.stringify({ error: `Veo video generation error (${res.status}): ${errText.slice(0, 200)}` }), { headers, status: res.status });
+        }
+
+        const data = await res.json();
+        return new Response(JSON.stringify({
+          success: true,
+          operationName: data.name,
+          model: 'veo-3.1-fast-generate-preview',
+          aspectRatio: validAspectRatio
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/ai/video/status' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { operationName } = body;
+        if (!operationName) {
+          return new Response(JSON.stringify({ error: 'operationName is required' }), { headers, status: 400 });
+        }
+
+        const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${geminiKey}`;
+        const res = await fetch(apiUrl, {
+          headers: { 'User-Agent': 'aistudio-build' }
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          return new Response(JSON.stringify({ error: `Veo status error: ${errText.slice(0, 150)}` }), { headers, status: res.status });
+        }
+
+        const data = await res.json();
+        return new Response(JSON.stringify({
+          success: true,
+          done: Boolean(data.done),
+          error: data.error || null,
+          videoUri: Boolean(data.response?.generatedVideos?.[0]?.video?.uri)
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/ai/video/download' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { operationName } = body;
+        if (!operationName) return new Response(JSON.stringify({ error: 'operationName required' }), { headers, status: 400 });
+
+        const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${geminiKey}`;
+        const opRes = await fetch(apiUrl);
+        if (!opRes.ok) return new Response(JSON.stringify({ error: 'Operation lookup failed' }), { headers, status: 404 });
+
+        const opData = await opRes.json();
+        const videoUri = opData.response?.generatedVideos?.[0]?.video?.uri;
+        if (!videoUri) return new Response(JSON.stringify({ error: 'Video URI not available' }), { headers, status: 404 });
+
+        const vidFetch = await fetch(videoUri, { headers: { 'x-goog-api-key': geminiKey } });
+        if (!vidFetch.ok) return new Response(JSON.stringify({ error: 'Failed to stream video' }), { headers, status: 500 });
+
+        const buf = await vidFetch.arrayBuffer();
+        let binary = '';
+        const bytes = new Uint8Array(buf);
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        const videoBase64 = btoa(binary);
+
+        return new Response(JSON.stringify({ success: true, videoBase64, mimeType: 'video/mp4' }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 5. Audio Transcription via gemini-3.5-transcribe
+    if (path === '/ai/transcribe' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { audioBase64, mimeType = 'audio/webm', prompt } = body;
+        if (!audioBase64) {
+          return new Response(JSON.stringify({ error: 'Audio data is required' }), { headers, status: 400 });
+        }
+
+        const cleanBase64 = audioBase64.replace(/^data:[^;]+;base64,/, '');
+        const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+
+        if (geminiKey) {
+          const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-transcribe:generateContent?key=${geminiKey}`;
+          const res = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'aistudio-build'
+            },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { inlineData: { mimeType, data: cleanBase64 } },
+                  { text: prompt || 'Transcribe this audio recording verbatim with accurate capitalization and punctuation.' }
+                ]
+              }]
+            })
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            return new Response(JSON.stringify({ success: true, text, model: 'gemini-3.5-transcribe' }), { headers });
+          }
+        }
+
+        // Fallback to Cloudflare Workers AI Whisper if bound
+        if (env.AI) {
+          try {
+            const binStr = atob(cleanBase64);
+            const uint8 = new Uint8Array(binStr.length);
+            for (let i = 0; i < binStr.length; i++) uint8[i] = binStr.charCodeAt(i);
+            const cfWhisper = await env.AI.run('@cf/openai/whisper', [...uint8]);
+            return new Response(JSON.stringify({
+              success: true,
+              text: cfWhisper.text || '',
+              model: '@cf/openai/whisper (Cloudflare Edge)'
+            }), { headers });
+          } catch (cfErr) {
+            console.warn('Cloudflare Whisper error:', cfErr);
+          }
+        }
+
+        return new Response(JSON.stringify({ error: 'Audio transcription failed. Please check your Gemini API key.' }), { headers, status: 500 });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 6. Save AI creations to Cloudflare Drive (R2 or D1)
+    if (path === '/ai/save-to-drive' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { filename, content, mime_type = 'application/octet-stream' } = body;
+        if (!filename || !content) {
+          return new Response(JSON.stringify({ error: 'Filename and content required' }), { headers, status: 400 });
+        }
+
+        let storageKey = `cf_ai_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        let storageType = 'db';
+        let storedContent = content;
+
+        if (env.ATTACHMENTS_BUCKET && content) {
+          try {
+            let b64 = content;
+            if (b64.includes(',')) b64 = b64.split(',')[1];
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+            await env.ATTACHMENTS_BUCKET.put(storageKey, bytes, {
+              httpMetadata: { contentType: mime_type },
+              customMetadata: { filename, origin: 'ai_studio' }
+            });
+            storageType = 'r2';
+            storedContent = `r2://${storageKey}`;
+          } catch (r2Err) {
+            console.warn('R2 put fallback:', r2Err);
+          }
+        }
+
+        const res = await env.DB.prepare(`
+          INSERT INTO attachments (item_type, item_id, filename, content, mime_type, storage_key, storage_type)
+          VALUES ('ai_media', 0, ?, ?, ?, ?, ?)
+        `).bind(filename, storedContent, mime_type, storageKey, storageType).run();
+
+        return new Response(JSON.stringify({
+          success: true,
+          id: res.meta?.last_row_id,
+          storage_key: storageKey,
+          storage_type: storageType,
+          message: 'Saved to Cloudflare Vault Drive'
+        }), { headers, status: 201 });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 7. Creations gallery listing
+    if (path === '/ai/creations' && method === 'GET') {
+      try {
+        const rows = (await env.DB.prepare('SELECT id, type, prompt, model, title, content, metadata, storage_type, storage_key, created_at FROM ai_creations ORDER BY created_at DESC LIMIT 50').all()).results || [];
+        return new Response(JSON.stringify({ success: true, creations: rows }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/ai/creations/delete' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { id } = body;
+        if (!id) return new Response(JSON.stringify({ error: 'id required' }), { headers, status: 400 });
+        await env.DB.prepare('DELETE FROM ai_creations WHERE id = ?').bind(id).run();
+        return new Response(JSON.stringify({ success: true, message: 'Deleted' }), { headers });
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
       }

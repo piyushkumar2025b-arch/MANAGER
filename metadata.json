@@ -1,6 +1,6 @@
 {
   "name": "Vault",
-  "description": "Secure vault with Infinite Canvas & Photo Editor, Photo to PDF Converter, Universal File Previewer, Cloudflare Drive storage, Prompt-to-3D Model Generator, 3D Gaming Arcade, live AI News, Telegram & Discord Bot Controllers, and AI tools.",
+  "description": "Secure vault with Lyria music generation, Veo 3 video creation, Google Search & Maps grounding, voice transcription, Cloudflare R2/D1/KV edge features, Infinite Canvas, and AI tools.",
   "requestFramePermissions": ["microphone", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
