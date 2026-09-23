@@ -1321,6 +1321,30 @@ function mergeObjects(target, source) {
       window.renderTlsInspectorStudio();
       return;
     }
+    if (tab === 'secstudio') {
+      window.currentTab = 'secstudio';
+      updateNavHighlight('tab-secstudio');
+      window.renderSecurityHeadersStudio();
+      return;
+    }
+    if (tab === 'cronstudio') {
+      window.currentTab = 'cronstudio';
+      updateNavHighlight('tab-cronstudio');
+      window.renderCronTriggerStudio();
+      return;
+    }
+    if (tab === 'kvstudio') {
+      window.currentTab = 'kvstudio';
+      updateNavHighlight('tab-kvstudio');
+      window.renderKvStudio();
+      return;
+    }
+    if (tab === 'keygen') {
+      window.currentTab = 'keygen';
+      updateNavHighlight('tab-keygen');
+      window.renderKeyGenStudio();
+      return;
+    }
 
     if (typeof origSwitchTab === 'function') {
       origSwitchTab(tab);
@@ -3212,6 +3236,713 @@ function mergeObjects(target, source) {
     }
   };
 
+  // =========================================================================
+  // 12. HTTP SECURITY HEADERS & CORS POSTURE ANALYZER STUDIO
+  // =========================================================================
+  window.renderSecurityHeadersStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🛡️</span> HTTP Security Headers & Posture Studio
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Scan any web domain or API endpoint to audit HSTS, CSP, X-Frame-Options, MIME sniffing, and generate Cloudflare Transform Rules.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('tlsinspect')">
+            <span>🔒</span> TLS Inspector
+          </button>
+        </div>
+
+        <!-- Input Bar -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:flex;gap:12px;">
+            <input type="text" id="secHeadersUrl" value="https://cloudflare.com" placeholder="https://yourdomain.com"
+              style="flex:1;padding:12px 16px;font-size:15px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;"
+              onkeydown="if(event.key==='Enter') window.auditSecurityHeaders();" />
+            <button class="btn btn-primary" onclick="window.auditSecurityHeaders()" style="padding:0 24px;">
+              <span>⚡</span> Scan Headers
+            </button>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--muted,#888);">Quick audit:</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('secHeadersUrl').value='https://cloudflare.com';window.auditSecurityHeaders();">cloudflare.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('secHeadersUrl').value='https://github.com';window.auditSecurityHeaders();">github.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('secHeadersUrl').value='https://google.com';window.auditSecurityHeaders();">google.com</button>
+          </div>
+        </div>
+
+        <div id="secHeadersResultContainer">
+          <div style="background:var(--surface,#1a1a24);border:1px dashed var(--border);border-radius:12px;padding:40px;text-align:center;color:var(--muted,#888);">
+            <div style="font-size:40px;margin-bottom:12px;">🛡️</div>
+            <div style="font-size:16px;font-weight:700;color:#fff;">Headers Audit Ready</div>
+            <div style="font-size:13px;margin-top:4px;">Enter a URL above to inspect and grade its HTTP security header configuration.</div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  window.auditSecurityHeaders = async function() {
+    const input = document.getElementById('secHeadersUrl');
+    const url = input ? input.value.trim() : 'https://cloudflare.com';
+    const container = document.getElementById('secHeadersResultContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 16px auto;"></div>
+        <div style="font-size:15px;color:#fff;font-weight:600;">Scanning HTTP Security Headers for ${esc(url)}...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/tools/har-analyzer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error || 'Failed to scan headers');
+
+      const gradeBg = data.grade.startsWith('A') ? '#22c55e' : data.grade === 'B' ? '#38bdf8' : data.grade === 'C' ? '#eab308' : '#ef4444';
+
+      container.innerHTML = `
+        <!-- Top Score & Grade Banner -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+          <div>
+            <div style="font-size:12px;color:var(--muted,#888);text-transform:uppercase;">Audited Endpoint</div>
+            <div style="font-size:18px;font-weight:800;color:#fff;font-family:monospace;margin-top:2px;">${esc(data.url)}</div>
+            <div style="font-size:12px;color:var(--muted,#aaa);margin-top:4px;">Roundtrip Latency: ${data.latencyMs} ms</div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:16px;">
+            <div style="text-align:right;">
+              <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Security Score</div>
+              <div style="font-size:24px;font-weight:800;color:${gradeBg};">${data.score} / 100</div>
+            </div>
+            <div style="width:64px;height:64px;border-radius:50%;background:${gradeBg}20;border:3px solid ${gradeBg};display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:${gradeBg};">
+              ${data.grade}
+            </div>
+          </div>
+        </div>
+
+        <!-- Headers Checklist -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;">Standard Security Headers Evaluation</h2>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            ${data.checks.map(c => {
+              const statusColor = c.status === 'pass' ? '#22c55e' : c.status === 'warning' ? '#eab308' : '#ef4444';
+              const statusText = c.status === 'pass' ? '✓ PASS' : c.status === 'warning' ? '⚠ WARNING' : '✕ MISSING';
+              return `
+                <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:14px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                    <div>
+                      <span style="font-size:14px;font-weight:700;color:#fff;">${esc(c.name)}</span>
+                      <span style="font-size:11px;color:var(--muted,#888);margin-left:8px;">(${c.weight}% weight)</span>
+                    </div>
+                    <span style="font-size:11px;font-weight:800;color:${statusColor};background:${statusColor}20;padding:3px 8px;border-radius:4px;">
+                      ${statusText}
+                    </span>
+                  </div>
+
+                  ${c.value ? `
+                    <div style="font-size:12px;font-family:monospace;color:var(--accent,#7c6af7);background:#0d0d12;padding:6px 10px;border-radius:6px;margin-top:8px;word-break:break-all;">
+                      ${esc(c.value)}
+                    </div>
+                  ` : ''}
+
+                  <div style="font-size:12px;color:var(--muted,#aaa);margin-top:6px;">
+                    💡 ${esc(c.advice)}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Remediation Rule Snippet -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0;">Cloudflare Edge Header Injection Snippet</h2>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:4px;"
+              onclick="navigator.clipboard.writeText(document.getElementById('cfRemediationSnippet').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+              Copy
+            </button>
+          </div>
+          <pre id="cfRemediationSnippet" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--accent,#7c6af7);font-family:monospace;font-size:12px;margin:0;overflow-x:auto;">${esc(data.remediationSnippet)}</pre>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `
+        <div style="color:#ef4444;padding:20px;text-align:center;">
+          Scan Error: ${esc(err.message)}
+        </div>
+      `;
+    }
+  };
+
+  // =========================================================================
+  // 13. CLOUDFLARE CRON TRIGGERS & SCHEDULED WORKER STUDIO
+  // =========================================================================
+  window.renderCronTriggerStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>⏰</span> Cloudflare Cron Triggers & Scheduled Worker Studio
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Configure, calculate upcoming execution intervals, and simulate scheduled edge worker jobs.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('cloudflare')">
+            <span>☁️</span> Cloudflare Hub
+          </button>
+        </div>
+
+        <!-- Presets -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Cron Presets:</span>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('cronExpressionInput').value='*/5 * * * *';window.calculateCronSchedule();">
+            Every 5 minutes (*/5 * * * *)
+          </button>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('cronExpressionInput').value='*/15 * * * *';window.calculateCronSchedule();">
+            Every 15 minutes (*/15 * * * *)
+          </button>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('cronExpressionInput').value='0 * * * *';window.calculateCronSchedule();">
+            Hourly (0 * * * *)
+          </button>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('cronExpressionInput').value='0 0 * * *';window.calculateCronSchedule();">
+            Daily Midnight UTC (0 0 * * *)
+          </button>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('cronExpressionInput').value='0 0 * * 1-5';window.calculateCronSchedule();">
+            Weekdays (0 0 * * 1-5)
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left: Expression Config -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;">Cron Expression & Triggers</h2>
+
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">5-Part Cron Syntax</label>
+              <input type="text" id="cronExpressionInput" value="*/15 * * * *" style="width:100%;padding:12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:16px;margin-top:4px;"
+                oninput="window.calculateCronSchedule()" />
+              <div style="font-size:11px;color:var(--muted,#888);margin-top:4px;">Format: [minute] [hour] [day-of-month] [month] [day-of-week]</div>
+            </div>
+
+            <!-- Human Description Card -->
+            <div id="cronHumanDesc" style="background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.3);border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+              <div style="font-size:11px;font-weight:700;color:var(--accent,#7c6af7);text-transform:uppercase;">Schedule Description</div>
+              <div id="cronDescText" style="font-size:14px;font-weight:600;color:#fff;margin-top:2px;">Runs every 15 minutes</div>
+            </div>
+
+            <!-- Wrangler Configuration Block -->
+            <div style="margin-bottom:16px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">wrangler.toml Trigger Config</label>
+                <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                  onclick="navigator.clipboard.writeText(document.getElementById('wranglerCronCode').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+                  Copy
+                </button>
+              </div>
+              <pre id="wranglerCronCode" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--accent,#7c6af7);font-family:monospace;font-size:12px;margin:0;">[triggers]&#10;crons = ["*/15 * * * *"]</pre>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.simulateCronExecution()" style="width:100%;padding:12px;font-weight:700;">
+              <span>⚡</span> Simulate Worker Scheduled Invocation
+            </button>
+          </div>
+
+          <!-- Right: Upcoming Timeline & Simulation Console -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div id="cronUpcomingContainer">
+              <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;">Upcoming Executions (UTC)</h2>
+              <div id="cronRunsList" style="display:flex;flex-direction:column;gap:8px;">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+
+            <!-- Simulation Console -->
+            <div id="cronSimulationLogs" style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;display:none;">
+              <h2 style="font-size:14px;font-weight:700;margin:0 0 10px 0;display:flex;align-items:center;gap:6px;">
+                <span>📡</span> Simulated Worker Telemetry
+              </h2>
+              <pre id="cronLogPre" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:#22c55e;font-family:monospace;font-size:11px;margin:0;max-height:160px;overflow-y:auto;white-space:pre-wrap;"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    window.calculateCronSchedule();
+  };
+
+  window.calculateCronSchedule = async function() {
+    const input = document.getElementById('cronExpressionInput');
+    const expression = input ? input.value.trim() : '*/15 * * * *';
+
+    try {
+      const res = await fetch('/api/cloudflare/cron-triggers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expression, simulate: false })
+      });
+      const data = await res.json();
+
+      if (!data.success) return;
+
+      const desc = document.getElementById('cronDescText');
+      if (desc) desc.innerText = data.description;
+
+      const wrangler = document.getElementById('wranglerCronCode');
+      if (wrangler) wrangler.innerText = data.wranglerConfig;
+
+      const list = document.getElementById('cronRunsList');
+      if (list && data.upcomingRuns) {
+        list.innerHTML = data.upcomingRuns.map(run => `
+          <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:11px;color:var(--muted,#888);width:20px;">#${run.runNumber}</span>
+              <span style="font-size:13px;font-family:monospace;color:#fff;">${esc(run.utcString)}</span>
+            </div>
+            <span style="font-size:11px;color:var(--accent,#7c6af7);font-weight:700;background:rgba(124,106,247,0.1);padding:2px 8px;border-radius:4px;">
+              ${esc(run.relative)}
+            </span>
+          </div>
+        `).join('');
+      }
+    } catch (_) {}
+  };
+
+  window.simulateCronExecution = async function() {
+    const input = document.getElementById('cronExpressionInput');
+    const expression = input ? input.value.trim() : '*/15 * * * *';
+    const logBox = document.getElementById('cronSimulationLogs');
+    const logPre = document.getElementById('cronLogPre');
+
+    if (logBox) logBox.style.display = 'block';
+    if (logPre) logPre.innerText = '[Scheduled Trigger] Dispatching scheduled event to edge runtime...';
+
+    try {
+      const res = await fetch('/api/cloudflare/cron-triggers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expression, simulate: true })
+      });
+      const data = await res.json();
+
+      if (data.simulation && logPre) {
+        logPre.innerText = data.simulation.logs.join('\n') + `\nExecution time: ${data.simulation.executionTimeMs} ms`;
+      }
+    } catch (err) {
+      if (logPre) logPre.innerText = 'Simulation error: ' + err.message;
+    }
+  };
+
+  // =========================================================================
+  // 14. CLOUDFLARE KV NAMESPACE & STORAGE STUDIO
+  // =========================================================================
+  window.renderKvStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🗄️</span> Cloudflare KV Namespace & Cache Studio
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Browse, search, inspect expiration TTLs, and write edge key-value pairs with sub-millisecond global reads.
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" onclick="window.openNewKvModal()">
+              <span>➕</span> Set New Key
+            </button>
+            <button class="btn btn-secondary" onclick="window.switchTab('d1studio')">
+              <span>🗄️</span> D1 SQL Studio
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter & Search Bar -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;gap:12px;align-items:center;">
+          <input type="text" id="kvSearchInput" placeholder="Filter keys by prefix or name (e.g. auth:, cache:)..."
+            style="flex:1;padding:10px 14px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:13px;"
+            oninput="window.loadKvKeys()" />
+          <button class="btn btn-secondary" onclick="window.loadKvKeys()">
+            <span>🔄</span> Refresh
+          </button>
+        </div>
+
+        <!-- Keys Table Container -->
+        <div id="kvTableContainer" style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+          <div style="padding:40px;text-align:center;color:var(--muted,#888);">
+            <div class="spinner" style="margin:0 auto 12px auto;"></div>
+            Loading KV namespace keys...
+          </div>
+        </div>
+      </div>
+    `;
+    window.loadKvKeys();
+  };
+
+  window.loadKvKeys = async function() {
+    const search = document.getElementById('kvSearchInput')?.value || '';
+    const container = document.getElementById('kvTableContainer');
+    if (!container) return;
+
+    try {
+      const res = await fetch(`/api/cloudflare/kv-studio/list?q=${encodeURIComponent(search)}`);
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error || 'Failed to list KV keys');
+
+      if (data.keys.length === 0) {
+        container.innerHTML = `
+          <div style="padding:48px 24px;text-align:center;color:var(--muted,#888);">
+            <div style="font-size:36px;margin-bottom:8px;">📭</div>
+            <div style="font-size:15px;color:#fff;font-weight:600;">No KV Keys Found</div>
+            <div style="font-size:13px;margin-top:4px;">Click "Set New Key" to create your first edge key-value entry.</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;text-align:left;font-size:13px;">
+          <thead>
+            <tr style="background:var(--surface2,#242434);border-bottom:1px solid var(--border);color:var(--muted,#888);">
+              <th style="padding:12px 16px;">Key Name</th>
+              <th style="padding:12px 16px;">Size</th>
+              <th style="padding:12px 16px;">Expiration TTL</th>
+              <th style="padding:12px 16px;">Created</th>
+              <th style="padding:12px 16px;text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.keys.map(k => `
+              <tr style="border-bottom:1px solid var(--border);">
+                <td style="padding:12px 16px;font-family:monospace;font-weight:700;color:var(--accent,#7c6af7);">
+                  ${esc(k.key)}
+                </td>
+                <td style="padding:12px 16px;color:var(--muted,#aaa);">
+                  ${k.size_bytes} B
+                </td>
+                <td style="padding:12px 16px;color:var(--muted,#aaa);">
+                  ${k.expiration ? new Date(k.expiration * 1000).toLocaleString() : '<span style="color:#22c55e;">No Expiry (Permanent)</span>'}
+                </td>
+                <td style="padding:12px 16px;color:var(--muted,#aaa);">
+                  ${esc(k.created_at)}
+                </td>
+                <td style="padding:12px 16px;text-align:right;">
+                  <button class="btn btn-secondary" style="padding:4px 8px;font-size:11px;margin-right:6px;" onclick="window.viewKvKey('${esc(k.key)}')">
+                    View
+                  </button>
+                  <button class="btn btn-danger" style="padding:4px 8px;font-size:11px;" onclick="window.deleteKvKey('${esc(k.key)}')">
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    } catch (err) {
+      container.innerHTML = `
+        <div style="color:#ef4444;padding:24px;text-align:center;">
+          KV Error: ${esc(err.message)}
+        </div>
+      `;
+    }
+  };
+
+  window.openNewKvModal = function() {
+    const existing = document.getElementById('kvNewModal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'kvNewModal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(4px);';
+    overlay.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:16px;width:90%;max-width:500px;padding:24px;">
+        <h2 style="font-size:18px;font-weight:700;margin:0 0 16px 0;">Set Key-Value Entry</h2>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Key Name</label>
+          <input type="text" id="modalKvKey" placeholder="e.g. session:user_123 or config:theme" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;" />
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Value (String or JSON)</label>
+          <textarea id="modalKvValue" rows="4" placeholder="Enter value payload..." style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;resize:vertical;"></textarea>
+        </div>
+
+        <div style="margin-bottom:20px;">
+          <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">TTL in Seconds (Optional, leave blank for permanent)</label>
+          <input type="number" id="modalKvTtl" placeholder="e.g. 3600 for 1 hour" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;" />
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;">
+          <button class="btn btn-secondary" onclick="document.getElementById('kvNewModal').remove()">Cancel</button>
+          <button class="btn btn-primary" onclick="window.submitKvKey()">Save Key</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  };
+
+  window.submitKvKey = async function() {
+    const key = document.getElementById('modalKvKey')?.value.trim();
+    const value = document.getElementById('modalKvValue')?.value;
+    const ttl = document.getElementById('modalKvTtl')?.value;
+
+    if (!key) return alert('Key is required');
+
+    try {
+      const res = await fetch('/api/cloudflare/kv-studio/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value, ttl: ttl ? Number(ttl) : null })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      document.getElementById('kvNewModal')?.remove();
+      window.loadKvKeys();
+    } catch (err) {
+      alert('Error saving KV key: ' + err.message);
+    }
+  };
+
+  window.viewKvKey = async function(key) {
+    try {
+      const res = await fetch('/api/cloudflare/kv-studio/get', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(4px);';
+      overlay.innerHTML = `
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:16px;width:90%;max-width:550px;padding:24px;">
+          <h2 style="font-size:18px;font-weight:700;margin:0 0 12px 0;font-family:monospace;color:var(--accent,#7c6af7);">${esc(data.item.key)}</h2>
+          <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:#fff;font-family:monospace;font-size:12px;max-height:260px;overflow-y:auto;white-space:pre-wrap;">${esc(data.item.value)}</pre>
+          <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-secondary" onclick="this.closest('div').parentElement.parentElement.remove()">Close</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    } catch (err) {
+      alert('Error fetching key: ' + err.message);
+    }
+  };
+
+  window.deleteKvKey = async function(key) {
+    if (!confirm(`Delete key "${key}" from KV storage?`)) return;
+    try {
+      const res = await fetch('/api/cloudflare/kv-studio/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      window.loadKvKeys();
+    } catch (err) {
+      alert('Delete error: ' + err.message);
+    }
+  };
+
+  // =========================================================================
+  // 15. CRYPTOGRAPHIC KEYPAIR & SSH / PGP GENERATOR STUDIO
+  // =========================================================================
+  window.renderKeyGenStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🔑</span> Cryptographic Keypair & SSH Studio
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Generate high-entropy RSA-2048/4096 and ECDSA keypairs with OpenSSH export and 1-click encrypted vault storage.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('vault')">
+            <span>🔒</span> View Vault
+          </button>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:grid;grid-template-columns:180px 1fr auto;gap:12px;align-items:center;">
+            <div>
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Algorithm</label>
+              <select id="keygenAlgo" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;">
+                <option value="RSA-2048">RSA (2048-bit)</option>
+                <option value="RSA-4096">RSA (4096-bit)</option>
+                <option value="ECDSA-P256">ECDSA (P-256)</option>
+                <option value="ECDSA-P384">ECDSA (P-384)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Comment / Email</label>
+              <input type="text" id="keygenComment" value="admin@cloudflare-vault.edge" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:13px;margin-top:4px;" />
+            </div>
+            <div style="align-self:flex-end;">
+              <button class="btn btn-primary" onclick="window.generateKeypair()" style="padding:10px 20px;height:42px;">
+                <span>⚡</span> Generate Keypair
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="keygenResultContainer">
+          <div style="background:var(--surface,#1a1a24);border:1px dashed var(--border);border-radius:12px;padding:40px;text-align:center;color:var(--muted,#888);">
+            <div style="font-size:40px;margin-bottom:12px;">🔑</div>
+            <div style="font-size:16px;font-weight:700;color:#fff;">Key Generator Ready</div>
+            <div style="font-size:13px;margin-top:4px;">Select an algorithm above and click "Generate Keypair".</div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  window.generateKeypair = async function() {
+    const algo = document.getElementById('keygenAlgo')?.value || 'RSA-2048';
+    const comment = document.getElementById('keygenComment')?.value || 'vault@edge';
+    const container = document.getElementById('keygenResultContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 16px auto;"></div>
+        <div style="font-size:15px;color:#fff;font-weight:600;">Generating ${algo} High-Entropy Keypair...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/security/key-gen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ algorithm: algo, comment })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      container.innerHTML = `
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;">
+          <!-- Top Info Bar -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:16px;flex-wrap:wrap;gap:12px;">
+            <div>
+              <div style="font-size:12px;color:var(--muted,#888);text-transform:uppercase;">Fingerprint (SHA256)</div>
+              <div style="font-size:15px;font-weight:700;color:var(--accent,#7c6af7);font-family:monospace;margin-top:2px;">${esc(data.fingerprint)}</div>
+            </div>
+            <button class="btn btn-primary" onclick="window.saveKeypairToVault('${esc(data.algorithm)}', '${esc(data.comment)}', \`${data.privateKey.replace(/`/g, '\\`')}\`)">
+              <span>🔒</span> Save Directly to Encrypted Vault
+            </button>
+          </div>
+
+          <!-- OpenSSH Public Key -->
+          <div style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">OpenSSH Public Key (~/.ssh/authorized_keys)</span>
+              <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                onclick="navigator.clipboard.writeText('${esc(data.sshPublicKey)}');this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+                Copy
+              </button>
+            </div>
+            <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:#22c55e;font-family:monospace;font-size:12px;margin:0;overflow-x:auto;">${esc(data.sshPublicKey)}</pre>
+          </div>
+
+          <!-- PEM Public Key -->
+          <div style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Public Key (X.509 SPKI PEM)</span>
+              <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                onclick="navigator.clipboard.writeText(document.getElementById('pemPubKey').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+                Copy
+              </button>
+            </div>
+            <pre id="pemPubKey" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:#fff;font-family:monospace;font-size:11px;margin:0;max-height:120px;overflow-y:auto;">${esc(data.publicKey)}</pre>
+          </div>
+
+          <!-- PEM Private Key -->
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:12px;font-weight:700;color:#ef4444;text-transform:uppercase;">Private Key (PKCS#8 PEM - KEEP SECRET)</span>
+              <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                onclick="navigator.clipboard.writeText(document.getElementById('pemPrivKey').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+                Copy Private Key
+              </button>
+            </div>
+            <pre id="pemPrivKey" style="background:#0d0d12;border:1px solid #ef444450;border-radius:8px;padding:12px;color:#ef4444;font-family:monospace;font-size:11px;margin:0;max-height:140px;overflow-y:auto;">${esc(data.privateKey)}</pre>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `
+        <div style="color:#ef4444;padding:20px;text-align:center;">
+          Key Generation Error: ${esc(err.message)}
+        </div>
+      `;
+    }
+  };
+
+  window.saveKeypairToVault = async function(algo, comment, privKey) {
+    try {
+      const res = await fetch('/api/passwords', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `SSH Key (${algo})`,
+          username: comment,
+          password: privKey,
+          url: 'ssh://',
+          description: `Generated by Cryptographic Key Studio. Algorithm: ${algo}`,
+          category_id: 1,
+          item_type: 'server'
+        })
+      });
+      const data = await res.json();
+      if (!data.success && !data.id) throw new Error(data.error || 'Failed to save');
+      alert(`Keypair successfully encrypted and stored in Vault!`);
+    } catch (err) {
+      alert('Error saving to vault: ' + err.message);
+    }
+  };
+
 
   // =========================================================================
   // TAB BUTTON INJECTION
@@ -3298,6 +4029,34 @@ function mergeObjects(target, source) {
     tlsBtn.innerHTML = '<span>🔒</span> TLS Handshake';
     tlsBtn.onclick = () => window.switchTab('tlsinspect');
 
+    // 12. Security Headers
+    const secBtn = document.createElement('button');
+    secBtn.className = 'tab';
+    secBtn.id = 'tab-secstudio';
+    secBtn.innerHTML = '<span>🛡️</span> Sec Headers';
+    secBtn.onclick = () => window.switchTab('secstudio');
+
+    // 13. Cron Triggers
+    const cronBtn = document.createElement('button');
+    cronBtn.className = 'tab';
+    cronBtn.id = 'tab-cronstudio';
+    cronBtn.innerHTML = '<span>⏰</span> Cron Triggers';
+    cronBtn.onclick = () => window.switchTab('cronstudio');
+
+    // 14. KV Storage
+    const kvBtn = document.createElement('button');
+    kvBtn.className = 'tab';
+    kvBtn.id = 'tab-kvstudio';
+    kvBtn.innerHTML = '<span>🗄️</span> KV Storage';
+    kvBtn.onclick = () => window.switchTab('kvstudio');
+
+    // 15. Keypair Generator
+    const keyBtn = document.createElement('button');
+    keyBtn.className = 'tab';
+    keyBtn.id = 'tab-keygen';
+    keyBtn.innerHTML = '<span>🔑</span> SSH & Keypair';
+    keyBtn.onclick = () => window.switchTab('keygen');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
@@ -3312,6 +4071,10 @@ function mergeObjects(target, source) {
       tabsContainer.insertBefore(wafBtn, searchBtn.nextSibling);
       tabsContainer.insertBefore(whBtn, wafBtn.nextSibling);
       tabsContainer.insertBefore(tlsBtn, whBtn.nextSibling);
+      tabsContainer.insertBefore(secBtn, tlsBtn.nextSibling);
+      tabsContainer.insertBefore(cronBtn, secBtn.nextSibling);
+      tabsContainer.insertBefore(kvBtn, cronBtn.nextSibling);
+      tabsContainer.insertBefore(keyBtn, kvBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
@@ -3324,6 +4087,10 @@ function mergeObjects(target, source) {
       tabsContainer.appendChild(wafBtn);
       tabsContainer.appendChild(whBtn);
       tabsContainer.appendChild(tlsBtn);
+      tabsContainer.appendChild(secBtn);
+      tabsContainer.appendChild(cronBtn);
+      tabsContainer.appendChild(kvBtn);
+      tabsContainer.appendChild(keyBtn);
     }
   }
 

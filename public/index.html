@@ -2734,6 +2734,18 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('tlsinspect');">
       <span class="icon">🔒</span> SSL/TLS Cipher & Handshake
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('secstudio');">
+      <span class="icon">🛡️</span> HTTP Security Headers & Posture
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('cronstudio');">
+      <span class="icon">⏰</span> Cloudflare Cron Triggers & Jobs
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('kvstudio');">
+      <span class="icon">🗄️</span> Cloudflare KV Namespace & Cache
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('keygen');">
+      <span class="icon">🔑</span> SSH Keypair & Crypto Studio
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -2942,6 +2954,22 @@ async function loadTab() {
   } else if (currentTab === 'tlsinspect') {
     if (typeof window.renderTlsInspectorStudio === 'function') {
       window.renderTlsInspectorStudio();
+    }
+  } else if (currentTab === 'secstudio') {
+    if (typeof window.renderSecurityHeadersStudio === 'function') {
+      window.renderSecurityHeadersStudio();
+    }
+  } else if (currentTab === 'cronstudio') {
+    if (typeof window.renderCronTriggerStudio === 'function') {
+      window.renderCronTriggerStudio();
+    }
+  } else if (currentTab === 'kvstudio') {
+    if (typeof window.renderKvStudio === 'function') {
+      window.renderKvStudio();
+    }
+  } else if (currentTab === 'keygen') {
+    if (typeof window.renderKeyGenStudio === 'function') {
+      window.renderKeyGenStudio();
     }
   }
 }

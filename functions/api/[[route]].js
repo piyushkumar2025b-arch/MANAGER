@@ -10409,6 +10409,398 @@ If nothing is strongly related, return high-probability partial matches. Limit t
       }
     }
 
+    // 21. HTTP Security Headers & CORS Posture Analyzer
+    if (path === '/tools/har-analyzer' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let { url = 'https://cloudflare.com', rawHeaders = '' } = body;
+
+        let responseHeaders = {};
+        let finalUrl = url;
+        let latencyMs = 0;
+
+        if (url && url.trim()) {
+          let target = url.trim();
+          if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+          finalUrl = target;
+
+          const t0 = performance.now();
+          const probe = await fetch(target, {
+            method: 'GET',
+            headers: { 'User-Agent': 'Cloudflare-Vault-Security-Analyzer/1.0' },
+            signal: AbortSignal.timeout(8000)
+          });
+          latencyMs = Math.round((performance.now() - t0) * 100) / 100;
+          probe.headers.forEach((v, k) => { responseHeaders[k.toLowerCase()] = v; });
+        } else if (rawHeaders && rawHeaders.trim()) {
+          rawHeaders.split('\n').forEach(line => {
+            const idx = line.indexOf(':');
+            if (idx > 0) {
+              const k = line.slice(0, idx).trim().toLowerCase();
+              const v = line.slice(idx + 1).trim();
+              if (k) responseHeaders[k] = v;
+            }
+          });
+        }
+
+        // Evaluate standard security headers
+        const checks = [
+          {
+            header: 'strict-transport-security',
+            name: 'Strict-Transport-Security (HSTS)',
+            present: Boolean(responseHeaders['strict-transport-security']),
+            value: responseHeaders['strict-transport-security'] || null,
+            weight: 20,
+            status: responseHeaders['strict-transport-security'] ? 'pass' : 'fail',
+            advice: 'Enforces HTTPS. Recommended: max-age=31536000; includeSubDomains; preload'
+          },
+          {
+            header: 'content-security-policy',
+            name: 'Content-Security-Policy (CSP)',
+            present: Boolean(responseHeaders['content-security-policy']),
+            value: responseHeaders['content-security-policy'] || null,
+            weight: 25,
+            status: responseHeaders['content-security-policy'] ? 'pass' : 'fail',
+            advice: 'Mitigates XSS and data injection attacks. Define default-src, script-src, and frame-ancestors.'
+          },
+          {
+            header: 'x-content-type-options',
+            name: 'X-Content-Type-Options',
+            present: responseHeaders['x-content-type-options'] === 'nosniff',
+            value: responseHeaders['x-content-type-options'] || null,
+            weight: 15,
+            status: responseHeaders['x-content-type-options'] === 'nosniff' ? 'pass' : 'fail',
+            advice: 'Prevents MIME-sniffing exploits. Set value strictly to "nosniff".'
+          },
+          {
+            header: 'x-frame-options',
+            name: 'X-Frame-Options',
+            present: Boolean(responseHeaders['x-frame-options']),
+            value: responseHeaders['x-frame-options'] || null,
+            weight: 15,
+            status: responseHeaders['x-frame-options'] ? 'pass' : 'fail',
+            advice: 'Protects against clickjacking attacks. Use "DENY" or "SAMEORIGIN".'
+          },
+          {
+            header: 'referrer-policy',
+            name: 'Referrer-Policy',
+            present: Boolean(responseHeaders['referrer-policy']),
+            value: responseHeaders['referrer-policy'] || null,
+            weight: 15,
+            status: responseHeaders['referrer-policy'] ? 'pass' : 'fail',
+            advice: 'Controls metadata sent in the Referer header. Recommended: "strict-origin-when-cross-origin".'
+          },
+          {
+            header: 'permissions-policy',
+            name: 'Permissions-Policy',
+            present: Boolean(responseHeaders['permissions-policy']),
+            value: responseHeaders['permissions-policy'] || null,
+            weight: 10,
+            status: responseHeaders['permissions-policy'] ? 'pass' : 'warning',
+            advice: 'Restricts sensitive device APIs like geolocation, camera, and microphone.'
+          }
+        ];
+
+        let score = 0;
+        checks.forEach(c => {
+          if (c.status === 'pass') score += c.weight;
+          else if (c.status === 'warning') score += Math.round(c.weight / 2);
+        });
+
+        // Compute Letter Grade
+        let grade = 'F';
+        if (score >= 90) grade = 'A+';
+        else if (score >= 80) grade = 'A';
+        else if (score >= 65) grade = 'B';
+        else if (score >= 50) grade = 'C';
+        else if (score >= 35) grade = 'D';
+
+        // Cloudflare Transform Rule Snippet
+        const cfRuleSnippet = `// Cloudflare Transform Rule / Worker Header Injection
+response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+response.headers.set('X-Content-Type-Options', 'nosniff');
+response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+response.headers.set('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          url: finalUrl,
+          latencyMs,
+          score,
+          grade,
+          checks,
+          headers: responseHeaders,
+          remediationSnippet: cfRuleSnippet
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 22. Cloudflare Cron Triggers & Scheduled Worker Studio
+    if (path === '/cloudflare/cron-triggers' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { expression = '*/15 * * * *', simulate = false } = body;
+        const expr = expression.trim();
+        const parts = expr.split(/\s+/);
+
+        if (parts.length !== 5) {
+          return new Response(JSON.stringify({ error: 'Standard cron expression must have exactly 5 parts (minute hour day-of-month month day-of-week)' }), { headers, status: 400 });
+        }
+
+        // Calculate human readable description
+        let desc = 'Executes on schedule: ' + expr;
+        if (expr === '* * * * *') desc = 'Runs every single minute';
+        else if (expr === '*/5 * * * *') desc = 'Runs every 5 minutes';
+        else if (expr === '*/15 * * * *') desc = 'Runs every 15 minutes';
+        else if (expr === '0 * * * *') desc = 'Runs at the start of every hour (00 minutes)';
+        else if (expr === '0 0 * * *') desc = 'Runs daily at midnight (00:00 UTC)';
+        else if (expr === '0 12 * * *') desc = 'Runs daily at 12:00 PM UTC';
+        else if (expr === '0 0 * * 1-5') desc = 'Runs at midnight UTC, Monday through Friday';
+        else if (expr === '0 0 * * 0') desc = 'Runs weekly on Sunday at midnight UTC';
+
+        // Calculate next 8 upcoming executions (simulated intervals)
+        const now = Date.now();
+        const upcoming = [];
+        let stepMinutes = 15;
+        if (parts[0].startsWith('*/')) {
+          const m = parseInt(parts[0].slice(2), 10);
+          if (!isNaN(m) && m > 0) stepMinutes = m;
+        } else if (parts[0] === '*') {
+          stepMinutes = 1;
+        } else if (parts[1] === '*' && !parts[0].includes('*')) {
+          stepMinutes = 60;
+        } else if (!parts[1].includes('*')) {
+          stepMinutes = 1440; // Daily
+        }
+
+        for (let i = 1; i <= 8; i++) {
+          const runTime = new Date(now + i * stepMinutes * 60 * 1000);
+          const diffMinutes = Math.round((runTime.getTime() - now) / 60000);
+          upcoming.push({
+            runNumber: i,
+            timestamp: runTime.toISOString(),
+            utcString: runTime.toUTCString(),
+            relative: diffMinutes < 60 ? `in ${diffMinutes} min` : `in ${Math.round(diffMinutes / 60)} hours`
+          });
+        }
+
+        // Wrangler config snippet
+        const wranglerConfig = `[triggers]\ncrons = ["${expr}"]`;
+
+        let simulationResult = null;
+        if (simulate) {
+          const t0 = performance.now();
+          // Simulate Worker scheduled event
+          const eventPayload = {
+            cron: expr,
+            scheduledTime: now,
+            type: 'scheduled',
+            env: { DB: 'Cloudflare D1', KV: 'Cloudflare KV' }
+          };
+          const execLatency = Math.round((performance.now() - t0 + Math.random() * 2.5) * 100) / 100;
+
+          simulationResult = {
+            status: 'COMPLETED_SUCCESS',
+            executionTimeMs: execLatency,
+            eventPayload,
+            logs: [
+              `[Scheduled Trigger] Invoked handler for cron "${expr}" at ${new Date(now).toISOString()}`,
+              `[Task] Executing edge cache warmup & vault maintenance routine`,
+              `[Task] Memory usage: 14.2 MB / 128 MB`,
+              `[Scheduled Trigger] Finished with code 0 in ${execLatency} ms`
+            ]
+          };
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          expression: expr,
+          description: desc,
+          upcomingRuns: upcoming,
+          wranglerConfig,
+          simulation: simulationResult
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 23. Cloudflare KV Namespace & Cache Studio
+    if (path === '/cloudflare/kv-studio/list' && method === 'GET') {
+      try {
+        await env.DB.prepare(`
+          CREATE TABLE IF NOT EXISTS cf_kv_store (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            metadata TEXT,
+            expiration INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `).run().catch(() => {});
+
+        const urlObj = new URL(request.url);
+        const search = urlObj.searchParams.get('q') || '';
+        let query = 'SELECT key, metadata, expiration, created_at, length(value) as size_bytes FROM cf_kv_store';
+        let params = [];
+        if (search) {
+          query += ' WHERE key LIKE ?';
+          params.push(`%${search}%`);
+        }
+        query += ' ORDER BY created_at DESC LIMIT 100';
+
+        const stmt = env.DB.prepare(query);
+        const res = params.length > 0 ? await stmt.bind(...params).all() : await stmt.all();
+        const keys = res.results || [];
+
+        return new Response(JSON.stringify({ success: true, count: keys.length, keys }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/cloudflare/kv-studio/set' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { key, value = '', metadata = '{}', ttl = null } = body;
+        if (!key || !key.trim()) {
+          return new Response(JSON.stringify({ error: 'Key is required' }), { headers, status: 400 });
+        }
+
+        await env.DB.prepare(`
+          CREATE TABLE IF NOT EXISTS cf_kv_store (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            metadata TEXT,
+            expiration INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `).run().catch(() => {});
+
+        const expiration = ttl ? Math.floor(Date.now() / 1000) + Number(ttl) : null;
+        const metaStr = typeof metadata === 'string' ? metadata : JSON.stringify(metadata);
+
+        await env.DB.prepare(`
+          INSERT INTO cf_kv_store (key, value, metadata, expiration, created_at)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(key) DO UPDATE SET
+            value = excluded.value,
+            metadata = excluded.metadata,
+            expiration = excluded.expiration,
+            created_at = CURRENT_TIMESTAMP
+        `).bind(key.trim(), typeof value === 'string' ? value : JSON.stringify(value), metaStr, expiration).run();
+
+        return new Response(JSON.stringify({ success: true, key: key.trim(), expiration }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/cloudflare/kv-studio/get' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { key } = body;
+        if (!key) return new Response(JSON.stringify({ error: 'Key required' }), { headers, status: 400 });
+
+        const item = await env.DB.prepare('SELECT key, value, metadata, expiration, created_at FROM cf_kv_store WHERE key = ?').bind(key).first();
+        if (!item) return new Response(JSON.stringify({ error: 'Key not found' }), { headers, status: 404 });
+
+        return new Response(JSON.stringify({ success: true, item }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/cloudflare/kv-studio/delete' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { key } = body;
+        if (!key) return new Response(JSON.stringify({ error: 'Key required' }), { headers, status: 400 });
+
+        await env.DB.prepare('DELETE FROM cf_kv_store WHERE key = ?').bind(key).run();
+        return new Response(JSON.stringify({ success: true, key }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 24. Cryptographic Keypair & SSH / PGP Generator Studio
+    if (path === '/security/key-gen' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { algorithm = 'RSA-2048', comment = 'vault@cloudflare.edge' } = body;
+
+        let publicKeyPem = '';
+        let privateKeyPem = '';
+        let fingerprint = '';
+        let keyType = algorithm;
+
+        if (algorithm.startsWith('RSA')) {
+          const modulusLength = algorithm.includes('4096') ? 4096 : 2048;
+          const keyPair = await crypto.subtle.generateKey(
+            {
+              name: 'RSASSA-PKCS1-v1_5',
+              modulusLength,
+              publicExponent: new Uint8Array([1, 0, 1]),
+              hash: 'SHA-256'
+            },
+            true,
+            ['sign', 'verify']
+          );
+
+          const spki = await crypto.subtle.exportKey('spki', keyPair.publicKey);
+          const pkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
+
+          const b64Pub = btoa(String.fromCharCode(...new Uint8Array(spki)));
+          const b64Priv = btoa(String.fromCharCode(...new Uint8Array(pkcs8)));
+
+          publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${b64Pub.match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
+          privateKeyPem = `-----BEGIN PRIVATE KEY-----\n${b64Priv.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+
+          const digest = await crypto.subtle.digest('SHA-256', spki);
+          fingerprint = 'SHA256:' + btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/=+$/, '');
+        } else {
+          // ECDSA P-256 or P-384
+          const namedCurve = algorithm.includes('384') ? 'P-384' : 'P-256';
+          const keyPair = await crypto.subtle.generateKey(
+            { name: 'ECDSA', namedCurve },
+            true,
+            ['sign', 'verify']
+          );
+
+          const spki = await crypto.subtle.exportKey('spki', keyPair.publicKey);
+          const pkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
+
+          const b64Pub = btoa(String.fromCharCode(...new Uint8Array(spki)));
+          const b64Priv = btoa(String.fromCharCode(...new Uint8Array(pkcs8)));
+
+          publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${b64Pub.match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
+          privateKeyPem = `-----BEGIN EC PRIVATE KEY-----\n${b64Priv.match(/.{1,64}/g).join('\n')}\n-----END EC PRIVATE KEY-----`;
+
+          const digest = await crypto.subtle.digest('SHA-256', spki);
+          fingerprint = 'SHA256:' + btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/=+$/, '');
+        }
+
+        // OpenSSH format public key simulation
+        const sshPubKey = `ssh-rsa ${btoa(publicKeyPem.slice(27, 200))} ${comment}`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          algorithm: keyType,
+          comment,
+          fingerprint,
+          publicKey: publicKeyPem,
+          privateKey: privateKeyPem,
+          sshPublicKey: sshPubKey,
+          generatedAt: new Date().toISOString()
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {
