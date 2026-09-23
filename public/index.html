@@ -2722,6 +2722,18 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('ipintel');">
       <span class="icon">🛰️</span> BGP & Threat IP Intel
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('semanticsearch');">
+      <span class="icon">🧠</span> AI Semantic Vector RAG Search
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('wafsim');">
+      <span class="icon">🛡️</span> Cloudflare WAF & Edge Rules
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webhooks');">
+      <span class="icon">📡</span> Edge Webhook Dispatcher
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('tlsinspect');">
+      <span class="icon">🔒</span> SSL/TLS Cipher & Handshake
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -2914,6 +2926,22 @@ async function loadTab() {
   } else if (currentTab === 'ipintel') {
     if (typeof window.renderIpIntelStudio === 'function') {
       window.renderIpIntelStudio();
+    }
+  } else if (currentTab === 'semanticsearch') {
+    if (typeof window.renderSemanticSearchStudio === 'function') {
+      window.renderSemanticSearchStudio();
+    }
+  } else if (currentTab === 'wafsim') {
+    if (typeof window.renderWafSimulatorStudio === 'function') {
+      window.renderWafSimulatorStudio();
+    }
+  } else if (currentTab === 'webhooks') {
+    if (typeof window.renderWebhookDispatcherStudio === 'function') {
+      window.renderWebhookDispatcherStudio();
+    }
+  } else if (currentTab === 'tlsinspect') {
+    if (typeof window.renderTlsInspectorStudio === 'function') {
+      window.renderTlsInspectorStudio();
     }
   }
 }

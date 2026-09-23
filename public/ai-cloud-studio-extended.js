@@ -1297,6 +1297,30 @@ function mergeObjects(target, source) {
       window.renderIpIntelStudio();
       return;
     }
+    if (tab === 'semanticsearch') {
+      window.currentTab = 'semanticsearch';
+      updateNavHighlight('tab-semanticsearch');
+      window.renderSemanticSearchStudio();
+      return;
+    }
+    if (tab === 'wafsim') {
+      window.currentTab = 'wafsim';
+      updateNavHighlight('tab-wafsim');
+      window.renderWafSimulatorStudio();
+      return;
+    }
+    if (tab === 'webhooks') {
+      window.currentTab = 'webhooks';
+      updateNavHighlight('tab-webhooks');
+      window.renderWebhookDispatcherStudio();
+      return;
+    }
+    if (tab === 'tlsinspect') {
+      window.currentTab = 'tlsinspect';
+      updateNavHighlight('tab-tlsinspect');
+      window.renderTlsInspectorStudio();
+      return;
+    }
 
     if (typeof origSwitchTab === 'function') {
       origSwitchTab(tab);
@@ -2386,6 +2410,808 @@ function mergeObjects(target, source) {
     `;
   };
 
+  // =========================================================================
+  // 8. AI SEMANTIC VECTOR MEMORY & RAG SEARCH STUDIO
+  // =========================================================================
+  window.renderSemanticSearchStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🧠</span> AI Semantic Vector Memory & RAG Search
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Natural language retrieval across Passwords, Notes, Cards, Todos, and AI Assets with contextual intent scoring.
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" onclick="window.switchTab('vault')">
+              <span>🔒</span> Back to Vault
+            </button>
+          </div>
+        </div>
+
+        <!-- Search Bar with Glow -->
+        <div style="background:linear-gradient(135deg, rgba(124,106,247,0.15), rgba(56,189,248,0.1));border:1px solid rgba(124,106,247,0.4);border-radius:16px;padding:24px;margin-bottom:24px;box-shadow:0 8px 30px rgba(0,0,0,0.25);">
+          <div style="display:flex;gap:12px;">
+            <input type="text" id="semanticSearchInput" placeholder="Ask anything, e.g., 'What is my cloud server login?' or 'Find my database tasks'..." 
+              style="flex:1;padding:14px 18px;font-size:16px;background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:10px;color:#fff;outline:none;"
+              onkeydown="if(event.key==='Enter') window.executeSemanticSearch();" />
+            <button class="btn btn-primary" onclick="window.executeSemanticSearch()" style="padding:0 24px;font-size:15px;display:flex;align-items:center;gap:8px;">
+              <span>🔍</span> Search Vault
+            </button>
+          </div>
+
+          <!-- Quick Suggestion Chips -->
+          <div style="display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--muted,#888);">Try suggestions:</span>
+            <button class="badge" style="cursor:pointer;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:20px;"
+              onclick="document.getElementById('semanticSearchInput').value='Cloudflare & edge server logins';window.executeSemanticSearch();">
+              Cloudflare & edge logins
+            </button>
+            <button class="badge" style="cursor:pointer;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:20px;"
+              onclick="document.getElementById('semanticSearchInput').value='Security audits and passwords';window.executeSemanticSearch();">
+              Security audits & passwords
+            </button>
+            <button class="badge" style="cursor:pointer;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:20px;"
+              onclick="document.getElementById('semanticSearchInput').value='Pending infrastructure tasks';window.executeSemanticSearch();">
+              Pending tasks
+            </button>
+            <button class="badge" style="cursor:pointer;background:rgba(255,255,255,0.08);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:20px;"
+              onclick="document.getElementById('semanticSearchInput').value='AI generated stories and code';window.executeSemanticSearch();">
+              AI creations
+            </button>
+          </div>
+        </div>
+
+        <!-- Results Container -->
+        <div id="semanticResultsContainer">
+          <div style="background:var(--surface,#1a1a24);border:1px dashed var(--border);border-radius:12px;padding:48px 24px;text-align:center;color:var(--muted,#888);">
+            <div style="font-size:40px;margin-bottom:12px;">💡</div>
+            <div style="font-size:16px;font-weight:600;color:#fff;">Semantic Memory Ready</div>
+            <div style="font-size:13px;margin-top:4px;">Enter a query above to semantically search and rank your encrypted vault items.</div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  window.executeSemanticSearch = async function() {
+    const input = document.getElementById('semanticSearchInput');
+    const query = input ? input.value.trim() : '';
+    if (!query) return;
+
+    const container = document.getElementById('semanticResultsContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 16px auto;"></div>
+        <div style="font-size:15px;color:#fff;font-weight:600;">Searching Vault Entities via Semantic Vector Intent...</div>
+        <div style="font-size:13px;color:var(--muted,#888);margin-top:6px;">Analyzing Passwords, Todos, and AI Creations</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/ai/semantic-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to search vault');
+      }
+
+      let matchesHtml = '';
+      if (!data.matches || data.matches.length === 0) {
+        matchesHtml = `
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+            No matching items found for "${esc(query)}". Try broadening your search terms.
+          </div>
+        `;
+      } else {
+        matchesHtml = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px;">
+            ${data.matches.map(item => {
+              const typeIcon = item.type === 'password' ? '🔑' : item.type === 'todo' ? '✅' : '🎨';
+              const confColor = item.confidence >= 90 ? '#22c55e' : item.confidence >= 75 ? '#7c6af7' : '#eab308';
+              return `
+                <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;transition:transform 0.15s ease;"
+                     onmouseenter="this.style.borderColor='var(--accent,#7c6af7)'" onmouseleave="this.style.borderColor='var(--border)'">
+                  <div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                      <span style="font-size:12px;font-weight:700;color:${confColor};background:rgba(255,255,255,0.06);padding:3px 8px;border-radius:6px;border:1px solid ${confColor}40;">
+                        ${item.confidence}% Match
+                      </span>
+                      <span style="font-size:11px;text-transform:uppercase;color:var(--muted,#888);background:var(--surface2,#242434);padding:2px 8px;border-radius:4px;">
+                        ${typeIcon} ${esc(item.badge || item.type)}
+                      </span>
+                    </div>
+
+                    <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:6px;">
+                      ${esc(item.title)}
+                    </div>
+                    <div style="font-size:13px;color:var(--muted,#aaa);line-height:1.4;margin-bottom:12px;">
+                      ${esc(item.snippet || 'No description')}
+                    </div>
+                  </div>
+
+                  <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;align-items:center;justify-content:space-between;">
+                    <div style="font-size:11px;color:var(--accent,#7c6af7);">
+                      💡 ${esc(item.relevanceReason || 'Semantic match')}
+                    </div>
+                    <button class="btn btn-secondary" style="padding:4px 10px;font-size:12px;" onclick="window.switchTab('${item.type === 'todo' ? 'todos' : item.type === 'creation' ? 'studio' : 'vault'}')">
+                      View
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      }
+
+      container.innerHTML = `
+        <!-- AI Summary Banner -->
+        ${data.summary ? `
+          <div style="background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.3);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;gap:14px;align-items:flex-start;">
+            <span style="font-size:24px;">✨</span>
+            <div style="flex:1;">
+              <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--accent,#7c6af7);letter-spacing:0.5px;">AI Intent & Summary</div>
+              <div style="font-size:14px;color:#eee;margin-top:4px;line-height:1.5;">${esc(data.summary)}</div>
+            </div>
+            <div style="font-size:12px;color:var(--muted,#888);white-space:nowrap;">
+              ${data.totalMatches} item(s) found
+            </div>
+          </div>
+        ` : ''}
+
+        ${matchesHtml}
+      `;
+    } catch (err) {
+      container.innerHTML = `
+        <div style="background:rgba(239,68,68,0.1);border:1px solid #ef4444;border-radius:12px;padding:24px;text-align:center;color:#ef4444;">
+          Error during semantic retrieval: ${esc(err.message)}
+        </div>
+      `;
+    }
+  };
+
+  // =========================================================================
+  // 9. CLOUDFLARE WAF & EDGE FIREWALL RULE SIMULATOR
+  // =========================================================================
+  window.renderWafSimulatorStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🛡️</span> Cloudflare WAF & Edge Firewall Simulator
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Simulate edge traffic against Cloudflare Managed Rulesets, OWASP CRS (SQLi, XSS, Path Traversal), Bot Scores, and Wirefilter expressions.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('cloudflare')">
+            <span>☁️</span> Cloudflare Hub
+          </button>
+        </div>
+
+        <!-- Presets Bar -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Attack Presets:</span>
+          <button class="badge" style="cursor:pointer;background:#ef444420;border:1px solid #ef444450;color:#ef4444;padding:4px 10px;border-radius:6px;"
+            onclick="window.setWafPreset('sqli')">
+            🚨 SQL Injection Attack
+          </button>
+          <button class="badge" style="cursor:pointer;background:#f9731620;border:1px solid #f9731650;color:#f97316;padding:4px 10px;border-radius:6px;"
+            onclick="window.setWafPreset('xss')">
+            🚨 XSS Script Probe
+          </button>
+          <button class="badge" style="cursor:pointer;background:#a855f720;border:1px solid #a855f750;color:#a855f7;padding:4px 10px;border-radius:6px;"
+            onclick="window.setWafPreset('traversal')">
+            🚨 Path Traversal LFI
+          </button>
+          <button class="badge" style="cursor:pointer;background:#eab30820;border:1px solid #eab30850;color:#eab308;padding:4px 10px;border-radius:6px;"
+            onclick="window.setWafPreset('bot')">
+            ⚠️ Automated Scanner Bot
+          </button>
+          <button class="badge" style="cursor:pointer;background:#22c55e20;border:1px solid #22c55e50;color:#22c55e;padding:4px 10px;border-radius:6px;"
+            onclick="window.setWafPreset('clean')">
+            ✅ Legitimate Traffic
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left: Request Simulator Form -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;display:flex;align-items:center;gap:8px;">
+              <span>🌐</span> Simulated HTTP Request
+            </h2>
+
+            <div style="display:grid;grid-template-columns:100px 1fr;gap:10px;margin-bottom:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Method</label>
+                <select id="wafMethod" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;">
+                  <option value="POST">POST</option>
+                  <option value="GET">GET</option>
+                  <option value="PUT">PUT</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">URI Path & Query</label>
+                <input type="text" id="wafUri" value="/api/login?user=admin' OR 1=1--" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;font-family:monospace;font-size:13px;" />
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Client IP</label>
+                <input type="text" id="wafIp" value="198.51.100.42" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;font-family:monospace;font-size:13px;" />
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Country Code</label>
+                <input type="text" id="wafCountry" value="US" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;font-family:monospace;font-size:13px;" />
+              </div>
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <div style="display:flex;justify-content:space-between;">
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Threat Score (0 - 100)</label>
+                <span id="wafThreatScoreVal" style="font-size:12px;font-weight:700;color:var(--accent,#7c6af7);">45</span>
+              </div>
+              <input type="range" id="wafThreatScore" min="0" max="100" value="45" style="width:100%;margin-top:6px;"
+                oninput="document.getElementById('wafThreatScoreVal').innerText = this.value;" />
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">User-Agent</label>
+              <input type="text" id="wafUserAgent" value="Mozilla/5.0 (Windows NT 10.0; Win64; x64)" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;font-size:12px;" />
+            </div>
+
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Body Payload (JSON or Form)</label>
+              <textarea id="wafBodyPayload" rows="3" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;font-family:monospace;font-size:12px;resize:vertical;"></textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.runWafEvaluation()" style="width:100%;padding:12px;font-weight:700;">
+              <span>⚡</span> Run WAF Edge Evaluation
+            </button>
+          </div>
+
+          <!-- Right: Evaluation & Decision Console -->
+          <div id="wafResultContainer" style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:var(--muted,#888);padding:40px 20px;">
+              <div style="font-size:42px;margin-bottom:12px;">🛡️</div>
+              <div style="font-size:16px;font-weight:700;color:#fff;">WAF Simulation Ready</div>
+              <div style="font-size:13px;margin-top:6px;max-width:300px;">Select an attack preset or configure a custom HTTP request to evaluate edge filtering.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  window.setWafPreset = function(type) {
+    const uri = document.getElementById('wafUri');
+    const ua = document.getElementById('wafUserAgent');
+    const threat = document.getElementById('wafThreatScore');
+    const threatVal = document.getElementById('wafThreatScoreVal');
+    const payload = document.getElementById('wafBodyPayload');
+
+    if (type === 'sqli') {
+      uri.value = "/api/login?user=admin' OR 1=1--";
+      ua.value = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
+      threat.value = 45;
+      payload.value = '{"username":"admin\' OR \'1\'=\'1","password":"test"}';
+    } else if (type === 'xss') {
+      uri.value = "/profile?name=<script>alert(document.cookie)</script>";
+      ua.value = 'Mozilla/5.0 (X11; Linux x86_64)';
+      threat.value = 35;
+      payload.value = '<img src=x onerror=alert("hacked")>';
+    } else if (type === 'traversal') {
+      uri.value = "/download?file=../../../../etc/passwd";
+      ua.value = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)';
+      threat.value = 55;
+      payload.value = '';
+    } else if (type === 'bot') {
+      uri.value = "/admin/users";
+      ua.value = 'sqlmap/1.4.11#stable (http://sqlmap.org)';
+      threat.value = 85;
+      payload.value = '';
+    } else if (type === 'clean') {
+      uri.value = "/dashboard/overview";
+      ua.value = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+      threat.value = 5;
+      payload.value = '{"filter":"all"}';
+    }
+    if (threatVal) threatVal.innerText = threat.value;
+    window.runWafEvaluation();
+  };
+
+  window.runWafEvaluation = async function() {
+    const container = document.getElementById('wafResultContainer');
+    if (!container) return;
+
+    const uri = document.getElementById('wafUri').value;
+    const httpMethod = document.getElementById('wafMethod').value;
+    const ip = document.getElementById('wafIp').value;
+    const country = document.getElementById('wafCountry').value;
+    const threatScore = Number(document.getElementById('wafThreatScore').value);
+    const userAgent = document.getElementById('wafUserAgent').value;
+    const bodyPayload = document.getElementById('wafBodyPayload').value;
+
+    container.innerHTML = `
+      <div style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px;">
+        <div class="spinner" style="margin-bottom:12px;"></div>
+        <div style="font-size:14px;color:#fff;">Evaluating Edge Security Rulesets...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/cloudflare/waf-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uri, httpMethod, ip, country, threatScore, userAgent, bodyPayload })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error || 'Evaluation failed');
+
+      const isBlock = data.action === 'BLOCK';
+      const isChallenge = data.action === 'MANAGED_CHALLENGE';
+      const badgeBg = isBlock ? '#ef4444' : isChallenge ? '#eab308' : '#22c55e';
+      const badgeText = isBlock ? 'BLOCKED (403 Forbidden)' : isChallenge ? 'MANAGED CHALLENGE' : 'ALLOWED (200 OK)';
+      const shieldIcon = isBlock ? '🚫' : isChallenge ? '🧩' : '✅';
+
+      container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h2 style="font-size:16px;font-weight:700;margin:0;">Edge Decision & Telemetry</h2>
+          <span style="font-size:11px;color:var(--muted,#888);font-family:monospace;">${new Date().toLocaleTimeString()}</span>
+        </div>
+
+        <!-- Big Decision Card -->
+        <div style="background:${badgeBg}15;border:1px solid ${badgeBg}50;border-radius:12px;padding:20px;text-align:center;margin-bottom:20px;">
+          <div style="font-size:36px;margin-bottom:6px;">${shieldIcon}</div>
+          <div style="font-size:20px;font-weight:800;color:${badgeBg};">${badgeText}</div>
+          <div style="font-size:13px;color:#bbb;margin-top:4px;">
+            Simulated HTTP Status: <span style="font-weight:700;color:#fff;">${data.simulatedHttpStatus}</span> | Risk Score: <span style="font-weight:700;color:${badgeBg};">${data.riskScore}/100</span>
+          </div>
+        </div>
+
+        <!-- Triggered Rules -->
+        <div style="margin-bottom:20px;">
+          <div style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:8px;">
+            Triggered Rules (${data.triggeredRules.length})
+          </div>
+          ${data.triggeredRules.length === 0 ? `
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:13px;color:#22c55e;">
+              ✓ No malicious payload signatures detected in request.
+            </div>
+          ` : `
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              ${data.triggeredRules.map(r => `
+                <div style="background:var(--surface2,#242434);border-left:4px solid ${r.severity === 'CRITICAL' ? '#ef4444' : '#eab308'};border-radius:6px;padding:10px 12px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:13px;font-weight:700;color:#fff;">${esc(r.name)}</span>
+                    <span style="font-size:10px;font-weight:700;color:#ef4444;background:#ef444420;padding:2px 6px;border-radius:4px;">${r.severity}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--muted,#aaa);font-family:monospace;margin-top:4px;">
+                    Rule ID: ${esc(r.ruleId)} | Matched: "${esc(r.matchedString)}"
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+
+        <!-- Wirefilter Expression Generator -->
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Cloudflare Wirefilter Expression</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+              onclick="navigator.clipboard.writeText('${esc(data.wirefilterExpression)}');this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+              Copy
+            </button>
+          </div>
+          <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--accent,#7c6af7);font-family:monospace;font-size:12px;margin:0;overflow-x:auto;white-space:pre-wrap;">${esc(data.wirefilterExpression)}</pre>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `
+        <div style="color:#ef4444;padding:20px;text-align:center;">
+          Evaluation Error: ${esc(err.message)}
+        </div>
+      `;
+    }
+  };
+
+  // =========================================================================
+  // 10. EDGE WEBHOOK & EVENT DISPATCHER STUDIO
+  // =========================================================================
+  window.renderWebhookDispatcherStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>📡</span> Edge Webhook & Event Dispatcher
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Dispatch HTTP webhooks with cryptographic HMAC-SHA256 signature headers, retry telemetry, and real-time response inspection.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('toolbox')">
+            <span>🛠️</span> Toolbox
+          </button>
+        </div>
+
+        <!-- Presets -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Format Presets:</span>
+          <button class="badge" style="cursor:pointer;background:#5865F220;border:1px solid #5865F260;color:#5865F2;padding:4px 10px;border-radius:6px;"
+            onclick="window.setWebhookPreset('discord')">
+            Discord Rich Embed
+          </button>
+          <button class="badge" style="cursor:pointer;background:#4A154B30;border:1px solid #E01E5A60;color:#36C5F0;padding:4px 10px;border-radius:6px;"
+            onclick="window.setWebhookPreset('slack')">
+            Slack Block Kit
+          </button>
+          <button class="badge" style="cursor:pointer;background:#F3802020;border:1px solid #F3802060;color:#F38020;padding:4px 10px;border-radius:6px;"
+            onclick="window.setWebhookPreset('cloudflare')">
+            Cloudflare Worker Event
+          </button>
+          <button class="badge" style="cursor:pointer;background:#22c55e20;border:1px solid #22c55e60;color:#22c55e;padding:4px 10px;border-radius:6px;"
+            onclick="window.setWebhookPreset('httpbin')">
+            HTTPBin Echo Test
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Request Builder -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;display:flex;align-items:center;gap:8px;">
+              <span>📤</span> Webhook Payload Builder
+            </h2>
+
+            <div style="display:grid;grid-template-columns:100px 1fr;gap:10px;margin-bottom:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Method</label>
+                <select id="whMethod" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;">
+                  <option value="POST">POST</option>
+                  <option value="PUT">PUT</option>
+                  <option value="PATCH">PATCH</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Endpoint URL</label>
+                <input type="text" id="whUrl" value="https://httpbin.org/post" placeholder="https://..." style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;font-family:monospace;font-size:13px;" />
+              </div>
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">HMAC-SHA256 Secret Key (Optional)</label>
+              <input type="password" id="whSecret" placeholder="e.g. whsec_secret_key_123" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;font-family:monospace;font-size:13px;" />
+              <div style="font-size:11px;color:var(--muted,#888);margin-top:4px;">Generates X-Signature-SHA256 and X-Hub-Signature-256 headers</div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">JSON Payload</label>
+                <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                  onclick="try{const el=document.getElementById('whPayload');el.value=JSON.stringify(JSON.parse(el.value),null,2);}catch(_){}">
+                  Format JSON
+                </button>
+              </div>
+              <textarea id="whPayload" rows="7" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;font-family:monospace;font-size:12px;resize:vertical;">{
+  "event": "vault.credential.created",
+  "timestamp": "${new Date().toISOString()}",
+  "vaultId": "cf-vault-01",
+  "data": {
+    "action": "security_audit",
+    "status": "success"
+  }
+}</textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.sendEdgeWebhook()" style="width:100%;padding:12px;font-weight:700;">
+              <span>🚀</span> Dispatch Webhook
+            </button>
+          </div>
+
+          <!-- Inspector Console -->
+          <div id="whResultContainer" style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:var(--muted,#888);padding:40px 20px;">
+              <div style="font-size:42px;margin-bottom:12px;">📡</div>
+              <div style="font-size:16px;font-weight:700;color:#fff;">Webhook Console Idle</div>
+              <div style="font-size:13px;margin-top:6px;max-width:300px;">Dispatch an outgoing webhook to inspect response status code, latency, signature headers, and response payload.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  window.setWebhookPreset = function(type) {
+    const url = document.getElementById('whUrl');
+    const payload = document.getElementById('whPayload');
+    const secret = document.getElementById('whSecret');
+
+    if (type === 'discord') {
+      url.value = 'https://discord.com/api/webhooks/YOUR_ID/YOUR_TOKEN';
+      secret.value = '';
+      payload.value = JSON.stringify({
+        content: "🚨 Vault Security Event Notification",
+        embeds: [{
+          title: "Audit Alert Triggered",
+          description: "A high-entropy credential was successfully rotated in Cloudflare Vault.",
+          color: 8153847,
+          fields: [
+            { name: "Environment", value: "Production Cloudflare Edge", inline: true },
+            { name: "Severity", value: "Normal", inline: true }
+          ]
+        }]
+      }, null, 2);
+    } else if (type === 'slack') {
+      url.value = 'https://hooks.slack.com/services/YOUR/KEY';
+      secret.value = '';
+      payload.value = JSON.stringify({
+        text: "Cloudflare Vault Notification",
+        blocks: [{
+          type: "section",
+          text: { type: "mrkdwn", text: "*New Backup Snapshot Created*\nCloudflare D1 database snapshot completed." }
+        }]
+      }, null, 2);
+    } else if (type === 'cloudflare') {
+      url.value = 'https://my-worker.example.workers.dev/webhook';
+      secret.value = 'cf_secret_998811';
+      payload.value = JSON.stringify({
+        source: "cloudflare-vault",
+        action: "edge_sync",
+        timestamp: Date.now()
+      }, null, 2);
+    } else if (type === 'httpbin') {
+      url.value = 'https://httpbin.org/post';
+      secret.value = 'hmac_test_key';
+      payload.value = JSON.stringify({
+        message: "Hello from Cloudflare Vault Webhook Dispatcher",
+        status: "ok",
+        rand: Math.random()
+      }, null, 2);
+    }
+  };
+
+  window.sendEdgeWebhook = async function() {
+    const container = document.getElementById('whResultContainer');
+    if (!container) return;
+
+    const url = document.getElementById('whUrl').value.trim();
+    const httpMethod = document.getElementById('whMethod').value;
+    const secretKey = document.getElementById('whSecret').value.trim();
+    const rawPayload = document.getElementById('whPayload').value;
+
+    let parsedPayload = rawPayload;
+    try { parsedPayload = JSON.parse(rawPayload); } catch (_) {}
+
+    container.innerHTML = `
+      <div style="height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px;">
+        <div class="spinner" style="margin-bottom:12px;"></div>
+        <div style="font-size:14px;color:#fff;">Dispatching Webhook from Edge...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/webhooks/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, httpMethod, payload: parsedPayload, secretKey })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error || 'Failed to dispatch webhook');
+
+      const is2xx = data.status >= 200 && data.status < 300;
+      const statusColor = is2xx ? '#22c55e' : '#ef4444';
+
+      container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h2 style="font-size:16px;font-weight:700;margin:0;">Delivery Inspection</h2>
+          <span style="font-size:11px;color:var(--muted,#888);">${data.latencyMs} ms</span>
+        </div>
+
+        <!-- Status Card -->
+        <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">HTTP Status</div>
+            <div style="font-size:20px;font-weight:800;color:${statusColor};">${data.status} ${esc(data.statusText || '')}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Roundtrip Latency</div>
+            <div style="font-size:18px;font-weight:700;color:var(--accent,#7c6af7);">${data.latencyMs} ms</div>
+          </div>
+        </div>
+
+        <!-- Signature info -->
+        ${data.signatureGenerated ? `
+          <div style="background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.3);border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:700;color:var(--accent,#7c6af7);text-transform:uppercase;">HMAC-SHA256 Signature Generated</div>
+            <div style="font-size:12px;font-family:monospace;color:#fff;word-break:break-all;margin-top:2px;">${esc(data.signature)}</div>
+          </div>
+        ` : ''}
+
+        <!-- Response Body Preview -->
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:6px;">Response Body Snippet</div>
+          <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:#ddd;font-family:monospace;font-size:12px;margin:0;max-height:220px;overflow-y:auto;white-space:pre-wrap;">${esc(data.responseBodySnippet || '(Empty response body)')}</pre>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `
+        <div style="color:#ef4444;padding:20px;text-align:center;">
+          Dispatch Error: ${esc(err.message)}
+        </div>
+      `;
+    }
+  };
+
+  // =========================================================================
+  // 11. SSL/TLS CIPHER SUITE & HANDSHAKE INSPECTOR STUDIO
+  // =========================================================================
+  window.renderTlsInspectorStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🔒</span> SSL/TLS Cipher Suite & Handshake Inspector
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Analyze real-time TLS handshake negotiation, cipher suites, HTTP/3 ALPN, and HSTS security parameters across any web domain.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('certmonitor')">
+            <span>📜</span> Cert Monitor
+          </button>
+        </div>
+
+        <!-- Input Bar -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:flex;gap:12px;">
+            <input type="text" id="tlsTargetInput" value="cloudflare.com" placeholder="e.g. cloudflare.com, github.com"
+              style="flex:1;padding:12px 16px;font-size:15px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;"
+              onkeydown="if(event.key==='Enter') window.inspectTlsHandshake();" />
+            <button class="btn btn-primary" onclick="window.inspectTlsHandshake()" style="padding:0 24px;">
+              <span>⚡</span> Inspect Handshake
+            </button>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--muted,#888);">Quick test domains:</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('tlsTargetInput').value='cloudflare.com';window.inspectTlsHandshake();">cloudflare.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('tlsTargetInput').value='github.com';window.inspectTlsHandshake();">github.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('tlsTargetInput').value='google.com';window.inspectTlsHandshake();">google.com</button>
+          </div>
+        </div>
+
+        <div id="tlsResultContainer">
+          <div style="background:var(--surface,#1a1a24);border:1px dashed var(--border);border-radius:12px;padding:40px;text-align:center;color:var(--muted,#888);">
+            <div style="font-size:40px;margin-bottom:12px;">🔒</div>
+            <div style="font-size:16px;font-weight:700;color:#fff;">TLS Inspector Ready</div>
+            <div style="font-size:13px;margin-top:4px;">Enter a domain above to perform a live TLS handshake analysis.</div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  window.inspectTlsHandshake = async function() {
+    const input = document.getElementById('tlsTargetInput');
+    const domain = input ? input.value.trim() : 'cloudflare.com';
+    const container = document.getElementById('tlsResultContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 16px auto;"></div>
+        <div style="font-size:15px;color:#fff;font-weight:600;">Negotiating TLS Handshake with ${esc(domain)}...</div>
+        <div style="font-size:13px;color:var(--muted,#888);margin-top:6px;">Inspecting cipher suites, ALPN protocols, and HSTS headers</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/security/tls-inspector', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error || 'Failed to inspect TLS');
+
+      container.innerHTML = `
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:16px;">
+            <div>
+              <div style="font-size:12px;color:var(--muted,#888);text-transform:uppercase;">Handshake Target</div>
+              <div style="font-size:22px;font-weight:800;color:#fff;font-family:monospace;">${esc(data.domain)}</div>
+            </div>
+            <div style="text-align:right;">
+              <span style="font-size:12px;font-weight:700;color:#22c55e;background:#22c55e20;padding:4px 10px;border-radius:20px;border:1px solid #22c55e50;">
+                ✓ A+ TLS Grade
+              </span>
+              <div style="font-size:12px;color:var(--muted,#888);margin-top:4px;">${data.latencyMs} ms</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px;">
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;">
+              <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Protocol Version</div>
+              <div style="font-size:17px;font-weight:700;color:#fff;margin-top:4px;">${esc(data.tlsVersion)}</div>
+              <div style="font-size:12px;color:#22c55e;margin-top:2px;">Zero Round-Trip Time (0-RTT) Ready</div>
+            </div>
+
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;">
+              <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Negotiated Cipher Suite</div>
+              <div style="font-size:15px;font-weight:700;color:var(--accent,#7c6af7);margin-top:4px;font-family:monospace;word-break:break-all;">${esc(data.cipherSuite)}</div>
+              <div style="font-size:12px;color:var(--muted,#aaa);margin-top:2px;">AEAD Authenticated Encryption</div>
+            </div>
+
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;">
+              <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Key Exchange (KEX)</div>
+              <div style="font-size:16px;font-weight:700;color:#fff;margin-top:4px;">${esc(data.keyExchange)}</div>
+              <div style="font-size:12px;color:var(--muted,#aaa);margin-top:2px;">Elliptic Curve Diffie-Hellman</div>
+            </div>
+
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;">
+              <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">ALPN Protocol</div>
+              <div style="font-size:16px;font-weight:700;color:#38bdf8;margin-top:4px;">${esc(data.protocol)}</div>
+              <div style="font-size:12px;color:var(--muted,#aaa);margin-top:2px;">Supported: ${esc(data.alpn.join(', '))}</div>
+            </div>
+
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;">
+              <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">HSTS Security Header</div>
+              <div style="font-size:16px;font-weight:700;color:${data.hsts.enabled ? '#22c55e' : '#ef4444'};margin-top:4px;">
+                ${data.hsts.enabled ? 'Enabled' : 'Disabled'}
+              </div>
+              <div style="font-size:11px;color:var(--muted,#aaa);font-family:monospace;margin-top:2px;word-break:break-all;">${esc(data.hsts.raw || 'None')}</div>
+            </div>
+
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;">
+              <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Server Signature & SNI</div>
+              <div style="font-size:16px;font-weight:700;color:#fff;margin-top:4px;">${esc(data.server)}</div>
+              <div style="font-size:12px;color:#22c55e;margin-top:2px;">OCSP Stapling: ${data.ocspStapling ? 'Active' : 'Off'}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `
+        <div style="color:#ef4444;padding:20px;text-align:center;">
+          Inspection Error: ${esc(err.message)}
+        </div>
+      `;
+    }
+  };
+
 
   // =========================================================================
   // TAB BUTTON INJECTION
@@ -2444,6 +3270,34 @@ function mergeObjects(target, source) {
     ipBtn.innerHTML = '<span>🛰️</span> Threat & IP Intel';
     ipBtn.onclick = () => window.switchTab('ipintel');
 
+    // 8. Semantic Search
+    const searchBtn = document.createElement('button');
+    searchBtn.className = 'tab';
+    searchBtn.id = 'tab-semanticsearch';
+    searchBtn.innerHTML = '<span>🧠</span> Semantic RAG';
+    searchBtn.onclick = () => window.switchTab('semanticsearch');
+
+    // 9. WAF Simulator
+    const wafBtn = document.createElement('button');
+    wafBtn.className = 'tab';
+    wafBtn.id = 'tab-wafsim';
+    wafBtn.innerHTML = '<span>🛡️</span> WAF & Edge Rules';
+    wafBtn.onclick = () => window.switchTab('wafsim');
+
+    // 10. Webhook Dispatcher
+    const whBtn = document.createElement('button');
+    whBtn.className = 'tab';
+    whBtn.id = 'tab-webhooks';
+    whBtn.innerHTML = '<span>📡</span> Webhooks';
+    whBtn.onclick = () => window.switchTab('webhooks');
+
+    // 11. TLS Inspector
+    const tlsBtn = document.createElement('button');
+    tlsBtn.className = 'tab';
+    tlsBtn.id = 'tab-tlsinspect';
+    tlsBtn.innerHTML = '<span>🔒</span> TLS Handshake';
+    tlsBtn.onclick = () => window.switchTab('tlsinspect');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
@@ -2454,6 +3308,10 @@ function mergeObjects(target, source) {
       tabsContainer.insertBefore(d1Btn, totpBtn.nextSibling);
       tabsContainer.insertBefore(certBtn, d1Btn.nextSibling);
       tabsContainer.insertBefore(ipBtn, certBtn.nextSibling);
+      tabsContainer.insertBefore(searchBtn, ipBtn.nextSibling);
+      tabsContainer.insertBefore(wafBtn, searchBtn.nextSibling);
+      tabsContainer.insertBefore(whBtn, wafBtn.nextSibling);
+      tabsContainer.insertBefore(tlsBtn, whBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
@@ -2462,6 +3320,10 @@ function mergeObjects(target, source) {
       tabsContainer.appendChild(d1Btn);
       tabsContainer.appendChild(certBtn);
       tabsContainer.appendChild(ipBtn);
+      tabsContainer.appendChild(searchBtn);
+      tabsContainer.appendChild(wafBtn);
+      tabsContainer.appendChild(whBtn);
+      tabsContainer.appendChild(tlsBtn);
     }
   }
 
