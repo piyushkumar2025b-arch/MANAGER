@@ -2746,6 +2746,18 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('keygen');">
       <span class="icon">🔑</span> SSH Keypair & Crypto Studio
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('dohbench');">
+      <span class="icon">🌐</span> DNS-over-HTTPS (DoH) Benchmark
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('ratelimit');">
+      <span class="icon">🚦</span> Edge Rate Limiting Architect
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('cachestudio');">
+      <span class="icon">⚡</span> Cloudflare CDN Cache & Purge
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('wirefilter');">
+      <span class="icon">📐</span> Wirefilter & WAF Expression Tester
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -2970,6 +2982,22 @@ async function loadTab() {
   } else if (currentTab === 'keygen') {
     if (typeof window.renderKeyGenStudio === 'function') {
       window.renderKeyGenStudio();
+    }
+  } else if (currentTab === 'dohbench') {
+    if (typeof window.renderDohBenchmarkStudio === 'function') {
+      window.renderDohBenchmarkStudio();
+    }
+  } else if (currentTab === 'ratelimit') {
+    if (typeof window.renderRateLimitingStudio === 'function') {
+      window.renderRateLimitingStudio();
+    }
+  } else if (currentTab === 'cachestudio') {
+    if (typeof window.renderCachePurgeStudio === 'function') {
+      window.renderCachePurgeStudio();
+    }
+  } else if (currentTab === 'wirefilter') {
+    if (typeof window.renderWirefilterStudio === 'function') {
+      window.renderWirefilterStudio();
     }
   }
 }

@@ -10801,6 +10801,273 @@ response.headers.set('Permissions-Policy', 'geolocation=(), camera=(), microphon
       }
     }
 
+    // 25. DNS-over-HTTPS (DoH) Multi-Resolver & DNSSEC Auditor
+    if (path === '/dns/doh-compare' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let { domain = 'cloudflare.com', recordType = 'A' } = body;
+        domain = domain.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        recordType = (recordType || 'A').toUpperCase();
+
+        const fetchResolver = async (name, ip, dohUrl) => {
+          const t0 = performance.now();
+          try {
+            const res = await fetch(dohUrl, {
+              headers: { 'Accept': 'application/dns-json' },
+              signal: AbortSignal.timeout(6000)
+            });
+            const latencyMs = Math.round((performance.now() - t0) * 100) / 100;
+            const data = await res.json();
+            return {
+              name,
+              ip,
+              latencyMs,
+              dnssecValid: Boolean(data.AD),
+              status: data.Status === 0 ? 'NOERROR' : `STATUS_${data.Status}`,
+              answers: (data.Answer || []).map(a => ({
+                name: a.name,
+                type: a.type === 1 ? 'A' : a.type === 28 ? 'AAAA' : a.type === 15 ? 'MX' : a.type === 16 ? 'TXT' : a.type === 5 ? 'CNAME' : `${a.type}`,
+                ttl: a.TTL,
+                data: a.data
+              }))
+            };
+          } catch (err) {
+            return {
+              name,
+              ip,
+              latencyMs: Math.round((performance.now() - t0) * 100) / 100,
+              dnssecValid: false,
+              status: 'ERROR',
+              error: err.message,
+              answers: []
+            };
+          }
+        };
+
+        const [cfRes, googleRes] = await Promise.all([
+          fetchResolver('Cloudflare 1.1.1.1', '1.1.1.1', `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=${encodeURIComponent(recordType)}`),
+          fetchResolver('Google Public DNS', '8.8.8.8', `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${encodeURIComponent(recordType)}`)
+        ]);
+
+        return new Response(JSON.stringify({
+          success: true,
+          domain,
+          recordType,
+          resolvers: [cfRes, googleRes]
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 26. Edge Rate Limiting Rule Architect & Burst Simulator
+    if (path === '/cloudflare/rate-limiting' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          pathPattern = '/api/login',
+          threshold = 10,
+          period = 60,
+          action = 'managed_challenge',
+          simulateBurstCount = 15
+        } = body;
+
+        const expr = `(http.request.uri.path eq "${pathPattern}")`;
+        const terraformSnippet = `resource "cloudflare_rate_limit" "api_throttle" {
+  zone_id   = var.cloudflare_zone_id
+  threshold = ${threshold}
+  period    = ${period}
+  match {
+    request {
+      url_pattern = "*${pathPattern}"
+      schemes     = ["HTTP", "HTTPS"]
+      methods     = ["POST", "PUT", "DELETE"]
+    }
+    response {
+      statuses = [200, 401, 403]
+    }
+  }
+  action {
+    mode    = "${action}"
+    timeout = 60
+  }
+  description = "Protect ${pathPattern} against credential stuffing and brute force"
+}`;
+
+        // Live burst simulation
+        const burstCount = Math.min(Math.max(Number(simulateBurstCount) || 10, 5), 50);
+        const burstLogs = [];
+        let passed = 0;
+        let throttled = 0;
+
+        for (let i = 1; i <= burstCount; i++) {
+          const isAllowed = i <= threshold;
+          if (isAllowed) {
+            passed++;
+            burstLogs.push({
+              requestIndex: i,
+              timeOffsetMs: i * 85,
+              status: 200,
+              edgeAction: 'PASSED',
+              headers: { 'cf-ray': `8a${Math.random().toString(16).slice(2, 8)}-SIN` }
+            });
+          } else {
+            throttled++;
+            burstLogs.push({
+              requestIndex: i,
+              timeOffsetMs: i * 85,
+              status: 429,
+              edgeAction: action.toUpperCase(),
+              headers: {
+                'cf-ray': `8a${Math.random().toString(16).slice(2, 8)}-SIN`,
+                'retry-after': `${period}s`,
+                'cf-mitigated': 'rate-limit'
+              }
+            });
+          }
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          pathPattern,
+          threshold: Number(threshold),
+          period: Number(period),
+          action,
+          ruleExpression: expr,
+          terraformSnippet,
+          simulation: {
+            totalRequests: burstCount,
+            passed,
+            throttled,
+            logs: burstLogs
+          }
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 27. Cloudflare Cache-Purge & Edge CDN Invalidation Studio
+    if (path === '/cloudflare/cache-purge' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let { targetUrl = 'https://cloudflare.com', purgeType = 'single_file', tags = '' } = body;
+
+        let cacheStatus = 'UNKNOWN';
+        let inspectedHeaders = {};
+        let latencyMs = 0;
+
+        if (targetUrl && targetUrl.trim()) {
+          let url = targetUrl.trim();
+          if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+          const t0 = performance.now();
+          const probe = await fetch(url, {
+            method: 'GET',
+            headers: { 'User-Agent': 'Cloudflare-Vault-CDN-Inspector/1.0' },
+            signal: AbortSignal.timeout(7000)
+          });
+          latencyMs = Math.round((performance.now() - t0) * 100) / 100;
+
+          probe.headers.forEach((v, k) => { inspectedHeaders[k.toLowerCase()] = v; });
+          cacheStatus = inspectedHeaders['cf-cache-status'] || (inspectedHeaders['age'] ? 'HIT' : 'DYNAMIC');
+        }
+
+        const purgeCurlSnippet = `curl -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/purge_cache" \\
+     -H "Authorization: Bearer $CF_API_TOKEN" \\
+     -H "Content-Type: application/json" \\
+     --data '{"files":["${targetUrl}"]}'`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          targetUrl,
+          purgeType,
+          cacheStatus,
+          latencyMs,
+          headers: inspectedHeaders,
+          purgeCommand: purgeCurlSnippet,
+          cacheControl: inspectedHeaders['cache-control'] || 'Not Specified',
+          age: inspectedHeaders['age'] || '0s',
+          etag: inspectedHeaders['etag'] || null
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 28. Cloudflare Wirefilter & Wireshark Expression Evaluator
+    if (path === '/tools/wirefilter-test' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          expression = '(http.request.uri.path contains "/api/v1" and not ip.geoip.country in {"US" "CA"})',
+          mockRequest = {
+            uriPath: '/api/v1/auth',
+            country: 'RU',
+            ip: '198.51.100.4',
+            method: 'POST',
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+          }
+        } = body;
+
+        const expr = expression.trim();
+        let matches = false;
+        const matchedTokens = [];
+
+        // Rule evaluation heuristics
+        if (expr.includes('http.request.uri.path')) {
+          const m = expr.match(/http\.request\.uri\.path\s+(contains|eq)\s+"([^"]+)"/);
+          if (m) {
+            const operator = m[1];
+            const target = m[2];
+            const isMatch = operator === 'contains' ? mockRequest.uriPath.includes(target) : mockRequest.uriPath === target;
+            if (isMatch) matchedTokens.push(`http.request.uri.path ${operator} "${target}" (actual: "${mockRequest.uriPath}")`);
+          }
+        }
+
+        if (expr.includes('ip.geoip.country')) {
+          if (expr.includes('not ip.geoip.country in')) {
+            const m = expr.match(/not ip\.geoip\.country in\s+\{([^}]+)\}/);
+            if (m) {
+              const countries = m[1].replace(/["']/g, '').split(/\s+/);
+              const isBlocked = !countries.includes(mockRequest.country);
+              if (isBlocked) matchedTokens.push(`Country "${mockRequest.country}" is outside allowed set {${countries.join(', ')}}`);
+            }
+          } else {
+            const m = expr.match(/ip\.geoip\.country in\s+\{([^}]+)\}/);
+            if (m) {
+              const countries = m[1].replace(/["']/g, '').split(/\s+/);
+              const isMatch = countries.includes(mockRequest.country);
+              if (isMatch) matchedTokens.push(`Country "${mockRequest.country}" matches targeted list {${countries.join(', ')}}`);
+            }
+          }
+        }
+
+        if (expr.includes('http.request.method')) {
+          const m = expr.match(/http\.request\.method\s+eq\s+"([^"]+)"/);
+          if (m && mockRequest.method === m[1]) {
+            matchedTokens.push(`HTTP Method equals "${m[1]}"`);
+          }
+        }
+
+        matches = matchedTokens.length > 0;
+
+        return new Response(JSON.stringify({
+          success: true,
+          expression: expr,
+          matches,
+          decision: matches ? 'FIREWALL_TRIGGERED (BLOCK or CHALLENGE)' : 'PASSED (ALLOW)',
+          matchedTokens,
+          mockRequest,
+          explanation: matches
+            ? `Rule triggered on ${matchedTokens.length} criteria.`
+            : 'Request does not satisfy all conditions in the filter expression.'
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {

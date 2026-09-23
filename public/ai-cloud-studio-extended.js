@@ -1345,6 +1345,30 @@ function mergeObjects(target, source) {
       window.renderKeyGenStudio();
       return;
     }
+    if (tab === 'dohbench') {
+      window.currentTab = 'dohbench';
+      updateNavHighlight('tab-dohbench');
+      window.renderDohBenchmarkStudio();
+      return;
+    }
+    if (tab === 'ratelimit') {
+      window.currentTab = 'ratelimit';
+      updateNavHighlight('tab-ratelimit');
+      window.renderRateLimitingStudio();
+      return;
+    }
+    if (tab === 'cachestudio') {
+      window.currentTab = 'cachestudio';
+      updateNavHighlight('tab-cachestudio');
+      window.renderCachePurgeStudio();
+      return;
+    }
+    if (tab === 'wirefilter') {
+      window.currentTab = 'wirefilter';
+      updateNavHighlight('tab-wirefilter');
+      window.renderWirefilterStudio();
+      return;
+    }
 
     if (typeof origSwitchTab === 'function') {
       origSwitchTab(tab);
@@ -3943,6 +3967,588 @@ function mergeObjects(target, source) {
     }
   };
 
+  // =========================================================================
+  // 16. DNS-OVER-HTTPS (DOH) MULTI-RESOLVER & DNSSEC BENCHMARK
+  // =========================================================================
+  window.renderDohBenchmarkStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🌐</span> DNS-over-HTTPS (DoH) & DNSSEC Benchmark
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Query global DoH resolvers simultaneously, measure resolution latency, and verify DNSSEC cryptographic signatures.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('tlsinspect')">
+            <span>🔒</span> TLS Inspector
+          </button>
+        </div>
+
+        <!-- Input Bar -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:grid;grid-template-columns:1fr 140px auto;gap:12px;align-items:center;">
+            <input type="text" id="dohDomainInput" value="cloudflare.com" placeholder="Domain name (e.g. cloudflare.com)"
+              style="padding:12px 16px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:15px;"
+              onkeydown="if(event.key==='Enter') window.runDohBenchmark();" />
+            <select id="dohRecordType" style="padding:12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-weight:700;">
+              <option value="A">A (IPv4)</option>
+              <option value="AAAA">AAAA (IPv6)</option>
+              <option value="MX">MX (Mail)</option>
+              <option value="TXT">TXT (Verification)</option>
+              <option value="CNAME">CNAME</option>
+              <option value="CAA">CAA (Cert Auth)</option>
+            </select>
+            <button class="btn btn-primary" onclick="window.runDohBenchmark()" style="padding:12px 24px;font-weight:700;">
+              <span>⚡</span> Benchmark DoH
+            </button>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--muted,#888);">Quick test:</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('dohDomainInput').value='cloudflare.com';window.runDohBenchmark();">cloudflare.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('dohDomainInput').value='google.com';window.runDohBenchmark();">google.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('dohDomainInput').value='apple.com';window.runDohBenchmark();">apple.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('dohDomainInput').value='github.com';window.runDohBenchmark();">github.com</button>
+          </div>
+        </div>
+
+        <div id="dohBenchmarkResults">
+          <div style="background:var(--surface,#1a1a24);border:1px dashed var(--border);border-radius:12px;padding:40px;text-align:center;color:var(--muted,#888);">
+            <div style="font-size:40px;margin-bottom:12px;">🌐</div>
+            <div style="font-size:16px;font-weight:700;color:#fff;">DoH Resolvers Ready</div>
+            <div style="font-size:13px;margin-top:4px;">Enter a hostname above to test resolution speed across Cloudflare and Google DoH endpoints.</div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  window.runDohBenchmark = async function() {
+    const domain = document.getElementById('dohDomainInput')?.value.trim() || 'cloudflare.com';
+    const recordType = document.getElementById('dohRecordType')?.value || 'A';
+    const container = document.getElementById('dohBenchmarkResults');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 16px auto;"></div>
+        <div style="font-size:15px;color:#fff;font-weight:600;">Querying DoH Resolvers for ${esc(domain)} [${recordType}]...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/dns/doh-compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, recordType })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error || 'DoH query failed');
+
+      container.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          ${data.resolvers.map(r => `
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+                <div>
+                  <div style="font-size:16px;font-weight:800;color:#fff;">${esc(r.name)}</div>
+                  <div style="font-size:12px;color:var(--muted,#888);font-family:monospace;">${esc(r.ip)}</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:18px;font-weight:800;color:#22c55e;">${r.latencyMs} ms</div>
+                  <div style="font-size:11px;color:${r.dnssecValid ? '#22c55e' : '#eab308'};font-weight:700;">
+                    ${r.dnssecValid ? '✓ DNSSEC VALID' : '⚠ NO DNSSEC'}
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-bottom:8px;font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">
+                Answers (${r.answers.length} Records)
+              </div>
+
+              ${r.answers.length > 0 ? `
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  ${r.answers.map(a => `
+                    <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:12px;font-family:monospace;display:flex;justify-content:space-between;align-items:center;">
+                      <span style="color:#fff;font-weight:700;word-break:break-all;">${esc(a.data)}</span>
+                      <span style="color:var(--muted,#888);font-size:11px;margin-left:8px;">TTL ${a.ttl}s</span>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : `
+                <div style="font-size:12px;color:var(--muted,#888);padding:12px;text-align:center;">No records returned</div>
+              `}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `
+        <div style="color:#ef4444;padding:20px;text-align:center;">
+          Benchmark Error: ${esc(err.message)}
+        </div>
+      `;
+    }
+  };
+
+  // =========================================================================
+  // 17. EDGE RATE LIMITING RULE ARCHITECT & BURST SIMULATOR
+  // =========================================================================
+  window.renderRateLimitingStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🚦</span> Edge Rate Limiting Rule Architect & Traffic Simulator
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Architect Cloudflare Rate Limiting rules against credential stuffing, and simulate high-frequency burst traffic.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('wafsim')">
+            <span>🛡️</span> WAF Rules
+          </button>
+        </div>
+
+        <!-- Presets -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Rate Limit Presets:</span>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('rlPath').value='/api/login';document.getElementById('rlThreshold').value='5';document.getElementById('rlPeriod').value='60';document.getElementById('rlAction').value='managed_challenge';window.simulateRateLimiting();">
+            Login Brute-Force Shield (5 req / 60s)
+          </button>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('rlPath').value='/checkout/process';document.getElementById('rlThreshold').value='3';document.getElementById('rlPeriod').value='60';document.getElementById('rlAction').value='block';window.simulateRateLimiting();">
+            Checkout Anti-Carding (3 req / 60s)
+          </button>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('rlPath').value='/graphql';document.getElementById('rlThreshold').value='20';document.getElementById('rlPeriod').value='10';document.getElementById('rlAction').value='js_challenge';window.simulateRateLimiting();">
+            GraphQL DoS Defense (20 req / 10s)
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left: Config & Terraform -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;">Rule Configuration</h2>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">URI Path Pattern</label>
+              <input type="text" id="rlPath" value="/api/login" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Threshold (Reqs)</label>
+                <input type="number" id="rlThreshold" value="5" min="1" max="100" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;" />
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Window (Seconds)</label>
+                <input type="number" id="rlPeriod" value="60" min="1" max="3600" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;" />
+              </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Mitigation Action</label>
+              <select id="rlAction" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;">
+                <option value="managed_challenge">Managed Challenge (Interactive or Turnstile)</option>
+                <option value="block">Block (HTTP 429 Too Many Requests)</option>
+                <option value="js_challenge">JavaScript Challenge</option>
+              </select>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.simulateRateLimiting()" style="width:100%;padding:12px;font-weight:700;margin-bottom:16px;">
+              <span>⚡</span> Simulate 15-Request Burst Traffic
+            </button>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Terraform cloudflare_rate_limit Resource</label>
+                <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                  onclick="navigator.clipboard.writeText(document.getElementById('terraformRlCode').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+                  Copy
+                </button>
+              </div>
+              <pre id="terraformRlCode" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--accent,#7c6af7);font-family:monospace;font-size:11px;margin:0;max-height:180px;overflow-y:auto;"></pre>
+            </div>
+          </div>
+
+          <!-- Right: Simulation Results -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div id="rlSimulationStats" style="display:flex;gap:12px;margin-bottom:16px;">
+              <div style="flex:1;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
+                <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Allowed (200 OK)</div>
+                <div id="rlAllowedCount" style="font-size:22px;font-weight:800;color:#22c55e;">-</div>
+              </div>
+              <div style="flex:1;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
+                <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Throttled (429)</div>
+                <div id="rlThrottledCount" style="font-size:22px;font-weight:800;color:#ef4444;">-</div>
+              </div>
+            </div>
+
+            <h3 style="font-size:14px;font-weight:700;margin:0 0 10px 0;">Burst Traffic Execution Log</h3>
+            <div id="rlTimelineLogs" style="display:flex;flex-direction:column;gap:6px;max-height:360px;overflow-y:auto;">
+              <div style="color:var(--muted,#888);font-size:13px;text-align:center;padding:24px;">Click "Simulate Burst Traffic" to test rate limit enforcement.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    window.simulateRateLimiting();
+  };
+
+  window.simulateRateLimiting = async function() {
+    const pathPattern = document.getElementById('rlPath')?.value.trim() || '/api/login';
+    const threshold = document.getElementById('rlThreshold')?.value || 5;
+    const period = document.getElementById('rlPeriod')?.value || 60;
+    const action = document.getElementById('rlAction')?.value || 'managed_challenge';
+
+    try {
+      const res = await fetch('/api/cloudflare/rate-limiting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pathPattern, threshold, period, action, simulateBurstCount: 15 })
+      });
+      const data = await res.json();
+
+      if (!data.success) return;
+
+      const tf = document.getElementById('terraformRlCode');
+      if (tf) tf.innerText = data.terraformSnippet;
+
+      const allowed = document.getElementById('rlAllowedCount');
+      if (allowed) allowed.innerText = data.simulation.passed;
+
+      const throttled = document.getElementById('rlThrottledCount');
+      if (throttled) throttled.innerText = data.simulation.throttled;
+
+      const timeline = document.getElementById('rlTimelineLogs');
+      if (timeline && data.simulation.logs) {
+        timeline.innerHTML = data.simulation.logs.map(log => {
+          const isOk = log.status === 200;
+          return `
+            <div style="background:var(--surface2,#242434);border-left:3px solid ${isOk ? '#22c55e' : '#ef4444'};border-radius:4px;padding:8px 12px;font-family:monospace;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <span style="color:${isOk ? '#22c55e' : '#ef4444'};font-weight:700;">[Req #${log.requestIndex}] ${log.status}</span>
+                <span style="color:var(--muted,#888);margin-left:8px;">+${log.timeOffsetMs}ms</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:11px;color:${isOk ? '#22c55e' : '#ef4444'};background:${isOk ? '#22c55e20' : '#ef444420'};padding:2px 6px;border-radius:4px;font-weight:800;">
+                  ${esc(log.edgeAction)}
+                </span>
+                <span style="font-size:10px;color:var(--muted,#888);">${log.headers['cf-ray']}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    } catch (_) {}
+  };
+
+  // =========================================================================
+  // 18. CLOUDFLARE CACHE-PURGE & EDGE CDN INVALIDATION STUDIO
+  // =========================================================================
+  window.renderCachePurgeStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>⚡</span> Cloudflare CDN Cache & Purge Studio
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Inspect edge CF-Cache-Status, evaluate s-maxage TTLs, and build instant cache purge commands.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('secstudio')">
+            <span>🛡️</span> Security Headers
+          </button>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:grid;grid-template-columns:1fr 180px auto;gap:12px;align-items:center;">
+            <input type="text" id="cacheTargetUrl" value="https://cloudflare.com" placeholder="https://yourdomain.com/asset.js"
+              style="padding:12px 16px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:14px;"
+              onkeydown="if(event.key==='Enter') window.inspectCacheability();" />
+            <select id="cachePurgeType" style="padding:12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;">
+              <option value="single_file">Single File / URL</option>
+              <option value="tag">Cache-Tag Header</option>
+              <option value="everything">Purge Everything</option>
+            </select>
+            <button class="btn btn-primary" onclick="window.inspectCacheability()" style="padding:12px 24px;font-weight:700;">
+              <span>⚡</span> Probe Cache
+            </button>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--muted,#888);">Quick test:</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('cacheTargetUrl').value='https://cloudflare.com';window.inspectCacheability();">cloudflare.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('cacheTargetUrl').value='https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js';window.inspectCacheability();">cdnjs react.min.js</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('cacheTargetUrl').value='https://wikipedia.org';window.inspectCacheability();">wikipedia.org</button>
+          </div>
+        </div>
+
+        <div id="cacheInspectResults">
+          <div style="background:var(--surface,#1a1a24);border:1px dashed var(--border);border-radius:12px;padding:40px;text-align:center;color:var(--muted,#888);">
+            <div style="font-size:40px;margin-bottom:12px;">⚡</div>
+            <div style="font-size:16px;font-weight:700;color:#fff;">CDN Cache Analyzer Ready</div>
+            <div style="font-size:13px;margin-top:4px;">Enter an asset or page URL above to probe Cloudflare edge cache status and generate purge API commands.</div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  window.inspectCacheability = async function() {
+    const targetUrl = document.getElementById('cacheTargetUrl')?.value.trim() || 'https://cloudflare.com';
+    const purgeType = document.getElementById('cachePurgeType')?.value || 'single_file';
+    const container = document.getElementById('cacheInspectResults');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 16px auto;"></div>
+        <div style="font-size:15px;color:#fff;font-weight:600;">Probing Edge CDN Caching Headers for ${esc(targetUrl)}...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/cloudflare/cache-purge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUrl, purgeType })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      const isHit = data.cacheStatus === 'HIT';
+      const statusColor = isHit ? '#22c55e' : '#eab308';
+
+      container.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+          <!-- Cache Telemetry Card -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+              <div>
+                <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">CF-Cache-Status</div>
+                <div style="font-size:24px;font-weight:900;color:${statusColor};margin-top:2px;">${esc(data.cacheStatus)}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Latency</div>
+                <div style="font-size:18px;font-weight:700;color:#fff;">${data.latencyMs} ms</div>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;">
+                <span style="font-size:12px;color:var(--muted,#888);">Cache-Control:</span>
+                <span style="font-size:12px;font-family:monospace;color:#fff;">${esc(data.cacheControl)}</span>
+              </div>
+              <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;">
+                <span style="font-size:12px;color:var(--muted,#888);">Edge Age:</span>
+                <span style="font-size:12px;font-family:monospace;color:#fff;">${esc(data.age)}</span>
+              </div>
+              <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;">
+                <span style="font-size:12px;color:var(--muted,#888);">ETag:</span>
+                <span style="font-size:12px;font-family:monospace;color:#fff;">${esc(data.etag || 'None')}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Purge Command Card -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <h3 style="font-size:14px;font-weight:700;margin:0;">Cloudflare Cache Purge API Command</h3>
+              <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                onclick="navigator.clipboard.writeText(document.getElementById('purgeCurlText').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+                Copy
+              </button>
+            </div>
+            <pre id="purgeCurlText" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--accent,#7c6af7);font-family:monospace;font-size:11px;margin:0;max-height:160px;overflow-x:auto;">${esc(data.purgeCommand)}</pre>
+            <div style="font-size:11px;color:var(--muted,#888);margin-top:10px;">
+              💡 Execute this cURL command or integrate it into your CI/CD pipeline to immediately invalidate this cached asset globally across Cloudflare edge PoPs.
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `
+        <div style="color:#ef4444;padding:20px;text-align:center;">
+          Cache Probe Error: ${esc(err.message)}
+        </div>
+      `;
+    }
+  };
+
+  // =========================================================================
+  // 19. CLOUDFLARE WIREFILTER & EXPRESSION EVALUATOR STUDIO
+  // =========================================================================
+  window.renderWirefilterStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>📐</span> Cloudflare Wirefilter & Firewall Expression Tester
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Test and debug Cloudflare Wireshark / Wirefilter firewall expressions against simulated edge HTTP contexts.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('wafsim')">
+            <span>🛡️</span> WAF Simulator
+          </button>
+        </div>
+
+        <!-- Presets -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Wirefilter Presets:</span>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('wfExpr').value='(http.request.uri.path contains \\'/api/v1\\' and not ip.geoip.country in {\\'US\\' \\'CA\\'})';window.evaluateWirefilter();">
+            Geo-Block Sensitive API (/api/v1 outside US/CA)
+          </button>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('wfExpr').value='(http.request.method eq \\'POST\\' and http.request.uri.path contains \\'/wp-login.php\\')';window.evaluateWirefilter();">
+            WordPress Login Shield (POST to /wp-login.php)
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left: Expression Editor & Mock Request -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 12px 0;">Wirefilter Expression</h2>
+
+            <textarea id="wfExpr" rows="3" style="width:100%;padding:12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:var(--accent,#7c6af7);font-family:monospace;font-size:13px;resize:vertical;margin-bottom:16px;">(http.request.uri.path contains "/api/v1" and not ip.geoip.country in {"US" "CA"})</textarea>
+
+            <h3 style="font-size:14px;font-weight:700;margin:0 0 10px 0;">Simulated Request Context</h3>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">URI Path</label>
+                <input type="text" id="wfUriPath" value="/api/v1/auth" style="width:100%;padding:8px 12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-family:monospace;margin-top:4px;" />
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Country Code</label>
+                <input type="text" id="wfCountry" value="RU" style="width:100%;padding:8px 12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-family:monospace;margin-top:4px;" />
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">HTTP Method</label>
+                <select id="wfMethod" style="width:100%;padding:8px 12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;margin-top:4px;">
+                  <option value="POST">POST</option>
+                  <option value="GET">GET</option>
+                  <option value="PUT">PUT</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Client IP</label>
+                <input type="text" id="wfIp" value="198.51.100.4" style="width:100%;padding:8px 12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-family:monospace;margin-top:4px;" />
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.evaluateWirefilter()" style="width:100%;padding:12px;font-weight:700;">
+              <span>⚡</span> Evaluate Expression Match
+            </button>
+          </div>
+
+          <!-- Right: Evaluation Results -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div id="wfResultContainer">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    window.evaluateWirefilter();
+  };
+
+  window.evaluateWirefilter = async function() {
+    const expression = document.getElementById('wfExpr')?.value || '';
+    const uriPath = document.getElementById('wfUriPath')?.value || '/api/v1/auth';
+    const country = document.getElementById('wfCountry')?.value || 'RU';
+    const method = document.getElementById('wfMethod')?.value || 'POST';
+    const ip = document.getElementById('wfIp')?.value || '198.51.100.4';
+    const container = document.getElementById('wfResultContainer');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/tools/wirefilter-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expression,
+          mockRequest: { uriPath, country, method, ip }
+        })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      const isMatch = data.matches;
+      const statusColor = isMatch ? '#ef4444' : '#22c55e';
+
+      container.innerHTML = `
+        <div style="margin-bottom:16px;">
+          <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Evaluation Result</div>
+          <div style="font-size:20px;font-weight:900;color:${statusColor};margin-top:4px;">
+            ${isMatch ? '🛡️ RULE MATCHED (BLOCKED / CHALLENGED)' : '✓ NO MATCH (ALLOWED)'}
+          </div>
+          <div style="font-size:13px;color:var(--muted,#aaa);margin-top:4px;">${esc(data.explanation)}</div>
+        </div>
+
+        <h3 style="font-size:14px;font-weight:700;margin:0 0 10px 0;">Condition Breakdowns</h3>
+        ${data.matchedTokens && data.matchedTokens.length > 0 ? `
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            ${data.matchedTokens.map(tok => `
+              <div style="background:var(--surface2,#242434);border-left:3px solid #ef4444;border-radius:4px;padding:10px 14px;font-family:monospace;font-size:12px;color:#fff;">
+                ✓ ${esc(tok)}
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div style="background:var(--surface2,#242434);border-left:3px solid #22c55e;border-radius:4px;padding:10px 14px;font-family:monospace;font-size:12px;color:#fff;">
+            No rule criteria were triggered by the request context.
+          </div>
+        `}
+      `;
+    } catch (err) {
+      container.innerHTML = `
+        <div style="color:#ef4444;padding:20px;text-align:center;">
+          Evaluation Error: ${esc(err.message)}
+        </div>
+      `;
+    }
+  };
+
 
   // =========================================================================
   // TAB BUTTON INJECTION
@@ -4057,6 +4663,34 @@ function mergeObjects(target, source) {
     keyBtn.innerHTML = '<span>🔑</span> SSH & Keypair';
     keyBtn.onclick = () => window.switchTab('keygen');
 
+    // 16. DoH Benchmark
+    const dohBtn = document.createElement('button');
+    dohBtn.className = 'tab';
+    dohBtn.id = 'tab-dohbench';
+    dohBtn.innerHTML = '<span>🌐</span> DoH Resolvers';
+    dohBtn.onclick = () => window.switchTab('dohbench');
+
+    // 17. Rate Limiting
+    const rateBtn = document.createElement('button');
+    rateBtn.className = 'tab';
+    rateBtn.id = 'tab-ratelimit';
+    rateBtn.innerHTML = '<span>🚦</span> Rate Limiting';
+    rateBtn.onclick = () => window.switchTab('ratelimit');
+
+    // 18. CDN Cache & Purge
+    const cacheBtn = document.createElement('button');
+    cacheBtn.className = 'tab';
+    cacheBtn.id = 'tab-cachestudio';
+    cacheBtn.innerHTML = '<span>⚡</span> CDN Cache';
+    cacheBtn.onclick = () => window.switchTab('cachestudio');
+
+    // 19. Wirefilter Tester
+    const wireBtn = document.createElement('button');
+    wireBtn.className = 'tab';
+    wireBtn.id = 'tab-wirefilter';
+    wireBtn.innerHTML = '<span>📐</span> Wirefilter';
+    wireBtn.onclick = () => window.switchTab('wirefilter');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
@@ -4075,6 +4709,10 @@ function mergeObjects(target, source) {
       tabsContainer.insertBefore(cronBtn, secBtn.nextSibling);
       tabsContainer.insertBefore(kvBtn, cronBtn.nextSibling);
       tabsContainer.insertBefore(keyBtn, kvBtn.nextSibling);
+      tabsContainer.insertBefore(dohBtn, keyBtn.nextSibling);
+      tabsContainer.insertBefore(rateBtn, dohBtn.nextSibling);
+      tabsContainer.insertBefore(cacheBtn, rateBtn.nextSibling);
+      tabsContainer.insertBefore(wireBtn, cacheBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
@@ -4091,6 +4729,10 @@ function mergeObjects(target, source) {
       tabsContainer.appendChild(cronBtn);
       tabsContainer.appendChild(kvBtn);
       tabsContainer.appendChild(keyBtn);
+      tabsContainer.appendChild(dohBtn);
+      tabsContainer.appendChild(rateBtn);
+      tabsContainer.appendChild(cacheBtn);
+      tabsContainer.appendChild(wireBtn);
     }
   }
 
