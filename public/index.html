@@ -2770,6 +2770,18 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('sectxt');">
       <span class="icon">📄</span> Security.txt RFC 9116 Auditor
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('emailsec');">
+      <span class="icon">📧</span> Email SPF & DMARC Security
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('zerotrust');">
+      <span class="icon">🛡️</span> Zero Trust Access Architect
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('httpprobe');">
+      <span class="icon">⚡</span> HTTP/3 & ALPN Protocol Prober
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('regexbench');">
+      <span class="icon">🧩</span> Regex & ReDoS Benchmark
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -3026,6 +3038,22 @@ async function loadTab() {
   } else if (currentTab === 'sectxt') {
     if (typeof window.renderSecurityTxtStudio === 'function') {
       window.renderSecurityTxtStudio();
+    }
+  } else if (currentTab === 'emailsec') {
+    if (typeof window.renderEmailSecStudio === 'function') {
+      window.renderEmailSecStudio();
+    }
+  } else if (currentTab === 'zerotrust') {
+    if (typeof window.renderZeroTrustStudio === 'function') {
+      window.renderZeroTrustStudio();
+    }
+  } else if (currentTab === 'httpprobe') {
+    if (typeof window.renderHttpProbeStudio === 'function') {
+      window.renderHttpProbeStudio();
+    }
+  } else if (currentTab === 'regexbench') {
+    if (typeof window.renderRegexBenchStudio === 'function') {
+      window.renderRegexBenchStudio();
     }
   }
 }

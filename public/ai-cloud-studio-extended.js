@@ -1393,6 +1393,30 @@ function mergeObjects(target, source) {
       window.renderSecurityTxtStudio();
       return;
     }
+    if (tab === 'emailsec') {
+      window.currentTab = 'emailsec';
+      updateNavHighlight('tab-emailsec');
+      window.renderEmailSecStudio();
+      return;
+    }
+    if (tab === 'zerotrust') {
+      window.currentTab = 'zerotrust';
+      updateNavHighlight('tab-zerotrust');
+      window.renderZeroTrustStudio();
+      return;
+    }
+    if (tab === 'httpprobe') {
+      window.currentTab = 'httpprobe';
+      updateNavHighlight('tab-httpprobe');
+      window.renderHttpProbeStudio();
+      return;
+    }
+    if (tab === 'regexbench') {
+      window.currentTab = 'regexbench';
+      updateNavHighlight('tab-regexbench');
+      window.renderRegexBenchStudio();
+      return;
+    }
 
     if (typeof origSwitchTab === 'function') {
       origSwitchTab(tab);
@@ -5168,6 +5192,609 @@ function mergeObjects(target, source) {
     }
   };
 
+  // =========================================================================
+  // 24. DKIM, SPF & DMARC EMAIL SECURITY AUDITOR STUDIO
+  // =========================================================================
+  window.renderEmailSecStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>📧</span> DKIM, SPF & DMARC Email Security Record Auditor
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Inspect DNS authentication records, detect email spoofing and phishing vulnerabilities, and generate compliant Cloudflare DNS policies.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('dohbench')">
+            <span>🌐</span> DoH Resolvers
+          </button>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;">
+            <input type="text" id="emailSecDomain" value="cloudflare.com" placeholder="Domain name (e.g. cloudflare.com or yourcompany.com)"
+              style="padding:12px 16px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:14px;"
+              onkeydown="if(event.key==='Enter') window.auditEmailSecurity();" />
+            <button class="btn btn-primary" onclick="window.auditEmailSecurity()" style="padding:12px 24px;font-weight:700;">
+              <span>⚡</span> Audit Email Security
+            </button>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--muted,#888);">Quick audit:</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('emailSecDomain').value='cloudflare.com';window.auditEmailSecurity();">cloudflare.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('emailSecDomain').value='github.com';window.auditEmailSecurity();">github.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('emailSecDomain').value='google.com';window.auditEmailSecurity();">google.com</button>
+          </div>
+        </div>
+
+        <div id="emailSecResultsContainer">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    `;
+    window.auditEmailSecurity();
+  };
+
+  window.auditEmailSecurity = async function() {
+    const domain = document.getElementById('emailSecDomain')?.value.trim() || 'cloudflare.com';
+    const container = document.getElementById('emailSecResultsContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 16px auto;"></div>
+        <div style="font-size:15px;color:#fff;font-weight:600;">Querying DNS TXT records for SPF and DMARC on ${esc(domain)}...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/security/email-records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      const gradeColor = data.score >= 90 ? '#22c55e' : data.score >= 70 ? '#3b82f6' : data.score >= 50 ? '#eab308' : '#ef4444';
+
+      container.innerHTML = `
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <div style="font-size:12px;color:var(--muted,#888);text-transform:uppercase;">Anti-Spoofing & Phishing Resistance</div>
+            <div style="font-size:20px;font-weight:800;color:#fff;margin-top:2px;">Domain: ${esc(data.domain)}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:12px;color:var(--muted,#888);text-transform:uppercase;">Overall Grade</div>
+            <div style="font-size:32px;font-weight:900;color:${gradeColor};">${data.grade} (${data.score}/100)</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+          <!-- SPF Card -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h3 style="font-size:15px;font-weight:700;margin:0;">SPF (Sender Policy Framework)</h3>
+              <span class="badge" style="background:${data.spf.present ? '#22c55e20' : '#ef444420'};color:${data.spf.present ? '#22c55e' : '#ef4444'};border:1px solid currentColor;">
+                ${data.spf.present ? '✓ Configured' : '✗ Missing'}
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--muted,#888);margin-bottom:4px;">Enforcement Policy:</div>
+            <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:12px;">${esc(data.spf.policy)}</div>
+
+            ${data.spf.record ? `
+              <div style="font-size:11px;color:var(--muted,#888);margin-bottom:4px;">Raw SPF TXT Record:</div>
+              <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:6px;padding:10px;color:var(--accent,#7c6af7);font-family:monospace;font-size:11px;margin:0 0 12px 0;word-break:break-all;">${esc(data.spf.record)}</pre>
+            ` : ''}
+
+            ${data.spf.warnings.length > 0 ? `
+              <div style="display:flex;flex-direction:column;gap:4px;">
+                ${data.spf.warnings.map(w => `<div style="font-size:12px;color:#eab308;">⚠ ${esc(w)}</div>`).join('')}
+              </div>
+            ` : '<div style="font-size:12px;color:#22c55e;">✓ Strict hardfail policy active. Unauthorized sender IPs rejected.</div>'}
+          </div>
+
+          <!-- DMARC Card -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h3 style="font-size:15px;font-weight:700;margin:0;">DMARC Policy Enforcement</h3>
+              <span class="badge" style="background:${data.dmarc.present ? '#22c55e20' : '#ef444420'};color:${data.dmarc.present ? '#22c55e' : '#ef4444'};border:1px solid currentColor;">
+                ${data.dmarc.present ? '✓ Configured' : '✗ Missing'}
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--muted,#888);margin-bottom:4px;">Receiver Action:</div>
+            <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:12px;">${esc(data.dmarc.policy)}</div>
+
+            ${data.dmarc.record ? `
+              <div style="font-size:11px;color:var(--muted,#888);margin-bottom:4px;">Raw _dmarc TXT Record:</div>
+              <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:6px;padding:10px;color:#06b6d4;font-family:monospace;font-size:11px;margin:0 0 12px 0;word-break:break-all;">${esc(data.dmarc.record)}</pre>
+            ` : ''}
+
+            ${data.dmarc.warnings.length > 0 ? `
+              <div style="display:flex;flex-direction:column;gap:4px;">
+                ${data.dmarc.warnings.map(w => `<div style="font-size:12px;color:#eab308;">⚠ ${esc(w)}</div>`).join('')}
+              </div>
+            ` : '<div style="font-size:12px;color:#22c55e;">✓ Strict p=reject policy active. Spoofed messages automatically rejected.</div>'}
+          </div>
+        </div>
+
+        <!-- Recommended Cloudflare DNS Records -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">Cloudflare Hardened DNS Security Templates</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;">
+              <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:4px;">Recommended SPF Record (@)</div>
+              <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:4px;padding:8px;color:var(--accent,#7c6af7);font-family:monospace;font-size:11px;margin:0;">${esc(data.suggestedDns.spf.value)}</pre>
+            </div>
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;">
+              <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:4px;">Recommended DMARC Record (_dmarc)</div>
+              <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:4px;padding:8px;color:#06b6d4;font-family:monospace;font-size:11px;margin:0;">${esc(data.suggestedDns.dmarc.value)}</pre>
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Audit Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  // =========================================================================
+  // 25. CLOUDFLARE ZERO TRUST ACCESS & POLICY ARCHITECT
+  // =========================================================================
+  window.renderZeroTrustStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🛡️</span> Cloudflare Zero Trust Access & Service Token Policy Architect
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Architect Cloudflare Access application policies, test identity-based and service token rules, and export Terraform resources.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('wafsim')">
+            <span>🛡️</span> Edge WAF
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left: Policy Configuration -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;">Zero Trust Application Rules</h2>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Application Name</label>
+              <input type="text" id="ztAppName" value="Production Vault API" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;" />
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Protected Hostname</label>
+              <input type="text" id="ztDomain" value="vault-api.internal.company.com" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:var(--accent,#7c6af7);font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Session Duration</label>
+                <select id="ztSession" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;">
+                  <option value="15m">15 Minutes</option>
+                  <option value="1h">1 Hour</option>
+                  <option value="24h" selected>24 Hours</option>
+                  <option value="7d">7 Days</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Authentication Type</label>
+                <select id="ztAuthType" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;"
+                  onchange="document.getElementById('ztTokenSec').style.display = this.value === 'service' ? 'block' : 'none';">
+                  <option value="identity" selected>IdP / Email Identity</option>
+                  <option value="service">Service Auth Token (M2M)</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="ztTokenSec" style="display:none;margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Service Token ID</label>
+              <input type="text" id="ztServiceTokenId" value="cf-token-sec-98124" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#06b6d4;font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Allowed Email Domain</label>
+              <input type="text" id="ztAllowedDomain" value="company.com" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <h3 style="font-size:14px;font-weight:700;margin:0 0 10px 0;border-top:1px solid var(--border);padding-top:12px;">Simulated Client Request</h3>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Client Email</label>
+                <input type="text" id="ztClientEmail" value="engineer@company.com" style="width:100%;padding:8px 10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:12px;margin-top:4px;" />
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Client Geo Country</label>
+                <input type="text" id="ztClientCountry" value="US" style="width:100%;padding:8px 10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:12px;margin-top:4px;" />
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.evaluateZeroTrustAccess()" style="width:100%;padding:12px;font-weight:700;">
+              <span>⚡</span> Evaluate Access Decision
+            </button>
+          </div>
+
+          <!-- Right: Evaluation Result & Terraform -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div id="ztResultsContainer">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    window.evaluateZeroTrustAccess();
+  };
+
+  window.evaluateZeroTrustAccess = async function() {
+    const appName = document.getElementById('ztAppName')?.value || 'Production Vault API';
+    const domain = document.getElementById('ztDomain')?.value || 'vault-api.internal.company.com';
+    const sessionDuration = document.getElementById('ztSession')?.value || '24h';
+    const authType = document.getElementById('ztAuthType')?.value || 'identity';
+    const allowedDomain = document.getElementById('ztAllowedDomain')?.value || 'company.com';
+    const serviceTokenId = document.getElementById('ztServiceTokenId')?.value || 'cf-token-sec-98124';
+    const clientEmail = document.getElementById('ztClientEmail')?.value || 'engineer@company.com';
+    const clientCountry = document.getElementById('ztClientCountry')?.value || 'US';
+
+    const container = document.getElementById('ztResultsContainer');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/cloudflare/zero-trust-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appName,
+          domain,
+          sessionDuration,
+          allowedDomains: [allowedDomain],
+          allowedCountries: ['US', 'CA', 'GB', 'DE'],
+          requireServiceToken: authType === 'service',
+          serviceTokenId,
+          mockRequest: {
+            email: clientEmail,
+            country: clientCountry,
+            serviceTokenHeader: authType === 'service' ? serviceTokenId : ''
+          }
+        })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      const isGranted = data.granted;
+      const statusColor = isGranted ? '#22c55e' : '#ef4444';
+
+      container.innerHTML = `
+        <div style="margin-bottom:16px;">
+          <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Access Decision</div>
+          <div style="font-size:22px;font-weight:900;color:${statusColor};margin-top:4px;">
+            ${isGranted ? '✓ ACCESS GRANTED' : '🛡️ ACCESS DENIED'}
+          </div>
+          <div style="font-size:13px;color:#ddd;margin-top:6px;background:var(--surface2,#242434);padding:10px;border-radius:6px;border-left:3px solid ${statusColor};">
+            ${esc(data.reason)}
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <label style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Terraform cloudflare_access Resource</label>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+              onclick="navigator.clipboard.writeText(document.getElementById('tfAccessCode').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+              Copy
+            </button>
+          </div>
+          <pre id="tfAccessCode" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--accent,#7c6af7);font-family:monospace;font-size:11px;margin:0;max-height:260px;overflow-y:auto;">${esc(data.terraformCode)}</pre>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:16px;">Evaluation Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  // =========================================================================
+  // 26. HTTP/2 & HTTP/3 EDGE PROTOCOL & ALPN HANDSHAKE PROBER
+  // =========================================================================
+  window.renderHttpProbeStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>⚡</span> HTTP/2 & HTTP/3 Edge Protocol & ALPN Handshake Prober
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Probe target domains for HTTP/3 QUIC support, HTTP/2 ALPN negotiation, Alt-Svc headers, and edge latency.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('tlsinspect')">
+            <span>🔒</span> TLS Cipher
+          </button>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;">
+            <input type="text" id="httpProbeDomain" value="cloudflare.com" placeholder="Domain name (e.g. cloudflare.com or google.com)"
+              style="padding:12px 16px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:14px;"
+              onkeydown="if(event.key==='Enter') window.probeHttpProtocols();" />
+            <button class="btn btn-primary" onclick="window.probeHttpProtocols()" style="padding:12px 24px;font-weight:700;">
+              <span>⚡</span> Probe Edge Protocols
+            </button>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--muted,#888);">Test Presets:</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('httpProbeDomain').value='cloudflare.com';window.probeHttpProtocols();">cloudflare.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('httpProbeDomain').value='google.com';window.probeHttpProtocols();">google.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('httpProbeDomain').value='github.com';window.probeHttpProtocols();">github.com</button>
+          </div>
+        </div>
+
+        <div id="httpProbeResultsContainer">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    `;
+    window.probeHttpProtocols();
+  };
+
+  window.probeHttpProtocols = async function() {
+    const domain = document.getElementById('httpProbeDomain')?.value.trim() || 'cloudflare.com';
+    const container = document.getElementById('httpProbeResultsContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 16px auto;"></div>
+        <div style="font-size:15px;color:#fff;font-weight:600;">Connecting and inspecting ALPN protocols for ${esc(domain)}...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/network/http-protocol-probe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      container.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:20px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">HTTP/3 (QUIC)</div>
+            <div style="font-size:24px;font-weight:900;color:${data.protocols.http3Quic ? '#22c55e' : '#eab308'};margin-top:6px;">
+              ${data.protocols.http3Quic ? '✓ Supported' : '○ Not Advertised'}
+            </div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">HTTP/2 Multiplexing</div>
+            <div style="font-size:24px;font-weight:900;color:#22c55e;margin-top:6px;">
+              ✓ Active
+            </div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Edge Response Time</div>
+            <div style="font-size:24px;font-weight:900;color:#06b6d4;margin-top:6px;">
+              ${data.latencyMs} ms
+            </div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Cloudflare Edge</div>
+            <div style="font-size:24px;font-weight:900;color:${data.isCloudflareEdge ? '#f59e0b' : '#aaa'};margin-top:6px;">
+              ${data.isCloudflareEdge ? '✓ Edge CDN' : 'Origin Direct'}
+            </div>
+          </div>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">Edge Protocol Telemetry</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;">
+              <span style="font-size:12px;color:var(--muted,#888);">Server Header:</span>
+              <span style="font-size:12px;font-family:monospace;color:#fff;">${esc(data.serverHeader)}</span>
+            </div>
+            ${data.cfRay ? `
+              <div style="display:flex;justify-content:space-between;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;">
+                <span style="font-size:12px;color:var(--muted,#888);">Cloudflare CF-Ray:</span>
+                <span style="font-size:12px;font-family:monospace;color:#f59e0b;">${esc(data.cfRay)}</span>
+              </div>
+            ` : ''}
+            <div style="display:flex;justify-content:space-between;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;">
+              <span style="font-size:12px;color:var(--muted,#888);">Alt-Svc Protocol Header:</span>
+              <span style="font-size:12px;font-family:monospace;color:var(--accent,#7c6af7);word-break:break-all;">${esc(data.protocols.altSvcRaw)}</span>
+            </div>
+          </div>
+          <div style="margin-top:12px;font-size:13px;color:#22c55e;">
+            ${esc(data.summary)}
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Probe Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  // =========================================================================
+  // 27. REGEX & EDGE URL ROUTE BENCHMARK & REDOS DETECTOR
+  // =========================================================================
+  window.renderRegexBenchStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🧩</span> Regex & Edge URL Route Pattern Benchmark & ReDoS Detector
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Benchmark regular expressions used in Cloudflare Workers and detect catastrophic backtracking (ReDoS) vulnerabilities.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('edgeworker')">
+            <span>⚡</span> Edge Workers
+          </button>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Test Presets:</span>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('regPattern').value='^/api/v[0-9]+/(users|orders)/([a-zA-Z0-9_-]+)$';document.getElementById('regInput').value='/api/v2/users/usr_98124_alpha';window.benchmarkRegex();">
+            Standard REST Route (Safe)
+          </button>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('regPattern').value='(a+)+$';document.getElementById('regInput').value='aaaaaaaaaaaaaaaaaaaaaaaaX';window.benchmarkRegex();">
+            Catastrophic Backtracking (ReDoS)
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;">Expression & Input</h2>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Regular Expression Pattern</label>
+              <input type="text" id="regPattern" value="^/api/v[0-9]+/(users|orders)/([a-zA-Z0-9_-]+)$" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:var(--accent,#7c6af7);font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Test Input String</label>
+              <input type="text" id="regInput" value="/api/v2/users/usr_98124_alpha" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Flags</label>
+                <input type="text" id="regFlags" value="i" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;" />
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Benchmark Iterations</label>
+                <input type="number" id="regIters" value="10000" min="100" max="50000" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;" />
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.benchmarkRegex()" style="width:100%;padding:12px;font-weight:700;">
+              <span>⚡</span> Benchmark & Scan ReDoS
+            </button>
+          </div>
+
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div id="regResultsContainer">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    window.benchmarkRegex();
+  };
+
+  window.benchmarkRegex = async function() {
+    const pattern = document.getElementById('regPattern')?.value || '^/api/v[0-9]+/(users|orders)/([a-zA-Z0-9_-]+)$';
+    const flags = document.getElementById('regFlags')?.value || 'i';
+    const testString = document.getElementById('regInput')?.value || '/api/v2/users/usr_98124_alpha';
+    const iterations = parseInt(document.getElementById('regIters')?.value || '10000', 10);
+
+    const container = document.getElementById('regResultsContainer');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/tools/regex-benchmark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pattern, flags, testString, iterations })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      const riskColor = data.redosRisk === 'LOW' ? '#22c55e' : data.redosRisk === 'MODERATE' ? '#eab308' : '#ef4444';
+
+      container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:10px;">
+          <div>
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Match Result</div>
+            <div style="font-size:18px;font-weight:800;color:${data.matches ? '#22c55e' : '#ef4444'};">
+              ${data.matches ? '✓ String Matched' : '✗ No Match'}
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">ReDoS Vulnerability Risk</div>
+            <div style="font-size:18px;font-weight:900;color:${riskColor};">${data.redosRisk}</div>
+          </div>
+        </div>
+
+        ${data.redosWarnings.length > 0 ? `
+          <div style="background:#ef444415;border:1px solid #ef4444;border-radius:6px;padding:10px;margin-bottom:16px;">
+            ${data.redosWarnings.map(w => `<div style="font-size:12px;color:#ef4444;font-weight:600;">⚠ ${esc(w)}</div>`).join('')}
+          </div>
+        ` : ''}
+
+        <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:8px;">Benchmark Performance (${data.iterations.toLocaleString()} runs)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+            <div style="background:#0d0d12;padding:8px;border-radius:6px;">
+              <div style="font-size:10px;color:var(--muted,#888);">Total Time</div>
+              <div style="font-size:14px;font-weight:700;color:#fff;">${data.totalDurationMs} ms</div>
+            </div>
+            <div style="background:#0d0d12;padding:8px;border-radius:6px;">
+              <div style="font-size:10px;color:var(--muted,#888);">Average Time</div>
+              <div style="font-size:14px;font-weight:700;color:#06b6d4;">${data.avgDurationUs} µs</div>
+            </div>
+            <div style="background:#0d0d12;padding:8px;border-radius:6px;">
+              <div style="font-size:10px;color:var(--muted,#888);">Throughput</div>
+              <div style="font-size:14px;font-weight:700;color:#22c55e;">${data.opsPerSecond.toLocaleString()} op/s</div>
+            </div>
+          </div>
+        </div>
+
+        ${data.capturedGroups && data.capturedGroups.length > 0 ? `
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:6px;">Captured Groups</div>
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              ${data.capturedGroups.map((g, idx) => `
+                <div style="font-family:monospace;font-size:11px;background:#0d0d12;padding:6px 10px;border-radius:4px;color:var(--accent,#7c6af7);">
+                  Group $${idx + 1}: "${esc(g)}"
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:16px;">Benchmark Error: ${esc(err.message)}</div>`;
+    }
+  };
+
 
   // =========================================================================
   // TAB BUTTON INJECTION
@@ -5338,6 +5965,34 @@ function mergeObjects(target, source) {
     secTxtBtn.innerHTML = '<span>📄</span> security.txt';
     secTxtBtn.onclick = () => window.switchTab('sectxt');
 
+    // 24. Email Security (SPF & DMARC)
+    const emailBtn = document.createElement('button');
+    emailBtn.className = 'tab';
+    emailBtn.id = 'tab-emailsec';
+    emailBtn.innerHTML = '<span>📧</span> Email SPF/DMARC';
+    emailBtn.onclick = () => window.switchTab('emailsec');
+
+    // 25. Zero Trust Access
+    const ztBtn = document.createElement('button');
+    ztBtn.className = 'tab';
+    ztBtn.id = 'tab-zerotrust';
+    ztBtn.innerHTML = '<span>🛡️</span> Zero Trust';
+    ztBtn.onclick = () => window.switchTab('zerotrust');
+
+    // 26. HTTP/3 & ALPN Probe
+    const httpBtn = document.createElement('button');
+    httpBtn.className = 'tab';
+    httpBtn.id = 'tab-httpprobe';
+    httpBtn.innerHTML = '<span>⚡</span> HTTP/3 & ALPN';
+    httpBtn.onclick = () => window.switchTab('httpprobe');
+
+    // 27. Regex & ReDoS Benchmark
+    const regBtn = document.createElement('button');
+    regBtn.className = 'tab';
+    regBtn.id = 'tab-regexbench';
+    regBtn.innerHTML = '<span>🧩</span> Regex & ReDoS';
+    regBtn.onclick = () => window.switchTab('regexbench');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
@@ -5364,6 +6019,10 @@ function mergeObjects(target, source) {
       tabsContainer.insertBefore(transBtn, jwtBtn.nextSibling);
       tabsContainer.insertBefore(cidrBtn, transBtn.nextSibling);
       tabsContainer.insertBefore(secTxtBtn, cidrBtn.nextSibling);
+      tabsContainer.insertBefore(emailBtn, secTxtBtn.nextSibling);
+      tabsContainer.insertBefore(ztBtn, emailBtn.nextSibling);
+      tabsContainer.insertBefore(httpBtn, ztBtn.nextSibling);
+      tabsContainer.insertBefore(regBtn, httpBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
@@ -5388,6 +6047,10 @@ function mergeObjects(target, source) {
       tabsContainer.appendChild(transBtn);
       tabsContainer.appendChild(cidrBtn);
       tabsContainer.appendChild(secTxtBtn);
+      tabsContainer.appendChild(emailBtn);
+      tabsContainer.appendChild(ztBtn);
+      tabsContainer.appendChild(httpBtn);
+      tabsContainer.appendChild(regBtn);
     }
   }
 
