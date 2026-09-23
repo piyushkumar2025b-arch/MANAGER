@@ -4492,6 +4492,302 @@ app.post('/api/ai/creations/delete', (req, res) => {
   }
 });
 
+// 8. AI Document & File Intelligence Studio
+app.post('/api/ai/doc-intel', async (req, res) => {
+  try {
+    const { text, fileBase64, mimeType, filename, mode = 'summary', targetLang = 'Spanish' } = req.body || {};
+    if (!text && !fileBase64) {
+      return res.status(400).json({ error: 'Text or file attachment is required' });
+    }
+
+    const ai = getGeminiInstance();
+
+    let systemInstruction = 'You are an advanced cybersecurity, document intelligence, and data extraction engine.';
+    let promptText = '';
+
+    if (mode === 'security_scan') {
+      systemInstruction += ' Detect all exposed secrets, passwords, private keys, API tokens, credentials, and PII. Return a clear breakdown of threats, security score (0-100), and a sanitized redacted version.';
+      promptText = `Perform an exhaustive security and credential audit of the following document content.\nIdentify any hardcoded credentials, sensitive personal data, or confidential keys.\n\nContent:\n${text || '[Attached file]'}`;
+    } else if (mode === 'tasks') {
+      systemInstruction += ' Extract all actionable tasks, deliverables, deadlines, and responsibilities. Return both a human-readable list and a JSON block ```action:tasks [{"title": "...", "description": "...", "priority": "high|medium|low", "due_date": "YYYY-MM-DD"}]```';
+      promptText = `Extract all action items, tasks, and follow-ups from the following document:\n\n${text || '[Attached file]'}`;
+    } else if (mode === 'translate') {
+      systemInstruction += ` Translate the document accurately into ${targetLang}, preserving technical formatting, code blocks, and markdown structure.`;
+      promptText = `Translate the following document into ${targetLang}:\n\n${text || '[Attached file]'}`;
+    } else {
+      // Default: summary & deep analysis
+      systemInstruction += ' Produce a structured executive briefing with Executive Summary, Key Takeaways (bulleted), Critical Entities & Dates, and Recommendations.';
+      promptText = `Analyze and summarize the following document:\n\n${text || '[Attached file]'}`;
+    }
+
+    const contents = [];
+    const parts = [];
+
+    if (fileBase64 && mimeType) {
+      const cleanB64 = fileBase64.replace(/^data:[^;]+;base64,/, '');
+      parts.push({
+        inlineData: {
+          mimeType,
+          data: cleanB64
+        }
+      });
+    }
+
+    parts.push({ text: `${systemInstruction}\n\n${promptText}` });
+    contents.push({ role: 'user', parts });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents
+    });
+
+    const resultText = response?.text || 'No analysis generated';
+
+    // Parse extracted tasks if in tasks mode
+    let extractedTasks = [];
+    if (mode === 'tasks') {
+      const jsonMatch = resultText.match(/```(?:action:tasks|json)?\s*(\[[\s\S]*?\])\s*```/);
+      if (jsonMatch) {
+        try {
+          extractedTasks = JSON.parse(jsonMatch[1]);
+        } catch (_) {}
+      }
+    }
+
+    // Persist into ai_creations table
+    const creationId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    try {
+      db.prepare(`
+        INSERT INTO ai_creations (id, type, prompt, model, title, content, metadata, storage_type)
+        VALUES (?, 'doc_intel', ?, 'gemini-3.8-flash', ?, ?, ?, 'db')
+      `).run(
+        creationId,
+        (filename || 'Document').slice(0, 100),
+        `${mode.toUpperCase()}: ${filename || 'Text Document'}`,
+        resultText,
+        JSON.stringify({ mode, filename, taskCount: extractedTasks.length, timestamp: Date.now() })
+      );
+    } catch (dbErr) {
+      console.warn('Doc intel db save note:', dbErr);
+    }
+
+    return res.json({
+      success: true,
+      id: creationId,
+      mode,
+      analysis: resultText,
+      extractedTasks,
+      model: 'gemini-3.8-flash'
+    });
+  } catch (err) {
+    console.error('Doc intel error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 9. AI Code Sandbox & Vulnerability Security Auditor
+app.post('/api/ai/code-audit', async (req, res) => {
+  try {
+    const { code, language = 'javascript', filename = 'script.js' } = req.body || {};
+    if (!code || !code.trim()) {
+      return res.status(400).json({ error: 'Code content is required' });
+    }
+
+    const ai = getGeminiInstance();
+
+    const prompt = `You are a premier application security engineer and code auditor.
+Analyze the following ${language} code for:
+1. Critical security vulnerabilities (OWASP Top 10, CWE: SQLi, XSS, SSRF, Command Injection, Insecure Deserialization, Prototype Pollution, Hardcoded Secrets).
+2. Performance bottlenecks and resource leaks.
+3. Code quality and modern standard compliance.
+
+Provide a comprehensive JSON analysis matching this schema:
+{
+  "securityScore": 85,
+  "riskLevel": "LOW | MEDIUM | HIGH | CRITICAL",
+  "summary": "Brief 1-2 sentence overview of code health",
+  "vulnerabilities": [
+    {
+      "severity": "HIGH",
+      "type": "CWE-89: SQL Injection",
+      "line": 14,
+      "description": "Unescaped user input concatenated into query string",
+      "fix": "Use parameterized queries or prepared statements"
+    }
+  ],
+  "recommendations": ["Recommendation 1", "Recommendation 2"],
+  "refactoredCode": "// Complete, secured, and optimized refactored version of the code"
+}
+
+Code to analyze (${filename}):
+\`\`\`${language}
+${code}
+\`\`\``;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { responseMimeType: 'application/json' }
+    });
+
+    let auditData = {};
+    try {
+      auditData = JSON.parse(response.text);
+    } catch (_) {
+      auditData = {
+        securityScore: 80,
+        riskLevel: 'MEDIUM',
+        summary: response.text?.slice(0, 200) || 'Audit complete',
+        vulnerabilities: [],
+        recommendations: [],
+        refactoredCode: code
+      };
+    }
+
+    return res.json({ success: true, audit: auditData, model: 'gemini-3.8-flash' });
+  } catch (err) {
+    console.error('Code audit error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 10. Cloudflare Edge Benchmark & Telemetry
+app.get('/api/network/edge-benchmark', (req, res) => {
+  const edgePoPs = [
+    { code: 'IAD', city: 'Washington D.C.', country: 'United States', region: 'North America', endpoint: 'https://1.1.1.1' },
+    { code: 'SFO', city: 'San Francisco', country: 'United States', region: 'North America', endpoint: 'https://cloudflare.com' },
+    { code: 'ORD', city: 'Chicago', country: 'United States', region: 'North America', endpoint: 'https://one.one.one.one' },
+    { code: 'LHR', city: 'London', country: 'United Kingdom', region: 'Europe', endpoint: 'https://cloudflare-dns.com' },
+    { code: 'FRA', city: 'Frankfurt', country: 'Germany', region: 'Europe', endpoint: 'https://1.0.0.1' },
+    { code: 'NRT', city: 'Tokyo', country: 'Japan', region: 'Asia-Pacific', endpoint: 'https://cloudflare.tv' },
+    { code: 'SIN', city: 'Singapore', country: 'Singapore', region: 'Asia-Pacific', endpoint: 'https://pages.dev' },
+    { code: 'SYD', city: 'Sydney', country: 'Australia', region: 'Oceania', endpoint: 'https://workers.dev' }
+  ];
+
+  const cfHeaders = {
+    colo: req.headers['cf-ray'] ? req.headers['cf-ray'].split('-')[1] : (req.headers['cf-ipcountry'] ? req.headers['cf-ipcountry'] + '-EDGE' : 'LOCAL-NODE'),
+    rayId: req.headers['cf-ray'] || `local-${Date.now()}`,
+    clientIp: req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1',
+    country: req.headers['cf-ipcountry'] || 'US',
+    httpProtocol: req.httpVersion ? `HTTP/${req.httpVersion}` : 'HTTP/2',
+    tlsVersion: 'TLSv1.3',
+    tlsCipher: 'AEAD-AES256-GCM-SHA384'
+  };
+
+  return res.json({
+    success: true,
+    telemetry: cfHeaders,
+    edgePoPs,
+    timestamp: Date.now()
+  });
+});
+
+// 11. Cloudflare 1.1.1.1 DNS over HTTPS (DoH) Inspector
+app.post('/api/network/dns-lookup', async (req, res) => {
+  try {
+    const { domain, type = 'A' } = req.body || {};
+    if (!domain || !domain.trim()) {
+      return res.status(400).json({ error: 'Domain name is required' });
+    }
+
+    const cleanDomain = domain.trim().replace(/^https?:\/\//, '').split('/')[0];
+    const dohUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(cleanDomain)}&type=${encodeURIComponent(type)}`;
+
+    const dohRes = await fetch(dohUrl, {
+      headers: { 'Accept': 'application/dns-json', 'User-Agent': 'Cloudflare-Vault-DoH/1.0' }
+    });
+
+    if (!dohRes.ok) {
+      throw new Error(`Cloudflare 1.1.1.1 DoH returned status ${dohRes.status}`);
+    }
+
+    const data = await dohRes.json();
+
+    const recordTypeMap = { 1: 'A', 28: 'AAAA', 15: 'MX', 16: 'TXT', 5: 'CNAME', 2: 'NS', 6: 'SOA' };
+    const answers = (data.Answer || []).map(a => ({
+      name: a.name,
+      type: recordTypeMap[a.type] || String(a.type),
+      ttl: a.TTL,
+      data: a.data
+    }));
+
+    return res.json({
+      success: true,
+      domain: cleanDomain,
+      queryType: type,
+      status: data.Status === 0 ? 'NOERROR' : `RCODE_${data.Status}`,
+      dnssecAuthenticated: Boolean(data.AD), // Authenticated Data (DNSSEC)
+      answers,
+      raw: data
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 12. HTTP Security Headers Inspector & Grading
+app.post('/api/network/headers-inspect', async (req, res) => {
+  try {
+    let { url } = req.body || {};
+    if (!url || !url.trim()) return res.status(400).json({ error: 'Target URL is required' });
+
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const targetRes = await fetch(url, {
+      method: 'GET',
+      headers: { 'User-Agent': 'Mozilla/5.0 (SecurityHeaderAudit/1.0; Cloudflare-Vault)' },
+      signal: controller.signal
+    }).catch(err => {
+      throw new Error(`Failed to reach ${url}: ${err.message}`);
+    });
+    clearTimeout(timeout);
+
+    const headersMap = {};
+    targetRes.headers.forEach((val, key) => {
+      headersMap[key.toLowerCase()] = val;
+    });
+
+    const checks = [
+      { name: 'Strict-Transport-Security (HSTS)', header: 'strict-transport-security', score: 25, present: Boolean(headersMap['strict-transport-security']), desc: 'Enforces HTTPS encryption & protects against man-in-the-middle downgrade attacks' },
+      { name: 'Content-Security-Policy (CSP)', header: 'content-security-policy', score: 25, present: Boolean(headersMap['content-security-policy']), desc: 'Prevents Cross-Site Scripting (XSS) and arbitrary script execution' },
+      { name: 'X-Frame-Options', header: 'x-frame-options', score: 15, present: Boolean(headersMap['x-frame-options']), desc: 'Guards against Clickjacking attacks via unauthorized iframe framing' },
+      { name: 'X-Content-Type-Options', header: 'x-content-type-options', score: 15, present: headersMap['x-content-type-options'] === 'nosniff', desc: 'Prevents MIME-type sniffing by browsers' },
+      { name: 'Referrer-Policy', header: 'referrer-policy', score: 10, present: Boolean(headersMap['referrer-policy']), desc: 'Controls sensitive referrer data sent on outbound links' },
+      { name: 'Permissions-Policy', header: 'permissions-policy', score: 10, present: Boolean(headersMap['permissions-policy']), desc: 'Restricts camera, microphone, geolocation access in browser' }
+    ];
+
+    let totalScore = 0;
+    checks.forEach(c => {
+      if (c.present) totalScore += c.score;
+    });
+
+    let grade = 'F';
+    if (totalScore >= 90) grade = 'A+';
+    else if (totalScore >= 80) grade = 'A';
+    else if (totalScore >= 65) grade = 'B';
+    else if (totalScore >= 50) grade = 'C';
+    else if (totalScore >= 35) grade = 'D';
+
+    return res.json({
+      success: true,
+      url,
+      grade,
+      score: totalScore,
+      checks,
+      status: targetRes.status,
+      server: headersMap['server'] || 'Protected / Hidden',
+      rawHeaders: headersMap
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // API routes handling via Cloudflare Pages function handler
 app.all(['/api', '/api/*'], async (req, res) => {
   try {

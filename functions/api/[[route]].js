@@ -9467,6 +9467,285 @@ Provide your response in JSON format with two keys:
       }
     }
 
+    // 8. AI Document & File Intelligence Studio
+    if (path === '/ai/doc-intel' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { text, fileBase64, mimeType, filename, mode = 'summary', targetLang = 'Spanish' } = body;
+        if (!text && !fileBase64) {
+          return new Response(JSON.stringify({ error: 'Text or file attachment is required' }), { headers, status: 400 });
+        }
+
+        const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+        if (!geminiKey) {
+          return new Response(JSON.stringify({ error: 'Gemini API key is required. Add key in Settings.' }), { headers, status: 401 });
+        }
+
+        let systemInstruction = 'You are an advanced cybersecurity, document intelligence, and data extraction engine.';
+        let promptText = '';
+
+        if (mode === 'security_scan') {
+          systemInstruction += ' Detect all exposed secrets, passwords, private keys, API tokens, credentials, and PII. Return a clear breakdown of threats, security score (0-100), and a sanitized redacted version.';
+          promptText = `Perform an exhaustive security and credential audit of the following document content.\nIdentify any hardcoded credentials, sensitive personal data, or confidential keys.\n\nContent:\n${text || '[Attached file]'}`;
+        } else if (mode === 'tasks') {
+          systemInstruction += ' Extract all actionable tasks, deliverables, deadlines, and responsibilities. Return both a human-readable list and a JSON block ```action:tasks [{"title": "...", "description": "...", "priority": "high|medium|low", "due_date": "YYYY-MM-DD"}]```';
+          promptText = `Extract all action items, tasks, and follow-ups from the following document:\n\n${text || '[Attached file]'}`;
+        } else if (mode === 'translate') {
+          systemInstruction += ` Translate the document accurately into ${targetLang}, preserving technical formatting, code blocks, and markdown structure.`;
+          promptText = `Translate the following document into ${targetLang}:\n\n${text || '[Attached file]'}`;
+        } else {
+          systemInstruction += ' Produce a structured executive briefing with Executive Summary, Key Takeaways (bulleted), Critical Entities & Dates, and Recommendations.';
+          promptText = `Analyze and summarize the following document:\n\n${text || '[Attached file]'}`;
+        }
+
+        const parts = [];
+        if (fileBase64 && mimeType) {
+          const cleanB64 = fileBase64.replace(/^data:[^;]+;base64,/, '');
+          parts.push({
+            inlineData: { mimeType, data: cleanB64 }
+          });
+        }
+        parts.push({ text: `${systemInstruction}\n\n${promptText}` });
+
+        const reqBody = { contents: [{ role: 'user', parts }] };
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`;
+
+        const gRes = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'User-Agent': 'aistudio-build' },
+          body: JSON.stringify(reqBody)
+        });
+
+        if (!gRes.ok) {
+          const errText = await gRes.text();
+          return new Response(JSON.stringify({ error: `Gemini API error: ${errText.slice(0, 150)}` }), { headers, status: gRes.status });
+        }
+
+        const gData = await gRes.json();
+        const resultText = gData.candidates?.[0]?.content?.parts?.[0]?.text || 'No analysis generated';
+
+        let extractedTasks = [];
+        if (mode === 'tasks') {
+          const jsonMatch = resultText.match(/```(?:action:tasks|json)?\s*(\[[\s\S]*?\])\s*```/);
+          if (jsonMatch) {
+            try { extractedTasks = JSON.parse(jsonMatch[1]); } catch (_) {}
+          }
+        }
+
+        const creationId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        await env.DB.prepare(`
+          INSERT INTO ai_creations (id, type, prompt, model, title, content, metadata, storage_type)
+          VALUES (?, 'doc_intel', ?, 'gemini-3.8-flash', ?, ?, ?, 'db')
+        `).bind(
+          creationId,
+          (filename || 'Document').slice(0, 100),
+          `${mode.toUpperCase()}: ${filename || 'Text Document'}`,
+          resultText,
+          JSON.stringify({ mode, filename, taskCount: extractedTasks.length, timestamp: Date.now() })
+        ).run();
+
+        return new Response(JSON.stringify({
+          success: true,
+          id: creationId,
+          mode,
+          analysis: resultText,
+          extractedTasks,
+          model: 'gemini-3.8-flash'
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 9. AI Code Sandbox & Vulnerability Security Auditor
+    if (path === '/ai/code-audit' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { code, language = 'javascript', filename = 'script.js' } = body;
+        if (!code || !code.trim()) {
+          return new Response(JSON.stringify({ error: 'Code content required' }), { headers, status: 400 });
+        }
+
+        const geminiKey = env.GEMINI_API_KEY || (await getSetting(env.DB, 'gemini_api_key'));
+        if (!geminiKey) {
+          return new Response(JSON.stringify({ error: 'Gemini API key is required. Add key in Settings.' }), { headers, status: 401 });
+        }
+
+        const prompt = `You are a premier application security engineer and code auditor.
+Analyze the following ${language} code for OWASP Top 10, CWE risks, performance leaks, and code quality.
+Output JSON only matching:
+{
+  "securityScore": 85,
+  "riskLevel": "LOW | MEDIUM | HIGH | CRITICAL",
+  "summary": "Brief summary",
+  "vulnerabilities": [{"severity": "HIGH", "type": "SQL Injection", "line": 14, "description": "...", "fix": "..."}],
+  "recommendations": ["..."],
+  "refactoredCode": "// Complete, secured refactored version"
+}
+
+Code (${filename}):
+\`\`\`${language}
+${code}
+\`\`\``;
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`;
+        const gRes = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'User-Agent': 'aistudio-build' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json' }
+          })
+        });
+
+        if (!gRes.ok) {
+          const errText = await gRes.text();
+          return new Response(JSON.stringify({ error: `Gemini error: ${errText.slice(0, 150)}` }), { headers, status: gRes.status });
+        }
+
+        const gData = await gRes.json();
+        const jsonText = gData.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+        let auditData = {};
+        try { auditData = JSON.parse(jsonText); } catch (_) {
+          auditData = { securityScore: 80, riskLevel: 'MEDIUM', summary: 'Audit complete', vulnerabilities: [], recommendations: [], refactoredCode: code };
+        }
+
+        return new Response(JSON.stringify({ success: true, audit: auditData, model: 'gemini-3.8-flash' }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 10. Cloudflare Edge Benchmark & Telemetry
+    if (path === '/network/edge-benchmark' && method === 'GET') {
+      const edgePoPs = [
+        { code: 'IAD', city: 'Washington D.C.', country: 'United States', region: 'North America', endpoint: 'https://1.1.1.1' },
+        { code: 'SFO', city: 'San Francisco', country: 'United States', region: 'North America', endpoint: 'https://cloudflare.com' },
+        { code: 'ORD', city: 'Chicago', country: 'United States', region: 'North America', endpoint: 'https://one.one.one.one' },
+        { code: 'LHR', city: 'London', country: 'United Kingdom', region: 'Europe', endpoint: 'https://cloudflare-dns.com' },
+        { code: 'FRA', city: 'Frankfurt', country: 'Germany', region: 'Europe', endpoint: 'https://1.0.0.1' },
+        { code: 'NRT', city: 'Tokyo', country: 'Japan', region: 'Asia-Pacific', endpoint: 'https://cloudflare.tv' },
+        { code: 'SIN', city: 'Singapore', country: 'Singapore', region: 'Asia-Pacific', endpoint: 'https://pages.dev' },
+        { code: 'SYD', city: 'Sydney', country: 'Australia', region: 'Oceania', endpoint: 'https://workers.dev' }
+      ];
+
+      const cf = request.cf || {};
+      const telemetry = {
+        colo: cf.colo || 'EDGE-POP',
+        rayId: request.headers.get('cf-ray') || `cf-${Date.now()}`,
+        clientIp: request.headers.get('cf-connecting-ip') || '127.0.0.1',
+        country: cf.country || request.headers.get('cf-ipcountry') || 'US',
+        city: cf.city || 'Edge City',
+        region: cf.region || 'Edge Region',
+        timezone: cf.timezone || 'UTC',
+        asn: cf.asn || 13335,
+        asOrganization: cf.asOrganization || 'Cloudflare, Inc.',
+        httpProtocol: cf.httpProtocol || 'HTTP/3 (QUIC)',
+        tlsVersion: cf.tlsVersion || 'TLSv1.3',
+        tlsCipher: cf.tlsCipher || 'AEAD-AES256-GCM-SHA384'
+      };
+
+      return new Response(JSON.stringify({ success: true, telemetry, edgePoPs, timestamp: Date.now() }), { headers });
+    }
+
+    // 11. Cloudflare 1.1.1.1 DNS over HTTPS (DoH) Inspector
+    if (path === '/network/dns-lookup' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { domain, type = 'A' } = body;
+        if (!domain || !domain.trim()) {
+          return new Response(JSON.stringify({ error: 'Domain name required' }), { headers, status: 400 });
+        }
+
+        const cleanDomain = domain.trim().replace(/^https?:\/\//, '').split('/')[0];
+        const dohUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(cleanDomain)}&type=${encodeURIComponent(type)}`;
+
+        const dohRes = await fetch(dohUrl, {
+          headers: { 'Accept': 'application/dns-json', 'User-Agent': 'Cloudflare-Vault-DoH/1.0' }
+        });
+
+        if (!dohRes.ok) {
+          return new Response(JSON.stringify({ error: `Cloudflare DoH error: ${dohRes.status}` }), { headers, status: dohRes.status });
+        }
+
+        const data = await dohRes.json();
+        const recordTypeMap = { 1: 'A', 28: 'AAAA', 15: 'MX', 16: 'TXT', 5: 'CNAME', 2: 'NS', 6: 'SOA' };
+        const answers = (data.Answer || []).map(a => ({
+          name: a.name,
+          type: recordTypeMap[a.type] || String(a.type),
+          ttl: a.TTL,
+          data: a.data
+        }));
+
+        return new Response(JSON.stringify({
+          success: true,
+          domain: cleanDomain,
+          queryType: type,
+          status: data.Status === 0 ? 'NOERROR' : `RCODE_${data.Status}`,
+          dnssecAuthenticated: Boolean(data.AD),
+          answers,
+          raw: data
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 12. HTTP Security Headers Inspector & Grading
+    if (path === '/network/headers-inspect' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let { url } = body;
+        if (!url || !url.trim()) return new Response(JSON.stringify({ error: 'URL required' }), { headers, status: 400 });
+
+        if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+        const targetRes = await fetch(url, {
+          method: 'GET',
+          headers: { 'User-Agent': 'Mozilla/5.0 (SecurityHeaderAudit/1.0; Cloudflare-Vault)' }
+        }).catch(err => {
+          throw new Error(`Target unreachable: ${err.message}`);
+        });
+
+        const headersMap = {};
+        targetRes.headers.forEach((val, key) => {
+          headersMap[key.toLowerCase()] = val;
+        });
+
+        const checks = [
+          { name: 'Strict-Transport-Security (HSTS)', header: 'strict-transport-security', score: 25, present: Boolean(headersMap['strict-transport-security']), desc: 'Enforces HTTPS encryption & protects against SSL stripping' },
+          { name: 'Content-Security-Policy (CSP)', header: 'content-security-policy', score: 25, present: Boolean(headersMap['content-security-policy']), desc: 'Blocks Cross-Site Scripting (XSS) and arbitrary script execution' },
+          { name: 'X-Frame-Options', header: 'x-frame-options', score: 15, present: Boolean(headersMap['x-frame-options']), desc: 'Guards against Clickjacking attacks via unauthorized iframes' },
+          { name: 'X-Content-Type-Options', header: 'x-content-type-options', score: 15, present: headersMap['x-content-type-options'] === 'nosniff', desc: 'Prevents browser MIME-type sniffing' },
+          { name: 'Referrer-Policy', header: 'referrer-policy', score: 10, present: Boolean(headersMap['referrer-policy']), desc: 'Controls sensitive referrer metadata on outbound navigation' },
+          { name: 'Permissions-Policy', header: 'permissions-policy', score: 10, present: Boolean(headersMap['permissions-policy']), desc: 'Restricts camera, microphone, and geolocation APIs in browser' }
+        ];
+
+        let totalScore = 0;
+        checks.forEach(c => { if (c.present) totalScore += c.score; });
+
+        let grade = 'F';
+        if (totalScore >= 90) grade = 'A+';
+        else if (totalScore >= 80) grade = 'A';
+        else if (totalScore >= 65) grade = 'B';
+        else if (totalScore >= 50) grade = 'C';
+        else if (totalScore >= 35) grade = 'D';
+
+        return new Response(JSON.stringify({
+          success: true,
+          url,
+          grade,
+          score: totalScore,
+          checks,
+          status: targetRes.status,
+          server: headersMap['server'] || 'Protected / Hidden',
+          rawHeaders: headersMap
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {

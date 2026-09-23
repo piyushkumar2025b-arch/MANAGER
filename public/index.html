@@ -2875,6 +2875,18 @@ async function loadTab() {
     if (typeof window.renderVeoVideoStudio === 'function') {
       window.renderVeoVideoStudio();
     }
+  } else if (currentTab === 'docintel') {
+    if (typeof window.renderDocIntelStudio === 'function') {
+      window.renderDocIntelStudio();
+    }
+  } else if (currentTab === 'edgebench') {
+    if (typeof window.renderEdgeBenchmarkStudio === 'function') {
+      window.renderEdgeBenchmarkStudio();
+    }
+  } else if (currentTab === 'codesandbox') {
+    if (typeof window.renderCodeSandboxStudio === 'function') {
+      window.renderCodeSandboxStudio();
+    }
   }
 }
 
@@ -16066,5 +16078,6 @@ async function runHubWorkersAiTest() {
 <script src="/gaming-3d-studio.js"></script>
 <script src="/infinite-canvas-suite.js"></script>
 <script src="/ai-cloud-studio.js"></script>
+<script src="/ai-cloud-studio-extended.js"></script>
 </body>
 </html>
