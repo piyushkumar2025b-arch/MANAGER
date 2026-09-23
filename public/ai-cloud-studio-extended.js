@@ -1273,6 +1273,30 @@ function mergeObjects(target, source) {
       window.renderCodeSandboxStudio();
       return;
     }
+    if (tab === 'totp') {
+      window.currentTab = 'totp';
+      updateNavHighlight('tab-totp');
+      window.renderTotpStudio();
+      return;
+    }
+    if (tab === 'd1studio') {
+      window.currentTab = 'd1studio';
+      updateNavHighlight('tab-d1studio');
+      window.renderD1Studio();
+      return;
+    }
+    if (tab === 'certmonitor') {
+      window.currentTab = 'certmonitor';
+      updateNavHighlight('tab-certmonitor');
+      window.renderCertTransparencyStudio();
+      return;
+    }
+    if (tab === 'ipintel') {
+      window.currentTab = 'ipintel';
+      updateNavHighlight('tab-ipintel');
+      window.renderIpIntelStudio();
+      return;
+    }
 
     if (typeof origSwitchTab === 'function') {
       origSwitchTab(tab);
@@ -1285,7 +1309,1088 @@ function mergeObjects(target, source) {
     if (btn) btn.classList.add('active');
   }
 
-  // Inject additional navigation tabs into the tabs container
+  // =========================================================================
+  // 4. TOTP 2-FACTOR AUTHENTICATION (2FA) AUTHENTICATOR STUDIO
+  // =========================================================================
+
+  window._totpState = {
+    items: [],
+    filter: '',
+    timer: null,
+    testSecret: 'JBSWY3DPEHPK3PXP',
+    testCodes: null
+  };
+
+  // Standard RFC 6238 Base32 decoding
+  function base32Decode(base32) {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    const cleaned = (base32 || '').toUpperCase().replace(/=+$/, '').replace(/[\s-]/g, '');
+    let bits = 0;
+    let value = 0;
+    const bytes = [];
+    for (let i = 0; i < cleaned.length; i++) {
+      const idx = alphabet.indexOf(cleaned[i]);
+      if (idx === -1) continue;
+      value = (value << 5) | idx;
+      bits += 5;
+      if (bits >= 8) {
+        bytes.push((value >>> (bits - 8)) & 255);
+        bits -= 8;
+      }
+    }
+    return new Uint8Array(bytes);
+  }
+
+  // Pure Web Crypto RFC 6238 TOTP computation
+  async function computeTOTP(secret, epochSeconds, period = 30, digits = 6) {
+    try {
+      const nowSec = epochSeconds !== undefined ? epochSeconds : Math.floor(Date.now() / 1000);
+      const counter = Math.floor(nowSec / period);
+      const counterBuffer = new ArrayBuffer(8);
+      const counterView = new DataView(counterBuffer);
+      counterView.setUint32(0, Math.floor(counter / 0x100000000));
+      counterView.setUint32(4, counter & 0xffffffff);
+
+      const keyBytes = base32Decode(secret);
+      if (keyBytes.length === 0) return { otp: '------', secondsRemaining: 30, period };
+
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        keyBytes,
+        { name: 'HMAC', hash: { name: 'SHA-1' } },
+        false,
+        ['sign']
+      );
+
+      const signature = await crypto.subtle.sign('HMAC', cryptoKey, counterBuffer);
+      const sigBytes = new Uint8Array(signature);
+      const offset = sigBytes[sigBytes.length - 1] & 0x0f;
+      const codeInt =
+        ((sigBytes[offset] & 0x7f) << 24) |
+        ((sigBytes[offset + 1] & 0xff) << 16) |
+        ((sigBytes[offset + 2] & 0xff) << 8) |
+        (sigBytes[offset + 3] & 0xff);
+
+      const otp = (codeInt % Math.pow(10, digits)).toString().padStart(digits, '0');
+      const secondsRemaining = period - (nowSec % period);
+      return { otp, secondsRemaining, period };
+    } catch (_) {
+      return { otp: '------', secondsRemaining: 30, period };
+    }
+  }
+
+  window.renderTotpStudio = async function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    if (window._totpState.timer) {
+      clearInterval(window._totpState.timer);
+      window._totpState.timer = null;
+    }
+
+    // Load saved items
+    try {
+      const res = await fetch('/api/auth/totp/list', {
+        headers: { 'Authorization': 'Bearer ' + (window.masterKey || '') }
+      });
+      const data = await res.json();
+      window._totpState.items = data.items || [];
+    } catch (_) {}
+
+    // If empty, add a default demo token so user immediately sees live verification
+    if (window._totpState.items.length === 0) {
+      window._totpState.items = [
+        { id: 'demo_cf', issuer: 'Cloudflare', account: 'admin@cloudflare.com', secret: 'JBSWY3DPEHPK3PXP', digits: 6, period: 30 },
+        { id: 'demo_gh', issuer: 'GitHub', account: 'developer@vault.dev', secret: 'HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ', digits: 6, period: 30 }
+      ];
+    }
+
+    container.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🔑</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">2FA TOTP Authenticator Vault</h1>
+              <span class="badge" style="background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.3);font-size:11px;">RFC 6238 HMAC-SHA1</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Rolling 30-second one-time verification passcodes for Cloudflare, GitHub, Google, AWS, and sensitive services.
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" onclick="window.openTotpTesterModal()" style="font-size:12px;padding:8px 14px;">
+              <span>🧪</span> Test Any Secret Key
+            </button>
+            <button class="btn btn-primary" onclick="window.openAddTotpModal()" style="font-size:12px;padding:8px 16px;background:var(--accent,#7c6af7);font-weight:700;">
+              <span>➕</span> Add 2FA Account
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter & Search Bar -->
+        <div style="display:flex;gap:12px;margin-bottom:20px;">
+          <input 
+            type="text" 
+            id="totpSearchInput" 
+            placeholder="Search accounts or issuers (e.g. Cloudflare, GitHub, admin)..." 
+            style="flex:1;padding:10px 14px;background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:8px;color:#fff;font-size:13px;"
+            oninput="window._totpState.filter=this.value;window.updateTotpCards(true);"
+          />
+        </div>
+
+        <!-- Cards Grid -->
+        <div id="totpCardsContainer" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(320px, 1fr));gap:16px;">
+          <!-- Live cards injected here -->
+        </div>
+      </div>
+    `;
+
+    // Render cards and start timer
+    await window.updateTotpCards(false);
+    window._totpState.timer = setInterval(() => {
+      window.updateTotpCards(false);
+    }, 1000);
+  };
+
+  window.updateTotpCards = async function (rebuildDom = false) {
+    const container = document.getElementById('totpCardsContainer');
+    if (!container) return;
+
+    const s = window._totpState;
+    const q = (s.filter || '').toLowerCase();
+    const filtered = s.items.filter(it =>
+      (it.issuer || '').toLowerCase().includes(q) ||
+      (it.account || '').toLowerCase().includes(q)
+    );
+
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted,#888);background:var(--surface,#1a1a24);border-radius:12px;border:1px solid var(--border);">
+          No 2FA accounts found. Click <strong>Add 2FA Account</strong> to set up rolling verification tokens.
+        </div>
+      `;
+      return;
+    }
+
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    for (const item of filtered) {
+      const { otp, secondsRemaining, period } = await computeTOTP(item.secret, nowSec, item.period || 30, item.digits || 6);
+      const formattedOtp = otp.length === 6 ? `${otp.slice(0, 3)} ${otp.slice(3)}` : otp;
+      const progressPercent = Math.round((secondsRemaining / period) * 100);
+
+      // Stroke color based on remaining time
+      let strokeColor = '#22c55e';
+      if (secondsRemaining <= 5) strokeColor = '#ef4444';
+      else if (secondsRemaining <= 10) strokeColor = '#eab308';
+
+      let cardEl = document.getElementById(`totp-card-${item.id}`);
+
+      if (!cardEl || rebuildDom) {
+        // Build card HTML
+        const cardHtml = `
+          <div id="totp-card-${item.id}" style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px;transition:border-color 0.2s ease;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:36px;height:36px;border-radius:8px;background:rgba(124,106,247,0.15);color:var(--accent,#7c6af7);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:16px;">
+                  ${esc(item.issuer.charAt(0).toUpperCase())}
+                </div>
+                <div>
+                  <div style="font-weight:700;font-size:14px;color:#fff;">${esc(item.issuer)}</div>
+                  <div style="font-size:11px;color:var(--muted,#aaa);">${esc(item.account)}</div>
+                </div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px;">
+                <!-- Circular progress countdown ring -->
+                <div style="position:relative;width:32px;height:32px;display:flex;align-items:center;justify-content:center;">
+                  <svg width="32" height="32" viewBox="0 0 36 36" style="transform:rotate(-90deg);">
+                    <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="4" />
+                    <path id="totp-ring-${item.id}" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="${strokeColor}" stroke-width="4" stroke-dasharray="${progressPercent}, 100" stroke-linecap="round" />
+                  </svg>
+                  <span id="totp-sec-${item.id}" style="position:absolute;font-size:10px;font-weight:700;color:${strokeColor};">${secondsRemaining}</span>
+                </div>
+
+                <button class="btn btn-secondary" onclick="window.deleteTotpAccount('${esc(item.id)}')" style="padding:4px 8px;font-size:11px;color:#ef4444;" title="Delete token">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- OTP Code Display & 1-Click Copy -->
+            <div 
+              id="totp-val-${item.id}"
+              onclick="window.copyTotpCode('${otp}', '${item.id}')"
+              style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;cursor:pointer;user-select:none;transition:all 0.15s ease;"
+              title="Click to copy code"
+              onmouseover="this.style.borderColor='var(--accent,#7c6af7)'"
+              onmouseout="this.style.borderColor='var(--border)'"
+            >
+              <div style="font-family:monospace;font-size:26px;font-weight:900;letter-spacing:4px;color:#fff;">
+                ${esc(formattedOtp)}
+              </div>
+              <div style="font-size:10px;color:var(--muted,#888);margin-top:2px;">
+                Click to copy to clipboard
+              </div>
+            </div>
+          </div>
+        `;
+
+        if (!cardEl) {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = cardHtml;
+          container.appendChild(tempDiv.firstElementChild);
+        } else {
+          cardEl.outerHTML = cardHtml;
+        }
+      } else {
+        // Fast in-place DOM update without flicker
+        const valBox = document.getElementById(`totp-val-${item.id}`);
+        const ring = document.getElementById(`totp-ring-${item.id}`);
+        const secText = document.getElementById(`totp-sec-${item.id}`);
+
+        if (valBox) {
+          valBox.onclick = () => window.copyTotpCode(otp, item.id);
+          valBox.querySelector('div:first-child').textContent = formattedOtp;
+        }
+        if (ring) {
+          ring.setAttribute('stroke', strokeColor);
+          ring.setAttribute('stroke-dasharray', `${progressPercent}, 100`);
+        }
+        if (secText) {
+          secText.textContent = secondsRemaining;
+          secText.style.color = strokeColor;
+        }
+      }
+    }
+  };
+
+  window.copyTotpCode = function (code, itemId) {
+    navigator.clipboard.writeText(code).then(() => {
+      if (typeof window.toast === 'function') window.toast(`Copied ${code} to clipboard!`);
+      const valBox = document.getElementById(`totp-val-${itemId}`);
+      if (valBox) {
+        const origBg = valBox.style.background;
+        valBox.style.background = 'rgba(34,197,94,0.15)';
+        setTimeout(() => { valBox.style.background = origBg; }, 400);
+      }
+    });
+  };
+
+  window.openAddTotpModal = function () {
+    const modalHtml = `
+      <div id="addTotpModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;">
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;width:100%;max-width:500px;padding:24px;display:flex;flex-direction:column;gap:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;font-size:16px;color:#fff;">➕ Add 2FA Authenticator Account</h3>
+            <button class="btn btn-secondary" onclick="document.getElementById('addTotpModal').remove()" style="padding:4px 8px;">✕</button>
+          </div>
+
+          <div>
+            <label style="font-size:12px;color:var(--muted,#aaa);font-weight:600;display:block;margin-bottom:6px;">Paste URI (otpauth://) or enter below:</label>
+            <input 
+              type="text" 
+              id="totpUriInput" 
+              placeholder="otpauth://totp/Cloudflare:user@example.com?secret=JBSWY3DPEHPK3PXP" 
+              style="width:100%;padding:10px 12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:12px;"
+              oninput="window.parseTotpUri(this.value)"
+            />
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <label style="font-size:12px;color:var(--muted,#aaa);font-weight:600;display:block;margin-bottom:4px;">Issuer / Service:</label>
+              <input type="text" id="totpIssuer" placeholder="e.g. Cloudflare, GitHub" style="width:100%;padding:8px 10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:13px;" />
+            </div>
+            <div>
+              <label style="font-size:12px;color:var(--muted,#aaa);font-weight:600;display:block;margin-bottom:4px;">Account / Username:</label>
+              <input type="text" id="totpAccount" placeholder="e.g. admin@domain.com" style="width:100%;padding:8px 10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:13px;" />
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size:12px;color:var(--muted,#aaa);font-weight:600;display:block;margin-bottom:4px;">Base32 Secret Key:</label>
+            <input type="text" id="totpSecret" placeholder="e.g. JBSWY3DPEHPK3PXP" style="width:100%;padding:8px 10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-family:monospace;font-size:13px;" />
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
+            <button class="btn btn-secondary" onclick="document.getElementById('addTotpModal').remove()">Cancel</button>
+            <button class="btn btn-primary" onclick="window.saveNewTotpAccount()">Save Account</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const div = document.createElement('div');
+    div.innerHTML = modalHtml;
+    document.body.appendChild(div.firstElementChild);
+  };
+
+  window.parseTotpUri = function (uri) {
+    try {
+      if (!uri.startsWith('otpauth://totp/')) return;
+      const url = new URL(uri);
+      const pathLabel = decodeURIComponent(url.pathname.replace(/^\/\/?/, ''));
+      let issuer = url.searchParams.get('issuer') || '';
+      let account = pathLabel;
+
+      if (pathLabel.includes(':')) {
+        const parts = pathLabel.split(':');
+        if (!issuer) issuer = parts[0].trim();
+        account = parts.slice(1).join(':').trim();
+      }
+
+      const secret = url.searchParams.get('secret') || '';
+      if (issuer && document.getElementById('totpIssuer')) document.getElementById('totpIssuer').value = issuer;
+      if (account && document.getElementById('totpAccount')) document.getElementById('totpAccount').value = account;
+      if (secret && document.getElementById('totpSecret')) document.getElementById('totpSecret').value = secret;
+    } catch (_) {}
+  };
+
+  window.saveNewTotpAccount = async function () {
+    const issuer = document.getElementById('totpIssuer')?.value.trim();
+    const account = document.getElementById('totpAccount')?.value.trim();
+    const secret = document.getElementById('totpSecret')?.value.trim();
+
+    if (!issuer || !account || !secret) {
+      if (typeof window.toast === 'function') window.toast('Please fill in Issuer, Account, and Secret Key.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/totp/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.masterKey || '') },
+        body: JSON.stringify({ issuer, account, secret })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save');
+
+      document.getElementById('addTotpModal')?.remove();
+      if (typeof window.toast === 'function') window.toast('2FA account added!');
+      window.renderTotpStudio();
+    } catch (err) {
+      if (typeof window.toast === 'function') window.toast(`Error: ${err.message}`);
+    }
+  };
+
+  window.deleteTotpAccount = async function (id) {
+    if (!confirm('Remove this 2FA account?')) return;
+    try {
+      await fetch('/api/auth/totp/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.masterKey || '') },
+        body: JSON.stringify({ id })
+      });
+      window._totpState.items = window._totpState.items.filter(i => i.id !== id);
+      window.updateTotpCards(true);
+      if (typeof window.toast === 'function') window.toast('Account removed.');
+    } catch (_) {}
+  };
+
+  window.openTotpTesterModal = async function () {
+    const s = window._totpState;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const curr = await computeTOTP(s.testSecret, nowSec);
+    const prev = await computeTOTP(s.testSecret, nowSec - 30);
+    const next = await computeTOTP(s.testSecret, nowSec + 30);
+
+    const modalHtml = `
+      <div id="totpTestModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;">
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;width:100%;max-width:520px;padding:24px;display:flex;flex-direction:column;gap:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;font-size:16px;color:#fff;">🧪 Live RFC 6238 TOTP Test Bench</h3>
+            <button class="btn btn-secondary" onclick="document.getElementById('totpTestModal').remove()" style="padding:4px 8px;">✕</button>
+          </div>
+
+          <div>
+            <label style="font-size:12px;color:var(--muted,#aaa);font-weight:600;display:block;margin-bottom:6px;">Secret Key to Test:</label>
+            <input 
+              type="text" 
+              id="totpTestKeyInput" 
+              value="${esc(s.testSecret)}" 
+              style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-family:monospace;font-size:13px;"
+              oninput="window.runTestTotpKey(this.value)"
+            />
+          </div>
+
+          <div id="totpTestResultsRow" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;">
+            <div style="background:var(--surface2,#242434);padding:12px;border-radius:8px;border:1px solid var(--border);">
+              <div style="font-size:10px;color:var(--muted,#888);">PREVIOUS (-30s)</div>
+              <div id="totpTestPrev" style="font-family:monospace;font-size:18px;font-weight:700;color:var(--muted,#aaa);margin-top:4px;">${prev.otp}</div>
+            </div>
+
+            <div style="background:rgba(34,197,94,0.1);padding:12px;border-radius:8px;border:1px solid rgba(34,197,94,0.3);">
+              <div style="font-size:10px;color:#22c55e;font-weight:700;">CURRENT (${curr.secondsRemaining}s)</div>
+              <div id="totpTestCurr" style="font-family:monospace;font-size:22px;font-weight:900;color:#22c55e;margin-top:4px;">${curr.otp}</div>
+            </div>
+
+            <div style="background:var(--surface2,#242434);padding:12px;border-radius:8px;border:1px solid var(--border);">
+              <div style="font-size:10px;color:var(--muted,#888);">NEXT (+30s)</div>
+              <div id="totpTestNext" style="font-family:monospace;font-size:18px;font-weight:700;color:var(--muted,#aaa);margin-top:4px;">${next.otp}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const div = document.createElement('div');
+    div.innerHTML = modalHtml;
+    document.body.appendChild(div.firstElementChild);
+  };
+
+  window.runTestTotpKey = async function (secret) {
+    window._totpState.testSecret = secret;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const curr = await computeTOTP(secret, nowSec);
+    const prev = await computeTOTP(secret, nowSec - 30);
+    const next = await computeTOTP(secret, nowSec + 30);
+
+    const prevEl = document.getElementById('totpTestPrev');
+    const currEl = document.getElementById('totpTestCurr');
+    const nextEl = document.getElementById('totpTestNext');
+
+    if (prevEl) prevEl.textContent = prev.otp;
+    if (currEl) currEl.textContent = curr.otp;
+    if (nextEl) nextEl.textContent = next.otp;
+  };
+
+
+  // =========================================================================
+  // 5. CLOUDFLARE D1 DATABASE STUDIO & SQL CONSOLE
+  // =========================================================================
+
+  window._d1StudioState = {
+    tables: [],
+    selectedTable: '',
+    currentSql: 'SELECT id, title, username, item_type FROM passwords LIMIT 25;',
+    isExecuting: false,
+    result: null,
+    error: null
+  };
+
+  window.renderD1Studio = async function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    const s = window._d1StudioState;
+
+    container.innerHTML = `
+      <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🗄️</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Cloudflare D1 Database Studio & SQL Console</h1>
+              <span class="badge" style="background:rgba(244,129,32,0.15);color:#f48120;border:1px solid rgba(244,129,32,0.3);font-size:11px;">Serverless SQLite Edge DB</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Live schema explorer, interactive query execution, execution telemetry, and 1-click JSON/CSV data exports.
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" onclick="window.exportD1QueryResult('csv')" style="font-size:12px;padding:8px 14px;">
+              📥 Export CSV
+            </button>
+            <button class="btn btn-secondary" onclick="window.exportD1QueryResult('json')" style="font-size:12px;padding:8px 14px;">
+              📥 Export JSON
+            </button>
+            <button class="btn btn-primary" onclick="window.executeD1Query()" style="background:#f48120;border-color:#f48120;padding:8px 18px;font-weight:700;">
+              <span>⚡</span> Run Query (Ctrl+Enter)
+            </button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:280px 1fr;gap:20px;">
+          <!-- Left: Schema Explorer -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;max-height:750px;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:13px;font-weight:700;color:var(--text,#fff);">Tables & Entities</span>
+              <button class="btn btn-secondary" onclick="window.loadD1Schema()" style="font-size:10px;padding:2px 6px;">↻ Refresh</button>
+            </div>
+
+            <div id="d1TableList" style="display:flex;flex-direction:column;gap:6px;">
+              <div style="color:var(--muted,#888);font-size:12px;text-align:center;padding:20px 0;">Loading tables...</div>
+            </div>
+          </div>
+
+          <!-- Right: Query Editor & Live Results -->
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <!-- Presets Bar -->
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              <span style="font-size:11px;color:var(--muted,#aaa);font-weight:600;">Presets:</span>
+              <button class="btn btn-secondary" onclick="window.setD1Preset('passwords')" style="font-size:11px;padding:4px 8px;">Vault Passwords</button>
+              <button class="btn btn-secondary" onclick="window.setD1Preset('todos')" style="font-size:11px;padding:4px 8px;">Pending Todos</button>
+              <button class="btn btn-secondary" onclick="window.setD1Preset('ai_creations')" style="font-size:11px;padding:4px 8px;">AI Creations</button>
+              <button class="btn btn-secondary" onclick="window.setD1Preset('attachments')" style="font-size:11px;padding:4px 8px;">Drive Storage</button>
+              <button class="btn btn-secondary" onclick="window.setD1Preset('totp_vault')" style="font-size:11px;padding:4px 8px;">2FA Tokens</button>
+            </div>
+
+            <!-- SQL Editor Box -->
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;">
+              <textarea 
+                id="d1SqlEditor" 
+                style="width:100%;min-height:110px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;color:#fff;font-family:monospace;font-size:13px;resize:vertical;"
+                placeholder="Enter SQL statement (e.g. SELECT * FROM passwords LIMIT 10)..."
+                onkeydown="if((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); window.executeD1Query(); }"
+              >${esc(s.currentSql)}</textarea>
+            </div>
+
+            <!-- Query Execution Stats & Results Table -->
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;flex:1;min-height:360px;display:flex;flex-direction:column;gap:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:13px;font-weight:700;color:var(--text,#fff);">Query Results</span>
+                  <span id="d1ExecBadge" class="badge" style="background:rgba(34,197,94,0.1);color:#22c55e;font-size:11px;">
+                    Ready
+                  </span>
+                </div>
+                <div id="d1RowCount" style="font-size:12px;color:var(--muted,#aaa);">0 rows</div>
+              </div>
+
+              <div id="d1ResultsTableContainer" style="flex:1;overflow-x:auto;max-height:480px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:4px;">
+                <div style="color:var(--muted,#888);text-align:center;padding:60px 0;font-size:13px;">
+                  Run a query to inspect live records from Cloudflare D1.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    await window.loadD1Schema();
+  };
+
+  window.loadD1Schema = async function () {
+    try {
+      const res = await fetch('/api/cloudflare/d1-schema');
+      const data = await res.json();
+      if (!data.success) return;
+
+      window._d1StudioState.tables = data.tables || [];
+      const list = document.getElementById('d1TableList');
+      if (!list) return;
+
+      list.innerHTML = data.tables.map(t => `
+        <div 
+          onclick="window.selectD1Table('${esc(t.name)}')"
+          style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:8px 10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all 0.15s ease;"
+          onmouseover="this.style.borderColor='var(--accent,#7c6af7)'"
+          onmouseout="this.style.borderColor='var(--border)'"
+        >
+          <div>
+            <div style="font-weight:700;font-size:12px;color:#fff;">${esc(t.name)}</div>
+            <div style="font-size:10px;color:var(--muted,#888);">${t.columns.length} columns</div>
+          </div>
+          <span class="badge" style="background:rgba(255,255,255,0.06);font-size:10px;color:var(--muted,#aaa);">
+            ${t.rowCount} rows
+          </span>
+        </div>
+      `).join('');
+    } catch (_) {}
+  };
+
+  window.selectD1Table = function (tableName) {
+    const editor = document.getElementById('d1SqlEditor');
+    if (editor) {
+      editor.value = `SELECT * FROM "${tableName}" LIMIT 25;`;
+      window.executeD1Query();
+    }
+  };
+
+  window.setD1Preset = function (type) {
+    const editor = document.getElementById('d1SqlEditor');
+    if (!editor) return;
+
+    if (type === 'passwords') {
+      editor.value = 'SELECT id, title, username, item_type, created_at FROM passwords ORDER BY id DESC LIMIT 25;';
+    } else if (type === 'todos') {
+      editor.value = 'SELECT id, title, priority, due_date, completed FROM todos ORDER BY id DESC LIMIT 25;';
+    } else if (type === 'ai_creations') {
+      editor.value = 'SELECT id, type, model, title, created_at FROM ai_creations ORDER BY created_at DESC LIMIT 25;';
+    } else if (type === 'attachments') {
+      editor.value = 'SELECT id, filename, mime_type, item_type, length(content) as bytes FROM attachments LIMIT 25;';
+    } else if (type === 'totp_vault') {
+      editor.value = 'SELECT id, issuer, account, algorithm, digits, period, created_at FROM totp_vault LIMIT 25;';
+    }
+    window.executeD1Query();
+  };
+
+  window.executeD1Query = async function () {
+    const editor = document.getElementById('d1SqlEditor');
+    const tableContainer = document.getElementById('d1ResultsTableContainer');
+    const badge = document.getElementById('d1ExecBadge');
+    const countEl = document.getElementById('d1RowCount');
+
+    const sql = editor ? editor.value.trim() : '';
+    if (!sql) return;
+
+    if (badge) badge.textContent = 'Executing...';
+
+    try {
+      const res = await fetch('/api/cloudflare/d1-query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.masterKey || '') },
+        body: JSON.stringify({ sql })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Execution failed');
+
+      window._d1StudioState.result = data;
+
+      if (badge) badge.textContent = `${data.executionTimeMs} ms`;
+      if (countEl) countEl.textContent = `${data.rowCount} rows`;
+
+      if (!tableContainer) return;
+
+      if (!data.rows || data.rows.length === 0) {
+        tableContainer.innerHTML = '<div style="color:var(--muted,#888);text-align:center;padding:40px 0;">Query executed successfully. 0 rows returned.</div>';
+        return;
+      }
+
+      tableContainer.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);color:var(--muted,#aaa);background:var(--surface,#1a1a24);">
+              <th style="padding:8px 10px;width:40px;">#</th>
+              ${data.columns.map(col => `<th style="padding:8px 10px;font-weight:700;">${esc(col)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${data.rows.map((row, idx) => `
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <td style="padding:8px 10px;color:var(--muted,#666);">${idx + 1}</td>
+                ${data.columns.map(col => `<td style="padding:8px 10px;color:#fff;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(row[col])}</td>`).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    } catch (err) {
+      if (badge) badge.textContent = 'Error';
+      if (tableContainer) {
+        tableContainer.innerHTML = `<div style="color:#ef4444;padding:24px;text-align:center;font-family:monospace;">Error: ${esc(err.message)}</div>`;
+      }
+    }
+  };
+
+  window.exportD1QueryResult = function (format) {
+    const res = window._d1StudioState.result;
+    if (!res || !res.rows || res.rows.length === 0) {
+      if (typeof window.toast === 'function') window.toast('No query results to export.');
+      return;
+    }
+
+    let blob, filename;
+    if (format === 'json') {
+      blob = new Blob([JSON.stringify(res.rows, null, 2)], { type: 'application/json' });
+      filename = `d1_export_${Date.now()}.json`;
+    } else {
+      const headers = res.columns.join(',');
+      const rows = res.rows.map(r => res.columns.map(c => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(','));
+      blob = new Blob([[headers, ...rows].join('\n')], { type: 'text/csv' });
+      filename = `d1_export_${Date.now()}.csv`;
+    }
+
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    if (typeof window.toast === 'function') window.toast(`Exported ${filename}`);
+  };
+
+
+  // =========================================================================
+  // 6. CERTIFICATE TRANSPARENCY & DOMAIN BRAND RECONNAISSANCE
+  // =========================================================================
+
+  window._certState = {
+    domain: 'cloudflare.com',
+    data: null,
+    isQuerying: false,
+    subFilter: ''
+  };
+
+  window.renderCertTransparencyStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    const s = window._certState;
+
+    container.innerHTML = `
+      <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">📜</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Certificate Transparency & Subdomain Recon</h1>
+              <span class="badge" style="background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);font-size:11px;">Public CT Logs</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Monitor active SSL/TLS certificates, discover hidden staging/internal subdomains, and audit expiration dates.
+            </p>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-secondary" onclick="window.queryCertDomain('cloudflare.com')" style="font-size:11px;padding:4px 8px;">cloudflare.com</button>
+            <button class="btn btn-secondary" onclick="window.queryCertDomain('github.com')" style="font-size:11px;padding:4px 8px;">github.com</button>
+            <button class="btn btn-secondary" onclick="window.queryCertDomain('google.com')" style="font-size:11px;padding:4px 8px;">google.com</button>
+          </div>
+        </div>
+
+        <!-- Search input -->
+        <div style="display:flex;gap:10px;margin-bottom:20px;">
+          <input 
+            type="text" 
+            id="certDomainInput" 
+            value="${esc(s.domain)}"
+            placeholder="Enter domain name to inspect (e.g. cloudflare.com, yourdomain.com)..."
+            style="flex:1;padding:12px 16px;background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:8px;color:#fff;font-size:14px;"
+            onkeydown="if(event.key==='Enter') window.executeCertQuery()"
+          />
+          <button class="btn btn-primary" onclick="window.executeCertQuery()" style="padding:12px 24px;font-weight:700;" ${s.isQuerying ? 'disabled' : ''}>
+            ${s.isQuerying ? '<span>⏳</span> Querying Logs...' : '<span>🔍</span> Scan CT Logs'}
+          </button>
+        </div>
+
+        <!-- Metrics Row -->
+        <div id="certStatsRow" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:20px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:10px;padding:16px;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Total Certificates</div>
+            <div id="certStatTotal" style="font-size:22px;font-weight:700;color:#fff;margin-top:4px;">-</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:10px;padding:16px;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Discovered Subdomains</div>
+            <div id="certStatSubs" style="font-size:22px;font-weight:700;color:var(--accent,#7c6af7);margin-top:4px;">-</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:10px;padding:16px;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Expiring Soon (&lt;30d)</div>
+            <div id="certStatExpiring" style="font-size:22px;font-weight:700;color:#eab308;margin-top:4px;">-</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:10px;padding:16px;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Expired / Deprecated</div>
+            <div id="certStatExpired" style="font-size:22px;font-weight:700;color:#ef4444;margin-top:4px;">-</div>
+          </div>
+        </div>
+
+        <!-- Two Column: Subdomain Directory & Cert Ledger -->
+        <div style="display:grid;grid-template-columns:320px 1fr;gap:20px;">
+          <!-- Subdomains list -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:13px;font-weight:700;color:#fff;">Discovered Subdomains</span>
+              <button class="btn btn-secondary" onclick="window.copyDiscoveredSubdomains()" style="font-size:10px;padding:2px 6px;">📋 Copy All</button>
+            </div>
+            <input 
+              type="text" 
+              placeholder="Filter subdomains..." 
+              style="padding:6px 10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:6px;color:#fff;font-size:12px;"
+              oninput="window._certState.subFilter=this.value;window.renderSubdomainList();"
+            />
+            <div id="certSubdomainsList" style="flex:1;min-height:300px;max-height:480px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">
+              <div style="color:var(--muted,#888);text-align:center;padding:40px 0;font-size:12px;">
+                Enter domain and click <strong>Scan CT Logs</strong>.
+              </div>
+            </div>
+          </div>
+
+          <!-- Certificates Ledger -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;">
+            <span style="font-size:13px;font-weight:700;color:#fff;">Certificates Ledger</span>
+            <div id="certLedgerContainer" style="flex:1;min-height:360px;max-height:520px;overflow-y:auto;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;">
+              <div style="color:var(--muted,#888);text-align:center;padding:60px 0;font-size:13px;">
+                Public certificate history will be displayed here.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    if (s.data) {
+      window.displayCertResults(s.data);
+    }
+  };
+
+  window.queryCertDomain = function (d) {
+    const input = document.getElementById('certDomainInput');
+    if (input) input.value = d;
+    window.executeCertQuery();
+  };
+
+  window.executeCertQuery = async function () {
+    const input = document.getElementById('certDomainInput');
+    const domain = input ? input.value.trim() : '';
+    if (!domain) return;
+
+    window._certState.domain = domain;
+    window._certState.isQuerying = true;
+    window.renderCertTransparencyStudio();
+
+    try {
+      const res = await fetch('/api/security/cert-transparency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.masterKey || '') },
+        body: JSON.stringify({ domain })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'CT query failed');
+
+      window._certState.data = data;
+      window.displayCertResults(data);
+    } catch (err) {
+      if (typeof window.toast === 'function') window.toast(`CT Scan Error: ${err.message}`);
+    } finally {
+      window._certState.isQuerying = false;
+    }
+  };
+
+  window.displayCertResults = function (data) {
+    const statTotal = document.getElementById('certStatTotal');
+    const statSubs = document.getElementById('certStatSubs');
+    const statExpiring = document.getElementById('certStatExpiring');
+    const statExpired = document.getElementById('certStatExpired');
+
+    if (statTotal) statTotal.textContent = data.totalCertificates || 0;
+    if (statSubs) statSubs.textContent = data.stats?.totalSubdomains || 0;
+    if (statExpiring) statExpiring.textContent = data.stats?.expiringSoon || 0;
+    if (statExpired) statExpired.textContent = data.stats?.expired || 0;
+
+    window.renderSubdomainList();
+
+    const ledger = document.getElementById('certLedgerContainer');
+    if (!ledger) return;
+
+    if (!data.certificates || data.certificates.length === 0) {
+      ledger.innerHTML = '<div style="color:var(--muted,#888);text-align:center;padding:40px;">No public certificates found.</div>';
+      return;
+    }
+
+    ledger.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);color:var(--muted,#aaa);background:var(--surface,#1a1a24);">
+            <th style="padding:8px 10px;">Common Name</th>
+            <th style="padding:8px 10px;">Issuer CA</th>
+            <th style="padding:8px 10px;">Valid Range</th>
+            <th style="padding:8px 10px;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.certificates.map(c => {
+            let statusBadge = `<span class="badge" style="background:rgba(34,197,94,0.15);color:#22c55e;">${c.daysRemaining} days left</span>`;
+            if (c.isExpired) {
+              statusBadge = `<span class="badge" style="background:rgba(239,68,68,0.15);color:#ef4444;">Expired</span>`;
+            } else if (c.isExpiringSoon) {
+              statusBadge = `<span class="badge" style="background:rgba(234,179,8,0.15);color:#eab308;">Expiring Soon (${c.daysRemaining}d)</span>`;
+            }
+
+            return `
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                <td style="padding:8px 10px;font-family:monospace;color:#fff;">
+                  ${esc(c.commonName)}
+                  ${c.isWildcard ? '<span class="badge" style="font-size:9px;background:rgba(124,106,247,0.15);color:var(--accent,#7c6af7);margin-left:4px;">Wildcard</span>' : ''}
+                </td>
+                <td style="padding:8px 10px;color:var(--muted,#aaa);">${esc(c.issuer)}</td>
+                <td style="padding:8px 10px;color:var(--muted,#888);font-size:11px;">${esc(c.notBefore)} &rarr; ${esc(c.notAfter)}</td>
+                <td style="padding:8px 10px;">${statusBadge}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  };
+
+  window.renderSubdomainList = function () {
+    const list = document.getElementById('certSubdomainsList');
+    if (!list) return;
+
+    const data = window._certState.data;
+    if (!data || !data.subdomains) return;
+
+    const filter = (window._certState.subFilter || '').toLowerCase();
+    const filtered = data.subdomains.filter(s => s.toLowerCase().includes(filter));
+
+    list.innerHTML = filtered.map(sub => `
+      <div style="font-family:monospace;font-size:11px;padding:6px 8px;background:var(--surface2,#242434);border-radius:4px;color:#fff;word-break:break-all;display:flex;justify-content:space-between;align-items:center;">
+        <span>${esc(sub)}</span>
+        <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${esc(sub)}');if(typeof window.toast==='function')window.toast('Copied!');" style="font-size:9px;padding:2px 4px;">Copy</button>
+      </div>
+    `).join('');
+  };
+
+  window.copyDiscoveredSubdomains = function () {
+    const data = window._certState.data;
+    if (!data || !data.subdomains) return;
+    navigator.clipboard.writeText(data.subdomains.join('\n')).then(() => {
+      if (typeof window.toast === 'function') window.toast(`Copied ${data.subdomains.length} subdomains!`);
+    });
+  };
+
+
+  // =========================================================================
+  // 7. BGP ROUTING & AUTONOMOUS SYSTEM THREAT INTELLIGENCE
+  // =========================================================================
+
+  window._ipIntelState = {
+    target: '1.1.1.1',
+    data: null,
+    isQuerying: false
+  };
+
+  window.renderIpIntelStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    const s = window._ipIntelState;
+
+    container.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🛰️</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">BGP Autonomous System & Threat Intelligence</h1>
+              <span class="badge" style="background:rgba(234,179,8,0.15);color:#eab308;border:1px solid rgba(234,179,8,0.3);font-size:11px;">ASN & Prefix Intel</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Inspect Autonomous System Numbers (ASN), BGP routing prefixes, geolocation, and security risk classifications.
+            </p>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-secondary" onclick="window.queryIpTarget('1.1.1.1')" style="font-size:11px;padding:4px 8px;">1.1.1.1 (Cloudflare)</button>
+            <button class="btn btn-secondary" onclick="window.queryIpTarget('8.8.8.8')" style="font-size:11px;padding:4px 8px;">8.8.8.8 (Google)</button>
+            <button class="btn btn-secondary" onclick="window.queryIpTarget('9.9.9.9')" style="font-size:11px;padding:4px 8px;">9.9.9.9 (Quad9)</button>
+          </div>
+        </div>
+
+        <!-- Input -->
+        <div style="display:flex;gap:10px;margin-bottom:24px;">
+          <input 
+            type="text" 
+            id="ipIntelInput" 
+            value="${esc(s.target)}"
+            placeholder="Enter IPv4, IPv6, or domain name (e.g. 1.1.1.1, cloudflare.com)..."
+            style="flex:1;padding:12px 16px;background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:8px;color:#fff;font-size:14px;"
+            onkeydown="if(event.key==='Enter') window.executeIpIntelQuery()"
+          />
+          <button class="btn btn-primary" onclick="window.executeIpIntelQuery()" style="padding:12px 24px;font-weight:700;" ${s.isQuerying ? 'disabled' : ''}>
+            ${s.isQuerying ? '<span>⏳</span> Analyzing...' : '<span>🛰️</span> Inspect IP'}
+          </button>
+        </div>
+
+        <div id="ipIntelResultContainer" style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:24px;min-height:300px;">
+          <div style="color:var(--muted,#888);text-align:center;padding:60px 0;font-size:13px;">
+            Enter an IP address or domain above and click <strong>Inspect IP</strong>.
+          </div>
+        </div>
+      </div>
+    `;
+
+    if (s.data) {
+      window.displayIpIntelResults(s.data);
+    }
+  };
+
+  window.queryIpTarget = function (t) {
+    const input = document.getElementById('ipIntelInput');
+    if (input) input.value = t;
+    window.executeIpIntelQuery();
+  };
+
+  window.executeIpIntelQuery = async function () {
+    const input = document.getElementById('ipIntelInput');
+    const target = input ? input.value.trim() : '';
+    if (!target) return;
+
+    window._ipIntelState.target = target;
+    window._ipIntelState.isQuerying = true;
+    window.renderIpIntelStudio();
+
+    try {
+      const res = await fetch('/api/network/ip-intel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.masterKey || '') },
+        body: JSON.stringify({ target })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Query failed');
+
+      window._ipIntelState.data = data;
+      window.displayIpIntelResults(data);
+    } catch (err) {
+      if (typeof window.toast === 'function') window.toast(`IP Intel Error: ${err.message}`);
+    } finally {
+      window._ipIntelState.isQuerying = false;
+    }
+  };
+
+  window.displayIpIntelResults = function (data) {
+    const container = document.getElementById('ipIntelResultContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:32px;">🌐</div>
+          <div>
+            <div style="font-size:22px;font-weight:900;color:#fff;font-family:monospace;">${esc(data.ip)}</div>
+            ${data.domain ? `<div style="font-size:12px;color:var(--accent,#7c6af7);font-weight:600;">Resolved from: ${esc(data.domain)}</div>` : ''}
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <span class="badge" style="background:${data.isCloudflare ? 'rgba(244,129,32,0.15)' : 'rgba(59,130,246,0.15)'};color:${data.isCloudflare ? '#f48120' : '#3b82f6'};font-size:11px;">
+            ${data.threatCategory}
+          </span>
+          <span class="badge" style="background:${data.threatScore > 50 ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)'};color:${data.threatScore > 50 ? '#ef4444' : '#22c55e'};font-size:11px;">
+            Risk Score: ${data.threatScore}/100
+          </span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:16px;">
+        <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;">
+          <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Autonomous System (ASN)</div>
+          <div style="font-size:18px;font-weight:700;color:#fff;margin-top:4px;">${esc(data.asn)}</div>
+          <div style="font-size:12px;color:var(--muted,#aaa);margin-top:2px;">${esc(data.org)}</div>
+        </div>
+
+        <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;">
+          <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">BGP Route Prefix</div>
+          <div style="font-size:18px;font-weight:700;color:var(--accent,#7c6af7);margin-top:4px;font-family:monospace;">${esc(data.networkPrefix || 'N/A')}</div>
+          <div style="font-size:12px;color:var(--muted,#aaa);margin-top:2px;">CIDR Allocation Block</div>
+        </div>
+
+        <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;">
+          <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Geolocation</div>
+          <div style="font-size:18px;font-weight:700;color:#22c55e;margin-top:4px;">${esc(data.city)}, ${esc(data.country)}</div>
+          <div style="font-size:12px;color:var(--muted,#aaa);margin-top:2px;">Timezone: ${esc(data.timezone)}</div>
+        </div>
+
+        <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:10px;padding:16px;">
+          <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Anycast & Network Type</div>
+          <div style="font-size:18px;font-weight:700;color:#fff;margin-top:4px;">${data.isCloudflare ? 'Anycast Global Edge' : data.isDatacenter ? 'Datacenter Cloud' : 'ISP Transit'}</div>
+          <div style="font-size:12px;color:var(--muted,#aaa);margin-top:2px;">Private RFC1918: ${data.isPrivate ? 'Yes' : 'No'}</div>
+        </div>
+      </div>
+    `;
+  };
+
+
+  // =========================================================================
+  // TAB BUTTON INJECTION
+  // =========================================================================
+
   function injectExtendedNavButtons() {
     const tabsContainer = document.querySelector('.tabs');
     if (!tabsContainer || document.getElementById('tab-docintel')) return;
@@ -1311,16 +2416,52 @@ function mergeObjects(target, source) {
     codeBtn.innerHTML = '<span>🧪</span> Code Sandbox';
     codeBtn.onclick = () => window.switchTab('codesandbox');
 
+    // 4. 2FA Authenticator
+    const totpBtn = document.createElement('button');
+    totpBtn.className = 'tab';
+    totpBtn.id = 'tab-totp';
+    totpBtn.innerHTML = '<span>🔑</span> 2FA Vault';
+    totpBtn.onclick = () => window.switchTab('totp');
+
+    // 5. D1 SQL Studio
+    const d1Btn = document.createElement('button');
+    d1Btn.className = 'tab';
+    d1Btn.id = 'tab-d1studio';
+    d1Btn.innerHTML = '<span>🗄️</span> D1 SQL Studio';
+    d1Btn.onclick = () => window.switchTab('d1studio');
+
+    // 6. Cert Transparency
+    const certBtn = document.createElement('button');
+    certBtn.className = 'tab';
+    certBtn.id = 'tab-certmonitor';
+    certBtn.innerHTML = '<span>📜</span> Cert Monitor';
+    certBtn.onclick = () => window.switchTab('certmonitor');
+
+    // 7. IP Intel
+    const ipBtn = document.createElement('button');
+    ipBtn.className = 'tab';
+    ipBtn.id = 'tab-ipintel';
+    ipBtn.innerHTML = '<span>🛰️</span> Threat & IP Intel';
+    ipBtn.onclick = () => window.switchTab('ipintel');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
       tabsContainer.insertBefore(docBtn, cfTab.nextSibling);
       tabsContainer.insertBefore(edgeBtn, docBtn.nextSibling);
       tabsContainer.insertBefore(codeBtn, edgeBtn.nextSibling);
+      tabsContainer.insertBefore(totpBtn, codeBtn.nextSibling);
+      tabsContainer.insertBefore(d1Btn, totpBtn.nextSibling);
+      tabsContainer.insertBefore(certBtn, d1Btn.nextSibling);
+      tabsContainer.insertBefore(ipBtn, certBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
       tabsContainer.appendChild(codeBtn);
+      tabsContainer.appendChild(totpBtn);
+      tabsContainer.appendChild(d1Btn);
+      tabsContainer.appendChild(certBtn);
+      tabsContainer.appendChild(ipBtn);
     }
   }
 

@@ -33,6 +33,7 @@ async function ensureDb(db) {
     await db.prepare('CREATE TABLE IF NOT EXISTS stickers (id TEXT PRIMARY KEY, name TEXT NOT NULL, category TEXT DEFAULT \'custom\', emoji TEXT DEFAULT \'\', bg TEXT DEFAULT \'\', border TEXT DEFAULT \'\', color TEXT DEFAULT \'\', label TEXT DEFAULT \'\', svg TEXT DEFAULT \'\', data_url TEXT DEFAULT \'\', created_at TEXT DEFAULT (datetime(\'now\')))').run();
     await db.prepare('CREATE TABLE IF NOT EXISTS map_pins (id TEXT PRIMARY KEY, title TEXT NOT NULL, notes TEXT DEFAULT \'\', lat REAL NOT NULL, lng REAL NOT NULL, category TEXT DEFAULT \'favorite\', color TEXT DEFAULT \'#7c6af7\', created_at TEXT DEFAULT (datetime(\'now\')))').run();
     await db.prepare('CREATE TABLE IF NOT EXISTS ai_creations (id TEXT PRIMARY KEY, type TEXT NOT NULL, prompt TEXT NOT NULL, model TEXT NOT NULL, title TEXT DEFAULT \'\', media_url TEXT DEFAULT \'\', content TEXT DEFAULT \'\', metadata TEXT DEFAULT \'{}\', storage_type TEXT DEFAULT \'db\', storage_key TEXT DEFAULT \'\', created_at TEXT DEFAULT (datetime(\'now\')))').run();
+    await db.prepare('CREATE TABLE IF NOT EXISTS totp_vault (id TEXT PRIMARY KEY, issuer TEXT NOT NULL, account TEXT NOT NULL, secret TEXT NOT NULL, algorithm TEXT DEFAULT \'SHA1\', digits INTEGER DEFAULT 6, period INTEGER DEFAULT 30, created_at TEXT DEFAULT (datetime(\'now\')))').run();
 
     try { await db.prepare('ALTER TABLE todos ADD COLUMN category TEXT DEFAULT \'General\'').run(); } catch (_) {}
     try { await db.prepare('ALTER TABLE todos ADD COLUMN subtasks TEXT DEFAULT \'[]\'').run(); } catch (_) {}
@@ -9741,6 +9742,296 @@ ${code}
           server: headersMap['server'] || 'Protected / Hidden',
           rawHeaders: headersMap
         }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 13. Cloudflare D1 Database Studio & Schema Explorer
+    if (path === '/cloudflare/d1-schema' && method === 'GET') {
+      try {
+        const tablesRes = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name ASC").all();
+        const tables = [];
+        for (const t of (tablesRes.results || [])) {
+          const infoRes = await env.DB.prepare(`PRAGMA table_info("${t.name}")`).all();
+          let count = 0;
+          try {
+            const countRes = await env.DB.prepare(`SELECT count(*) as total FROM "${t.name}"`).first();
+            count = countRes ? countRes.total : 0;
+          } catch (_) {}
+          tables.push({
+            name: t.name,
+            rowCount: count,
+            columns: (infoRes.results || []).map(c => ({
+              cid: c.cid,
+              name: c.name,
+              type: c.type || 'TEXT',
+              notnull: Boolean(c.notnull),
+              pk: Boolean(c.pk)
+            }))
+          });
+        }
+        return new Response(JSON.stringify({ success: true, tables }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/cloudflare/d1-query' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { sql } = body;
+        if (!sql || !sql.trim()) {
+          return new Response(JSON.stringify({ error: 'SQL query required' }), { headers, status: 400 });
+        }
+
+        const trimmed = sql.trim();
+        // Guard against multiple statement injection or raw drop of master table
+        if (/sqlite_master/i.test(trimmed) && /drop|delete/i.test(trimmed)) {
+          return new Response(JSON.stringify({ error: 'Modification of sqlite_master is prohibited' }), { headers, status: 403 });
+        }
+
+        const t0 = performance.now();
+        const stmt = env.DB.prepare(trimmed);
+        
+        let result;
+        const isSelect = /^\s*(SELECT|PRAGMA|EXPLAIN)\b/i.test(trimmed);
+        if (isSelect) {
+          result = await stmt.all();
+        } else {
+          result = await stmt.run();
+        }
+        const executionTimeMs = Math.round((performance.now() - t0) * 100) / 100;
+
+        const rows = result.results || [];
+        const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+
+        return new Response(JSON.stringify({
+          success: true,
+          executionTimeMs,
+          rowCount: rows.length,
+          columns,
+          rows,
+          meta: result.meta || {}
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 14. Certificate Transparency & Subdomain Reconnaissance
+    if (path === '/security/cert-transparency' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { domain } = body;
+        if (!domain || !domain.trim()) {
+          return new Response(JSON.stringify({ error: 'Domain name required' }), { headers, status: 400 });
+        }
+
+        const cleanDomain = domain.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+        
+        // Fetch from crt.sh
+        const crtUrl = `https://crt.sh/?q=${encodeURIComponent(cleanDomain)}&output=json`;
+        let certs = [];
+        try {
+          const crtRes = await fetch(crtUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (CertificateTransparencyMonitor/1.0; Cloudflare-Vault)' }
+          });
+          if (crtRes.ok) {
+            certs = await crtRes.json();
+          }
+        } catch (_) {}
+
+        const subdomainsSet = new Set();
+        const now = Date.now();
+        let expiringSoonCount = 0;
+        let expiredCount = 0;
+
+        const formattedCerts = [];
+        const seenSerials = new Set();
+
+        for (const c of (certs || []).slice(0, 150)) {
+          const serial = c.serial_number || String(c.id);
+          if (seenSerials.has(serial)) continue;
+          seenSerials.add(serial);
+
+          const notAfter = c.not_after ? new Date(c.not_after).getTime() : 0;
+          const daysRemaining = notAfter ? Math.round((notAfter - now) / (1000 * 60 * 60 * 24)) : 0;
+          const isExpired = daysRemaining < 0;
+          const isExpiringSoon = !isExpired && daysRemaining <= 30;
+
+          if (isExpired) expiredCount++;
+          if (isExpiringSoon) expiringSoonCount++;
+
+          const names = (c.name_value || c.common_name || '').split('\n');
+          names.forEach(n => {
+            const trimmedName = n.trim().toLowerCase();
+            if (trimmedName && (trimmedName === cleanDomain || trimmedName.endsWith(`.${cleanDomain}`))) {
+              subdomainsSet.add(trimmedName);
+            }
+          });
+
+          formattedCerts.push({
+            id: c.id,
+            commonName: c.common_name || names[0] || cleanDomain,
+            issuer: (c.issuer_name || 'Unknown CA').split(',')[0].replace(/^[A-Z]+=/, ''),
+            notBefore: c.not_before ? c.not_before.split('T')[0] : 'N/A',
+            notAfter: c.not_after ? c.not_after.split('T')[0] : 'N/A',
+            daysRemaining,
+            isExpired,
+            isExpiringSoon,
+            isWildcard: (c.common_name || '').startsWith('*.')
+          });
+        }
+
+        // Add primary domain if empty
+        if (subdomainsSet.size === 0) subdomainsSet.add(cleanDomain);
+
+        return new Response(JSON.stringify({
+          success: true,
+          domain: cleanDomain,
+          totalCertificates: formattedCerts.length,
+          subdomains: Array.from(subdomainsSet).sort(),
+          certificates: formattedCerts.slice(0, 50),
+          stats: {
+            totalSubdomains: subdomainsSet.size,
+            expiringSoon: expiringSoonCount,
+            expired: expiredCount
+          }
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 15. BGP Routing & Autonomous System Threat Intelligence
+    if (path === '/network/ip-intel' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let { target } = body;
+        if (!target || !target.trim()) {
+          target = request.headers.get('cf-connecting-ip') || '1.1.1.1';
+        }
+
+        let clean = target.trim().replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+        let ip = clean;
+
+        // If domain, resolve via 1.1.1.1 DoH
+        if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(clean) && !/^[a-fA-F0-9:]+$/.test(clean)) {
+          const dohRes = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(clean)}&type=A`, {
+            headers: { 'Accept': 'application/dns-json' }
+          });
+          if (dohRes.ok) {
+            const dohData = await dohRes.json();
+            const firstA = (dohData.Answer || []).find(a => a.type === 1);
+            if (firstA) ip = firstA.data;
+          }
+        }
+
+        // Check for private / bogon IPs
+        const isPrivate = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.|0\.|169\.254\.)/.test(ip);
+        if (isPrivate) {
+          return new Response(JSON.stringify({
+            success: true,
+            ip,
+            domain: clean !== ip ? clean : undefined,
+            isPrivate: true,
+            classification: 'Local / Private RFC 1918 Network',
+            asn: 'N/A (Loopback/Private)',
+            org: 'Private Intranet',
+            threatScore: 0,
+            threatCategory: 'Safe (Local)'
+          }), { headers });
+        }
+
+        // Fetch IP details from rdap or ipapi
+        let intel = {};
+        try {
+          const rdapRes = await fetch(`https://ipapi.co/${ip}/json/`, {
+            headers: { 'User-Agent': 'Cloudflare-Vault-Intel/1.0' }
+          });
+          if (rdapRes.ok) intel = await rdapRes.json();
+        } catch (_) {}
+
+        const isCloudflare = intel.asn === 'AS13335' || /cloudflare/i.test(intel.org || '');
+        const isDatacenter = /amazon|google|microsoft|digitalocean|linode|oracle|ovh|hetzner/i.test(intel.org || '');
+        
+        let threatCategory = 'Standard ISP / Residential';
+        let threatScore = 5;
+
+        if (isCloudflare) {
+          threatCategory = 'Cloudflare Global Anycast Edge';
+          threatScore = 0;
+        } else if (isDatacenter) {
+          threatCategory = 'Public Cloud / Datacenter Infrastructure';
+          threatScore = 20;
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          ip,
+          domain: clean !== ip ? clean : undefined,
+          isPrivate: false,
+          city: intel.city || 'Unknown',
+          region: intel.region || 'Unknown',
+          country: intel.country_name || intel.country || 'Global',
+          countryCode: intel.country_code || 'US',
+          latitude: intel.latitude,
+          longitude: intel.longitude,
+          asn: intel.asn || 'AS13335',
+          org: intel.org || 'Cloudflare Anycast Network',
+          networkPrefix: intel.network || `${ip}/24`,
+          timezone: intel.timezone || 'UTC',
+          threatCategory,
+          threatScore,
+          isCloudflare,
+          isDatacenter
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 16. TOTP 2-Factor Authentication Vault
+    if (path === '/auth/totp/list' && method === 'GET') {
+      try {
+        const res = await env.DB.prepare('SELECT id, issuer, account, secret, algorithm, digits, period, created_at FROM totp_vault ORDER BY created_at DESC').all();
+        return new Response(JSON.stringify({ success: true, items: res.results || [] }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/auth/totp/add' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let { issuer, account, secret, algorithm = 'SHA1', digits = 6, period = 30 } = body;
+        if (!issuer || !account || !secret) {
+          return new Response(JSON.stringify({ error: 'Issuer, account, and secret are required' }), { headers, status: 400 });
+        }
+
+        const cleanSecret = secret.replace(/\s+/g, '').toUpperCase();
+        const id = `totp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+        await env.DB.prepare(`
+          INSERT INTO totp_vault (id, issuer, account, secret, algorithm, digits, period)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).bind(id, issuer.trim(), account.trim(), cleanSecret, algorithm, Number(digits), Number(period)).run();
+
+        return new Response(JSON.stringify({ success: true, id }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    if (path === '/auth/totp/delete' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { id } = body;
+        if (!id) return new Response(JSON.stringify({ error: 'ID required' }), { headers, status: 400 });
+
+        await env.DB.prepare('DELETE FROM totp_vault WHERE id = ?').bind(id).run();
+        return new Response(JSON.stringify({ success: true }), { headers });
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
       }

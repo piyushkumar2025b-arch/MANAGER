@@ -2710,6 +2710,18 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();showPasswordForm(null, 'note');">
       <span class="icon">📝</span> New Secure Note
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('totp');">
+      <span class="icon">🔑</span> 2FA Authenticator Vault
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('d1studio');">
+      <span class="icon">🗄️</span> Cloudflare D1 SQL Studio
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('certmonitor');">
+      <span class="icon">📜</span> Certificate Transparency Monitor
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('ipintel');">
+      <span class="icon">🛰️</span> BGP & Threat IP Intel
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -2886,6 +2898,22 @@ async function loadTab() {
   } else if (currentTab === 'codesandbox') {
     if (typeof window.renderCodeSandboxStudio === 'function') {
       window.renderCodeSandboxStudio();
+    }
+  } else if (currentTab === 'totp') {
+    if (typeof window.renderTotpStudio === 'function') {
+      window.renderTotpStudio();
+    }
+  } else if (currentTab === 'd1studio') {
+    if (typeof window.renderD1Studio === 'function') {
+      window.renderD1Studio();
+    }
+  } else if (currentTab === 'certmonitor') {
+    if (typeof window.renderCertTransparencyStudio === 'function') {
+      window.renderCertTransparencyStudio();
+    }
+  } else if (currentTab === 'ipintel') {
+    if (typeof window.renderIpIntelStudio === 'function') {
+      window.renderIpIntelStudio();
     }
   }
 }

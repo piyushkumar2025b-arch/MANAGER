@@ -127,6 +127,16 @@ db.exec(`
     storage_key TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS totp_vault (
+    id TEXT PRIMARY KEY,
+    issuer TEXT NOT NULL,
+    account TEXT NOT NULL,
+    secret TEXT NOT NULL,
+    algorithm TEXT DEFAULT 'SHA1',
+    digits INTEGER DEFAULT 6,
+    period INTEGER DEFAULT 30,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 // Safe migrations for todos columns
