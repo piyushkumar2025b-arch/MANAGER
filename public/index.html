@@ -2758,6 +2758,18 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('wirefilter');">
       <span class="icon">📐</span> Wirefilter & WAF Expression Tester
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('jwtstudio');">
+      <span class="icon">🎟️</span> JWT Edge Inspector & Verifier
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('transformrules');">
+      <span class="icon">🔄</span> Transform Rules & URL Rewrite
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('cidrcalc');">
+      <span class="icon">🔢</span> Subnet & CIDR Network Calculator
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('sectxt');">
+      <span class="icon">📄</span> Security.txt RFC 9116 Auditor
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -2998,6 +3010,22 @@ async function loadTab() {
   } else if (currentTab === 'wirefilter') {
     if (typeof window.renderWirefilterStudio === 'function') {
       window.renderWirefilterStudio();
+    }
+  } else if (currentTab === 'jwtstudio') {
+    if (typeof window.renderJwtStudio === 'function') {
+      window.renderJwtStudio();
+    }
+  } else if (currentTab === 'transformrules') {
+    if (typeof window.renderTransformStudio === 'function') {
+      window.renderTransformStudio();
+    }
+  } else if (currentTab === 'cidrcalc') {
+    if (typeof window.renderCidrStudio === 'function') {
+      window.renderCidrStudio();
+    }
+  } else if (currentTab === 'sectxt') {
+    if (typeof window.renderSecurityTxtStudio === 'function') {
+      window.renderSecurityTxtStudio();
     }
   }
 }

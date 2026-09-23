@@ -11068,6 +11068,398 @@ response.headers.set('Permissions-Policy', 'geolocation=(), camera=(), microphon
       }
     }
 
+    // 29. JWT (JSON Web Token) Edge Inspector & Crypto Verifier
+    if (path === '/security/jwt-inspect' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const { token = '', secret = '', action = 'inspect', payloadToSign = null } = body;
+
+        const base64UrlDecode = (str) => {
+          let b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+          while (b64.length % 4) b64 += '=';
+          return atob(b64);
+        };
+
+        const base64UrlEncode = (str) => {
+          return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        };
+
+        if (action === 'generate' && payloadToSign) {
+          const signSecret = secret || 'default-secret-key-32-chars-long!';
+          const headerObj = { alg: 'HS256', typ: 'JWT' };
+          const encodedHeader = base64UrlEncode(JSON.stringify(headerObj));
+          const encodedPayload = base64UrlEncode(JSON.stringify(payloadToSign));
+          const message = `${encodedHeader}.${encodedPayload}`;
+
+          const key = await crypto.subtle.importKey(
+            'raw',
+            new TextEncoder().encode(signSecret),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']
+          );
+          const sigBuf = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
+          const rawSig = String.fromCharCode(...new Uint8Array(sigBuf));
+          const encodedSig = base64UrlEncode(rawSig);
+
+          return new Response(JSON.stringify({
+            success: true,
+            jwt: `${message}.${encodedSig}`,
+            header: headerObj,
+            payload: payloadToSign
+          }), { headers });
+        }
+
+        const rawToken = token.trim();
+        const parts = rawToken.split('.');
+        if (parts.length !== 3) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Invalid JWT structure: Expected 3 period-separated segments, found ${parts.length}`
+          }), { headers, status: 400 });
+        }
+
+        let header = {};
+        let payload = {};
+        try {
+          header = JSON.parse(base64UrlDecode(parts[0]));
+          payload = JSON.parse(base64UrlDecode(parts[1]));
+        } catch (e) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Malformed base64url or non-JSON segment: ${e.message}`
+          }), { headers, status: 400 });
+        }
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        let isExpired = false;
+        let expirationStatus = 'No expiration claim (exp)';
+        let remainingSeconds = null;
+
+        if (payload.exp !== undefined) {
+          remainingSeconds = payload.exp - nowSec;
+          isExpired = remainingSeconds <= 0;
+          expirationStatus = isExpired
+            ? `Expired ${Math.abs(remainingSeconds)} seconds ago (${new Date(payload.exp * 1000).toISOString()})`
+            : `Valid for another ${remainingSeconds} seconds (${new Date(payload.exp * 1000).toISOString()})`;
+        }
+
+        let signatureVerified = null;
+        let verificationMessage = 'Provide secret key to verify HMAC-SHA256 signature.';
+
+        if (secret && header.alg === 'HS256') {
+          try {
+            const key = await crypto.subtle.importKey(
+              'raw',
+              new TextEncoder().encode(secret),
+              { name: 'HMAC', hash: 'SHA-256' },
+              false,
+              ['verify']
+            );
+            const dataToVerify = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+            const binSig = base64UrlDecode(parts[2]);
+            const sigBytes = new Uint8Array(binSig.length);
+            for (let i = 0; i < binSig.length; i++) sigBytes[i] = binSig.charCodeAt(i);
+
+            signatureVerified = await crypto.subtle.verify('HMAC', key, sigBytes, dataToVerify);
+            verificationMessage = signatureVerified ? '✓ Valid HMAC-SHA256 signature' : '✗ Invalid signature - secret mismatch';
+          } catch (e) {
+            signatureVerified = false;
+            verificationMessage = `Verification failed: ${e.message}`;
+          }
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          header,
+          payload,
+          signature: parts[2],
+          isExpired,
+          expirationStatus,
+          remainingSeconds,
+          signatureVerified,
+          verificationMessage,
+          claimsSummary: {
+            subject: payload.sub || null,
+            issuer: payload.iss || null,
+            audience: payload.aud || null,
+            issuedAt: payload.iat ? new Date(payload.iat * 1000).toISOString() : null,
+            algorithm: header.alg || 'unknown'
+          }
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 30. Cloudflare Transform Rules & URL Rewrite Architect
+    if (path === '/cloudflare/transform-rules' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          ruleType = 'rewrite_path',
+          incomingUrl = 'https://example.com/api/v2/users?sort=asc',
+          expression = '(http.request.uri.path starts_with "/api/v2")',
+          rewriteTarget = '/v2',
+          headerName = 'X-Forwarded-Client-Country',
+          headerValue = 'ip.geoip.country'
+        } = body;
+
+        let parsedUrl;
+        try {
+          parsedUrl = new URL(incomingUrl);
+        } catch {
+          parsedUrl = new URL(`https://example.com${incomingUrl.startsWith('/') ? '' : '/'}${incomingUrl}`);
+        }
+
+        let transformedPath = parsedUrl.pathname;
+        let transformedHeaders = { 'host': parsedUrl.host };
+
+        if (ruleType === 'rewrite_path') {
+          if (parsedUrl.pathname.startsWith('/api/v2')) {
+            transformedPath = parsedUrl.pathname.replace(/^\/api\/v2/, rewriteTarget);
+          } else {
+            transformedPath = `${rewriteTarget}${parsedUrl.pathname}`;
+          }
+        } else if (ruleType === 'modify_header') {
+          transformedHeaders[headerName.toLowerCase()] = headerValue;
+        }
+
+        const terraformSnippet = `resource "cloudflare_ruleset" "transform_rule" {
+  zone_id     = var.cloudflare_zone_id
+  name        = "Edge Request Transform"
+  description = "Auto-generated transform rule"
+  kind        = "zone"
+  phase       = "${ruleType === 'modify_header' ? 'http_request_late_transform' : 'http_request_transform'}"
+
+  rules {
+    action = "${ruleType === 'modify_header' ? 'rewrite' : 'rewrite'}"
+    expression = "${expression}"
+    description = "${ruleType === 'modify_header' ? 'Inject ' + headerName : 'Rewrite Path to ' + rewriteTarget}"
+    enabled     = true
+    action_parameters {
+      ${ruleType === 'modify_header' ? `headers {
+        name       = "${headerName}"
+        operation  = "set"
+        expression = "${headerValue}"
+      }` : `uri {
+        path {
+          value = "${rewriteTarget}"
+        }
+      }`}
+    }
+  }
+}`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          originalUrl: parsedUrl.toString(),
+          originalPath: parsedUrl.pathname,
+          transformedPath,
+          transformedHeaders,
+          ruleType,
+          expression,
+          terraformSnippet
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 31. Subnet & CIDR Network Calculator Studio
+    if (path === '/network/cidr-calc' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let { cidr = '192.168.1.0/24', testIp = '' } = body;
+        cidr = cidr.trim();
+
+        const [ipStr, prefixStr] = cidr.split('/');
+        const prefix = parseInt(prefixStr, 10);
+
+        if (isNaN(prefix) || prefix < 0 || prefix > 32) {
+          return new Response(JSON.stringify({ error: 'Invalid IPv4 CIDR prefix. Must be between 0 and 32.' }), { headers, status: 400 });
+        }
+
+        const ipParts = ipStr.split('.').map(Number);
+        if (ipParts.length !== 4 || ipParts.some(p => isNaN(p) || p < 0 || p > 255)) {
+          return new Response(JSON.stringify({ error: 'Invalid IPv4 address format.' }), { headers, status: 400 });
+        }
+
+        const ipToNum = (p) => ((p[0] * 256 + p[1]) * 256 + p[2]) * 256 + p[3];
+        const ipNum = ipToNum(ipParts);
+        const maskNum = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0;
+        const wildcardNum = (~maskNum) >>> 0;
+        const networkNum = (ipNum & maskNum) >>> 0;
+        const broadcastNum = (networkNum | wildcardNum) >>> 0;
+
+        const numToIp = (n) => [
+          (n >>> 24) & 255,
+          (n >>> 16) & 255,
+          (n >>> 8) & 255,
+          n & 255
+        ].join('.');
+
+        const numToBin = (n) => {
+          return [
+            ((n >>> 24) & 255).toString(2).padStart(8, '0'),
+            ((n >>> 16) & 255).toString(2).padStart(8, '0'),
+            ((n >>> 8) & 255).toString(2).padStart(8, '0'),
+            (n & 255).toString(2).padStart(8, '0')
+          ].join('.');
+        };
+
+        const totalHosts = prefix === 32 ? 1 : prefix === 31 ? 2 : Math.pow(2, 32 - prefix);
+        const usableHosts = prefix >= 31 ? totalHosts : Math.max(0, totalHosts - 2);
+        const firstUsableNum = prefix >= 31 ? networkNum : networkNum + 1;
+        const lastUsableNum = prefix >= 31 ? broadcastNum : broadcastNum - 1;
+
+        // Test IP membership
+        let testIpResult = null;
+        if (testIp && testIp.trim()) {
+          const tParts = testIp.trim().split('.').map(Number);
+          if (tParts.length === 4 && !tParts.some(p => isNaN(p) || p < 0 || p > 255)) {
+            const tNum = ipToNum(tParts);
+            const inRange = tNum >= networkNum && tNum <= broadcastNum;
+            testIpResult = {
+              ip: testIp.trim(),
+              inSubnet: inRange,
+              message: inRange ? `✓ ${testIp.trim()} is WITHIN ${cidr}` : `✗ ${testIp.trim()} is OUTSIDE ${cidr}`
+            };
+          }
+        }
+
+        // Check if IP is in Cloudflare IP ranges
+        const cfRanges = [
+          '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+          '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+          '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+          '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22'
+        ];
+
+        return new Response(JSON.stringify({
+          success: true,
+          cidr,
+          networkAddress: numToIp(networkNum),
+          broadcastAddress: numToIp(broadcastNum),
+          netmask: numToIp(maskNum),
+          wildcardMask: numToIp(wildcardNum),
+          firstUsableIp: numToIp(firstUsableNum),
+          lastUsableIp: numToIp(lastUsableNum),
+          totalHosts,
+          usableHosts,
+          binaryIp: numToBin(ipNum),
+          binaryNetmask: numToBin(maskNum),
+          testIpResult,
+          cloudflareRanges: cfRanges
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 32. Security TXT & RFC 9116 Vulnerability Disclosure Auditor
+    if (path === '/security/security-txt' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let { domain = 'cloudflare.com' } = body;
+        domain = domain.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+
+        let rawContent = '';
+        let foundPath = '';
+        let status = 404;
+
+        const endpointsToTry = [
+          `https://${domain}/.well-known/security.txt`,
+          `https://${domain}/security.txt`
+        ];
+
+        for (const url of endpointsToTry) {
+          try {
+            const res = await fetch(url, {
+              headers: { 'User-Agent': 'Cloudflare-Vault-RFC9116-Auditor/1.0' },
+              signal: AbortSignal.timeout(5000)
+            });
+            if (res.ok) {
+              const text = await res.text();
+              if (text && (text.includes('Contact:') || text.includes('Expires:'))) {
+                rawContent = text;
+                foundPath = url;
+                status = 200;
+                break;
+              }
+            }
+          } catch (_) {}
+        }
+
+        const directives = {};
+        const warnings = [];
+        let score = 0;
+
+        if (status === 200 && rawContent) {
+          const lines = rawContent.split('\n');
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const colonIdx = trimmed.indexOf(':');
+            if (colonIdx > 0) {
+              const key = trimmed.slice(0, colonIdx).trim().toLowerCase();
+              const val = trimmed.slice(colonIdx + 1).trim();
+              if (!directives[key]) directives[key] = [];
+              directives[key].push(val);
+            }
+          }
+
+          // RFC 9116 Audit
+          if (directives['contact']) {
+            score += 40;
+          } else {
+            warnings.push('Mandatory directive "Contact:" is missing.');
+          }
+
+          if (directives['expires']) {
+            score += 30;
+            const expiresDate = new Date(directives['expires'][0]);
+            if (isNaN(expiresDate.getTime())) {
+              warnings.push('Invalid ISO-8601 date format in "Expires:".');
+            } else if (expiresDate < new Date()) {
+              warnings.push(`Security policy expired on ${expiresDate.toISOString()}.`);
+            } else {
+              score += 10;
+            }
+          } else {
+            warnings.push('Mandatory directive "Expires:" is missing.');
+          }
+
+          if (directives['encryption']) score += 10;
+          if (directives['canonical']) score += 5;
+          if (directives['policy']) score += 5;
+        }
+
+        const template = `# RFC 9116 security.txt
+Contact: mailto:security@${domain}
+Expires: ${new Date(Date.now() + 365 * 86400000).toISOString()}
+Preferred-Languages: en
+Canonical: https://${domain}/.well-known/security.txt
+Policy: https://${domain}/security-policy
+Acknowledgments: https://${domain}/hall-of-fame`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          domain,
+          found: status === 200,
+          foundPath,
+          rawContent,
+          directives,
+          score: Math.min(score, 100),
+          grade: score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'F',
+          warnings,
+          rfc9116Template: template
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {

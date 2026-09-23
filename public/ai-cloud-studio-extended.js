@@ -1369,6 +1369,30 @@ function mergeObjects(target, source) {
       window.renderWirefilterStudio();
       return;
     }
+    if (tab === 'jwtstudio') {
+      window.currentTab = 'jwtstudio';
+      updateNavHighlight('tab-jwtstudio');
+      window.renderJwtStudio();
+      return;
+    }
+    if (tab === 'transformrules') {
+      window.currentTab = 'transformrules';
+      updateNavHighlight('tab-transformrules');
+      window.renderTransformStudio();
+      return;
+    }
+    if (tab === 'cidrcalc') {
+      window.currentTab = 'cidrcalc';
+      updateNavHighlight('tab-cidrcalc');
+      window.renderCidrStudio();
+      return;
+    }
+    if (tab === 'sectxt') {
+      window.currentTab = 'sectxt';
+      updateNavHighlight('tab-sectxt');
+      window.renderSecurityTxtStudio();
+      return;
+    }
 
     if (typeof origSwitchTab === 'function') {
       origSwitchTab(tab);
@@ -4549,6 +4573,601 @@ function mergeObjects(target, source) {
     }
   };
 
+  // =========================================================================
+  // 20. JWT (JSON WEB TOKEN) EDGE INSPECTOR & VERIFIER STUDIO
+  // =========================================================================
+  window.renderJwtStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🎟️</span> JWT (JSON Web Token) Edge Inspector & Verifier
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Inspect, decode, and verify RFC 7519 JSON Web Tokens, validate expiration claims, and verify cryptographic signatures.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('keygen')">
+            <span>🔑</span> SSH & Keypair
+          </button>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Load Sample Token:</span>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('jwtInput').value='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMzQ1IiwibmFtZSI6IkFsaWNlIERldmVsb3BlciIsImFkbWluIjp0cnVlLCJpYXQiOjE3MTQ5OTEyNTUsImV4cCI6MTg5MzQ1NjAwMH0.v7kS4z6R16Hk3WkRjOqZlGzZ4-gT1l6V9981K1x1x1x';document.getElementById('jwtSecret').value='my-secret-key';window.inspectJwt();">
+            Admin Auth Token (HS256)
+          </button>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('jwtInput').value='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2F1dGguZXhhbXBsZS5jb20iLCJzdWIiOiJzZXJ2aWNlX2FwaSIsImF1ZCI6WyJhcGkucHJvZCJdLCJleHAiOjE2MDAwMDAwMDB9.invalid_signature_example';document.getElementById('jwtSecret').value='';window.inspectJwt();">
+            Expired Service Token
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <label style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Encoded JWT Token</label>
+              <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                onclick="window.generateSampleJwt();">
+                ⚡ Generate New Token
+              </button>
+            </div>
+            <textarea id="jwtInput" rows="5" placeholder="Paste your jwt (header.payload.signature) here..."
+              style="width:100%;padding:12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:var(--accent,#7c6af7);font-family:monospace;font-size:12px;resize:vertical;margin-bottom:12px;"
+              oninput="window.inspectJwt();"></textarea>
+
+            <div style="margin-bottom:16px;">
+              <label style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">HMAC Secret (Optional for verification)</label>
+              <input type="text" id="jwtSecret" placeholder="Secret key (e.g. your-api-secret)"
+                style="width:100%;padding:10px 12px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;"
+                oninput="window.inspectJwt();" />
+            </div>
+
+            <button class="btn btn-primary" onclick="window.inspectJwt()" style="width:100%;padding:12px;font-weight:700;">
+              <span>⚡</span> Inspect & Verify Token
+            </button>
+          </div>
+
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div id="jwtResultsContainer">
+              <div style="color:var(--muted,#888);font-size:13px;text-align:center;padding:40px;">
+                Paste or generate a JWT on the left to inspect decoded claims and signature.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    window.inspectJwt();
+  };
+
+  window.generateSampleJwt = async function() {
+    try {
+      const res = await fetch('/api/security/jwt-inspect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate',
+          secret: 'vault-secret-key-32-chars-long!',
+          payloadToSign: {
+            sub: 'user_vault_' + Math.floor(Math.random() * 89999 + 10000),
+            role: 'engineer',
+            iss: 'https://vault.cloudflare.edge',
+            iat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000) + 86400 * 7
+          }
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.jwt) {
+        document.getElementById('jwtInput').value = data.jwt;
+        document.getElementById('jwtSecret').value = 'vault-secret-key-32-chars-long!';
+        window.inspectJwt();
+      }
+    } catch (_) {}
+  };
+
+  window.inspectJwt = async function() {
+    const token = document.getElementById('jwtInput')?.value.trim();
+    const secret = document.getElementById('jwtSecret')?.value.trim();
+    const container = document.getElementById('jwtResultsContainer');
+    if (!container) return;
+
+    if (!token) {
+      container.innerHTML = `<div style="color:var(--muted,#888);font-size:13px;text-align:center;padding:40px;">Paste a JWT on the left to inspect decoded claims.</div>`;
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/security/jwt-inspect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, secret })
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        container.innerHTML = `<div style="color:#ef4444;padding:16px;background:#ef444415;border-radius:8px;font-size:13px;">${esc(data.error)}</div>`;
+        return;
+      }
+
+      const isExpired = data.isExpired;
+      const expColor = isExpired ? '#ef4444' : '#22c55e';
+      const sigColor = data.signatureVerified === true ? '#22c55e' : data.signatureVerified === false ? '#ef4444' : '#eab308';
+
+      container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid var(--border);padding-bottom:10px;">
+          <div>
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Token Expiration</div>
+            <div style="font-size:14px;font-weight:700;color:${expColor};">${esc(data.expirationStatus)}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Signature Status</div>
+            <div style="font-size:14px;font-weight:700;color:${sigColor};">${esc(data.verificationMessage)}</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:4px;">Decoded Header</div>
+          <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:#f43f5e;font-family:monospace;font-size:11px;margin:0;">${esc(JSON.stringify(data.header, null, 2))}</pre>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:4px;">Decoded Payload (Claims)</div>
+          <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--accent,#7c6af7);font-family:monospace;font-size:11px;margin:0;max-height:160px;overflow-y:auto;">${esc(JSON.stringify(data.payload, null, 2))}</pre>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:4px;">Signature (Base64Url)</div>
+          <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:#06b6d4;font-family:monospace;font-size:11px;margin:0;word-break:break-all;">${esc(data.signature)}</pre>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:16px;">Error inspecting token: ${esc(err.message)}</div>`;
+    }
+  };
+
+  // =========================================================================
+  // 21. CLOUDFLARE TRANSFORM RULES & URL REWRITE ARCHITECT
+  // =========================================================================
+  window.renderTransformStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🔄</span> Cloudflare Transform Rules & URL Rewrite Studio
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Architect Cloudflare Edge dynamic URL rewrites, path prefix manipulations, and HTTP header injections.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('wirefilter')">
+            <span>📐</span> Wirefilter
+          </button>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Transform Presets:</span>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('trRuleType').value='rewrite_path';document.getElementById('trInputUrl').value='https://example.com/api/v2/products';document.getElementById('trTarget').value='/v2';document.getElementById('trExpr').value='(http.request.uri.path starts_with \\'/api/v2\\')';window.simulateTransformRule();">
+            Strip Path Prefix (/api/v2 -> /v2)
+          </button>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 10px;border-radius:6px;"
+            onclick="document.getElementById('trRuleType').value='modify_header';document.getElementById('trHeaderName').value='X-Client-Geo-Country';document.getElementById('trHeaderVal').value='ip.geoip.country';window.simulateTransformRule();">
+            Geo-Country Header Injection
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;">Transform Rule Configuration</h2>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Transform Type</label>
+              <select id="trRuleType" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;"
+                onchange="window.simulateTransformRule();">
+                <option value="rewrite_path">Dynamic URL Path Rewrite</option>
+                <option value="modify_header">HTTP Request Header Modification</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Incoming Test URL</label>
+              <input type="text" id="trInputUrl" value="https://example.com/api/v2/products" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Wirefilter Match Expression</label>
+              <input type="text" id="trExpr" value="(http.request.uri.path starts_with &quot;/api/v2&quot;)" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:var(--accent,#7c6af7);font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div id="trPathFields" style="margin-bottom:16px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Rewrite Target Path</label>
+              <input type="text" id="trTarget" value="/v2" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div id="trHeaderFields" style="display:none;margin-bottom:16px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div>
+                  <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Header Name</label>
+                  <input type="text" id="trHeaderName" value="X-Client-Country" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;" />
+                </div>
+                <div>
+                  <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Header Expression Value</label>
+                  <input type="text" id="trHeaderVal" value="ip.geoip.country" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;" />
+                </div>
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.simulateTransformRule()" style="width:100%;padding:12px;font-weight:700;">
+              <span>⚡</span> Simulate Transform
+            </button>
+          </div>
+
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div id="trOutputContainer">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    window.simulateTransformRule();
+  };
+
+  window.simulateTransformRule = async function() {
+    const ruleType = document.getElementById('trRuleType')?.value || 'rewrite_path';
+    const incomingUrl = document.getElementById('trInputUrl')?.value || 'https://example.com/api/v2/products';
+    const expression = document.getElementById('trExpr')?.value || '(http.request.uri.path starts_with "/api/v2")';
+    const rewriteTarget = document.getElementById('trTarget')?.value || '/v2';
+    const headerName = document.getElementById('trHeaderName')?.value || 'X-Client-Country';
+    const headerValue = document.getElementById('trHeaderVal')?.value || 'ip.geoip.country';
+
+    const pFields = document.getElementById('trPathFields');
+    const hFields = document.getElementById('trHeaderFields');
+    if (pFields && hFields) {
+      pFields.style.display = ruleType === 'rewrite_path' ? 'block' : 'none';
+      hFields.style.display = ruleType === 'modify_header' ? 'block' : 'none';
+    }
+
+    const container = document.getElementById('trOutputContainer');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/cloudflare/transform-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ruleType, incomingUrl, expression, rewriteTarget, headerName, headerValue })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      container.innerHTML = `
+        <h3 style="font-size:14px;font-weight:700;margin:0 0 12px 0;">Simulated Edge Request Transformation</h3>
+
+        <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Incoming Client Path:</span>
+            <span style="font-size:12px;font-family:monospace;color:#ef4444;">${esc(data.originalPath)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Transformed Origin Path:</span>
+            <span style="font-size:12px;font-family:monospace;color:#22c55e;font-weight:700;">${esc(data.transformedPath)}</span>
+          </div>
+          ${ruleType === 'modify_header' ? `
+            <div style="display:flex;justify-content:space-between;">
+              <span style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Injected Header:</span>
+              <span style="font-size:12px;font-family:monospace;color:var(--accent,#7c6af7);">${esc(headerName)}: &lt;dynamic ${esc(headerValue)}&gt;</span>
+            </div>
+          ` : ''}
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <label style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Terraform cloudflare_ruleset Resource</label>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+            onclick="navigator.clipboard.writeText(document.getElementById('tfRulesetCode').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+            Copy
+          </button>
+        </div>
+        <pre id="tfRulesetCode" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--accent,#7c6af7);font-family:monospace;font-size:11px;margin:0;max-height:220px;overflow-y:auto;">${esc(data.terraformSnippet)}</pre>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:16px;">Simulation Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  // =========================================================================
+  // 22. SUBNET & CIDR NETWORK CALCULATOR STUDIO
+  // =========================================================================
+  window.renderCidrStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🔢</span> Subnet & CIDR Network Calculator
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Calculate IPv4 network ranges, subnet masks, wildcard bits, broadcast addresses, and verify Cloudflare edge IP ranges.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('ipintel')">
+            <span>🌍</span> IP Intel
+          </button>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:center;">
+            <div>
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">IPv4 CIDR Block</label>
+              <input type="text" id="cidrInput" value="192.168.10.0/24" placeholder="192.168.1.0/24"
+                style="width:100%;padding:10px 14px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:14px;margin-top:4px;"
+                onkeydown="if(event.key==='Enter') window.calculateCidr();" />
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Test IP (Membership Check)</label>
+              <input type="text" id="cidrTestIp" value="192.168.10.45" placeholder="192.168.10.45"
+                style="width:100%;padding:10px 14px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:14px;margin-top:4px;"
+                onkeydown="if(event.key==='Enter') window.calculateCidr();" />
+            </div>
+            <div style="padding-top:16px;">
+              <button class="btn btn-primary" onclick="window.calculateCidr()" style="padding:10px 24px;font-weight:700;">
+                <span>⚡</span> Calculate
+              </button>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--muted,#888);">Presets:</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('cidrInput').value='192.168.1.0/24';window.calculateCidr();">Class C (/24 - 254 hosts)</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('cidrInput').value='10.0.0.0/16';window.calculateCidr();">Private /16 (65,534 hosts)</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('cidrInput').value='173.245.48.0/20';window.calculateCidr();">Cloudflare Edge (/20)</button>
+          </div>
+        </div>
+
+        <div id="cidrResultsContainer">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    `;
+    window.calculateCidr();
+  };
+
+  window.calculateCidr = async function() {
+    const cidr = document.getElementById('cidrInput')?.value.trim() || '192.168.10.0/24';
+    const testIp = document.getElementById('cidrTestIp')?.value.trim() || '';
+    const container = document.getElementById('cidrResultsContainer');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/network/cidr-calc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cidr, testIp })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      container.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h3 style="font-size:14px;font-weight:700;margin:0 0 12px 0;">Subnet Parameters</h3>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;justify-content:space-between;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;">
+                <span style="font-size:12px;color:var(--muted,#888);">Network Address:</span>
+                <span style="font-size:12px;font-family:monospace;color:#fff;font-weight:700;">${esc(data.networkAddress)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;">
+                <span style="font-size:12px;color:var(--muted,#888);">Broadcast Address:</span>
+                <span style="font-size:12px;font-family:monospace;color:#fff;font-weight:700;">${esc(data.broadcastAddress)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;">
+                <span style="font-size:12px;color:var(--muted,#888);">Subnet Mask:</span>
+                <span style="font-size:12px;font-family:monospace;color:#22c55e;">${esc(data.netmask)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;">
+                <span style="font-size:12px;color:var(--muted,#888);">Wildcard Mask:</span>
+                <span style="font-size:12px;font-family:monospace;color:#f59e0b;">${esc(data.wildcardMask)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;">
+                <span style="font-size:12px;color:var(--muted,#888);">First Usable Host:</span>
+                <span style="font-size:12px;font-family:monospace;color:#fff;">${esc(data.firstUsableIp)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;">
+                <span style="font-size:12px;color:var(--muted,#888);">Last Usable Host:</span>
+                <span style="font-size:12px;font-family:monospace;color:#fff;">${esc(data.lastUsableIp)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;">
+                <span style="font-size:12px;color:var(--muted,#888);">Total Usable Hosts:</span>
+                <span style="font-size:13px;font-weight:800;color:var(--accent,#7c6af7);">${data.usableHosts.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            ${data.testIpResult ? `
+              <div style="margin-bottom:16px;">
+                <h3 style="font-size:14px;font-weight:700;margin:0 0 8px 0;">Membership Verification</h3>
+                <div style="background:var(--surface2,#242434);border-left:4px solid ${data.testIpResult.inSubnet ? '#22c55e' : '#ef4444'};border-radius:6px;padding:12px;font-size:13px;font-weight:700;color:${data.testIpResult.inSubnet ? '#22c55e' : '#ef4444'};">
+                  ${esc(data.testIpResult.message)}
+                </div>
+              </div>
+            ` : ''}
+
+            <h3 style="font-size:14px;font-weight:700;margin:0 0 8px 0;">Binary Representations</h3>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+              <div>
+                <div style="font-size:11px;color:var(--muted,#888);margin-bottom:2px;">IP Address (Binary):</div>
+                <div style="font-family:monospace;font-size:11px;background:#0d0d12;padding:6px 10px;border-radius:4px;color:#06b6d4;">${esc(data.binaryIp)}</div>
+              </div>
+              <div>
+                <div style="font-size:11px;color:var(--muted,#888);margin-bottom:2px;">Netmask (Binary):</div>
+                <div style="font-family:monospace;font-size:11px;background:#0d0d12;padding:6px 10px;border-radius:4px;color:#22c55e;">${esc(data.binaryNetmask)}</div>
+              </div>
+            </div>
+
+            <h3 style="font-size:14px;font-weight:700;margin:0 0 8px 0;">Cloudflare Edge IPv4 Ranges</h3>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;max-height:100px;overflow-y:auto;">
+              ${data.cloudflareRanges.map(r => `
+                <span class="badge" style="font-family:monospace;font-size:11px;background:var(--surface2,#242434);border:1px solid var(--border);padding:2px 8px;border-radius:4px;color:#ddd;cursor:pointer;"
+                  onclick="document.getElementById('cidrInput').value='${r}';window.calculateCidr();">${r}</span>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:16px;">CIDR Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  // =========================================================================
+  // 23. SECURITY TXT & RFC 9116 VULNERABILITY DISCLOSURE AUDITOR
+  // =========================================================================
+  window.renderSecurityTxtStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>📄</span> Security.txt & RFC 9116 Vulnerability Disclosure Auditor
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Audit domains for compliance with RFC 9116 security policies and generate production-ready security.txt files.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('secstudio')">
+            <span>🛡️</span> Security Headers
+          </button>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;">
+            <input type="text" id="secTxtDomain" value="cloudflare.com" placeholder="Domain name (e.g. cloudflare.com or google.com)"
+              style="padding:12px 16px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:14px;"
+              onkeydown="if(event.key==='Enter') window.auditSecurityTxt();" />
+            <button class="btn btn-primary" onclick="window.auditSecurityTxt()" style="padding:12px 24px;font-weight:700;">
+              <span>⚡</span> Audit RFC 9116
+            </button>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--muted,#888);">Quick audit:</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('secTxtDomain').value='cloudflare.com';window.auditSecurityTxt();">cloudflare.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('secTxtDomain').value='github.com';window.auditSecurityTxt();">github.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('secTxtDomain').value='google.com';window.auditSecurityTxt();">google.com</button>
+          </div>
+        </div>
+
+        <div id="secTxtResultsContainer">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    `;
+    window.auditSecurityTxt();
+  };
+
+  window.auditSecurityTxt = async function() {
+    const domain = document.getElementById('secTxtDomain')?.value.trim() || 'cloudflare.com';
+    const container = document.getElementById('secTxtResultsContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 16px auto;"></div>
+        <div style="font-size:15px;color:#fff;font-weight:600;">Probing RFC 9116 security.txt for ${esc(domain)}...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/security/security-txt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain })
+      });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      const gradeColor = data.grade === 'A' ? '#22c55e' : data.grade === 'B' ? '#3b82f6' : data.grade === 'C' ? '#eab308' : '#ef4444';
+
+      container.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+              <div>
+                <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">RFC 9116 Policy Status</div>
+                <div style="font-size:18px;font-weight:800;color:${data.found ? '#22c55e' : '#ef4444'};">
+                  ${data.found ? '✓ security.txt Discovered' : '✗ No security.txt Found'}
+                </div>
+                ${data.foundPath ? `<div style="font-size:11px;font-family:monospace;color:var(--muted,#888);">${esc(data.foundPath)}</div>` : ''}
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Compliance Grade</div>
+                <div style="font-size:28px;font-weight:900;color:${gradeColor};">${data.grade} (${data.score}/100)</div>
+              </div>
+            </div>
+
+            ${data.warnings && data.warnings.length > 0 ? `
+              <div style="margin-bottom:12px;">
+                <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:4px;">Warnings & Deficiencies:</div>
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                  ${data.warnings.map(w => `<div style="font-size:12px;color:#eab308;">⚠ ${esc(w)}</div>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${data.rawContent ? `
+              <div>
+                <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:4px;">Raw security.txt Content</div>
+                <pre style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:#fff;font-family:monospace;font-size:11px;margin:0;max-height:220px;overflow-y:auto;">${esc(data.rawContent)}</pre>
+              </div>
+            ` : ''}
+          </div>
+
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <h3 style="font-size:14px;font-weight:700;margin:0;">RFC 9116 Compliant Template</h3>
+              <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                onclick="navigator.clipboard.writeText(document.getElementById('secTxtTemplateCode').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy',1500);">
+                Copy
+              </button>
+            </div>
+            <pre id="secTxtTemplateCode" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--accent,#7c6af7);font-family:monospace;font-size:11px;margin:0;max-height:260px;overflow-y:auto;">${esc(data.rfc9116Template)}</pre>
+            <div style="font-size:11px;color:var(--muted,#888);margin-top:10px;">
+              💡 Deploy this file to <code>/.well-known/security.txt</code> on your domain to provide ethical security researchers with clear vulnerability disclosure channels.
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Security.txt Error: ${esc(err.message)}</div>`;
+    }
+  };
+
 
   // =========================================================================
   // TAB BUTTON INJECTION
@@ -4691,6 +5310,34 @@ function mergeObjects(target, source) {
     wireBtn.innerHTML = '<span>📐</span> Wirefilter';
     wireBtn.onclick = () => window.switchTab('wirefilter');
 
+    // 20. JWT Inspector
+    const jwtBtn = document.createElement('button');
+    jwtBtn.className = 'tab';
+    jwtBtn.id = 'tab-jwtstudio';
+    jwtBtn.innerHTML = '<span>🎟️</span> JWT Inspector';
+    jwtBtn.onclick = () => window.switchTab('jwtstudio');
+
+    // 21. Transform Rules
+    const transBtn = document.createElement('button');
+    transBtn.className = 'tab';
+    transBtn.id = 'tab-transformrules';
+    transBtn.innerHTML = '<span>🔄</span> Transform Rules';
+    transBtn.onclick = () => window.switchTab('transformrules');
+
+    // 22. CIDR Calculator
+    const cidrBtn = document.createElement('button');
+    cidrBtn.className = 'tab';
+    cidrBtn.id = 'tab-cidrcalc';
+    cidrBtn.innerHTML = '<span>🔢</span> CIDR & Subnet';
+    cidrBtn.onclick = () => window.switchTab('cidrcalc');
+
+    // 23. Security.txt Auditor
+    const secTxtBtn = document.createElement('button');
+    secTxtBtn.className = 'tab';
+    secTxtBtn.id = 'tab-sectxt';
+    secTxtBtn.innerHTML = '<span>📄</span> security.txt';
+    secTxtBtn.onclick = () => window.switchTab('sectxt');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
@@ -4713,6 +5360,10 @@ function mergeObjects(target, source) {
       tabsContainer.insertBefore(rateBtn, dohBtn.nextSibling);
       tabsContainer.insertBefore(cacheBtn, rateBtn.nextSibling);
       tabsContainer.insertBefore(wireBtn, cacheBtn.nextSibling);
+      tabsContainer.insertBefore(jwtBtn, wireBtn.nextSibling);
+      tabsContainer.insertBefore(transBtn, jwtBtn.nextSibling);
+      tabsContainer.insertBefore(cidrBtn, transBtn.nextSibling);
+      tabsContainer.insertBefore(secTxtBtn, cidrBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
@@ -4733,6 +5384,10 @@ function mergeObjects(target, source) {
       tabsContainer.appendChild(rateBtn);
       tabsContainer.appendChild(cacheBtn);
       tabsContainer.appendChild(wireBtn);
+      tabsContainer.appendChild(jwtBtn);
+      tabsContainer.appendChild(transBtn);
+      tabsContainer.appendChild(cidrBtn);
+      tabsContainer.appendChild(secTxtBtn);
     }
   }
 
