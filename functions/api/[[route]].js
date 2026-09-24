@@ -11810,9 +11810,1108 @@ resource "cloudflare_access_policy" "policy" {
       }
     }
 
+    // 37. Edge Custom Error Page & Maintenance Mode Studio
+    if (path === '/cloudflare/custom-error-pages' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          errorCode = '502',
+          companyName = 'Cloud Security Corp',
+          brandColor = '#7c6af7',
+          supportEmail = 'support@example.com',
+          customMessage = 'Our edge servers are temporarily experiencing technical difficulties. Our engineering team has been notified.'
+        } = body;
+
+        const errorTitles = {
+          '500': 'Internal Server Error (500)',
+          '502': 'Bad Gateway - Upstream Origin Unreachable (502)',
+          '503': 'Service Temporarily Unavailable (503)',
+          '504': 'Gateway Timeout - Origin Response Expired (504)',
+          '521': 'Web Server Is Down (Error 521)',
+          '522': 'Connection Timed Out at Origin (Error 522)',
+          '1015': 'Rate Limit Exceeded - Too Many Requests (1015)',
+          '1020': 'Access Denied by Edge Security Rule (1020)'
+        };
+
+        const title = errorTitles[errorCode] || `Error ${errorCode}`;
+
+        const htmlPage = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title} | ${companyName}</title>
+  <style>
+    :root { --brand: ${brandColor}; --bg: #0d0d12; --card: #181824; --text: #e2e8f0; --muted: #94a3b8; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .card { background: var(--card); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; max-width: 540px; width: 100%; padding: 40px 32px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+    .badge { display: inline-block; padding: 6px 14px; background: rgba(239, 68, 68, 0.15); color: #ef4444; border-radius: 20px; font-size: 13px; font-weight: 700; text-transform: uppercase; margin-bottom: 20px; }
+    h1 { font-size: 24px; font-weight: 800; margin-bottom: 12px; }
+    p { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+    .telemetry { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 14px; text-align: left; font-family: monospace; font-size: 12px; color: var(--muted); margin-bottom: 24px; }
+    .telemetry div { margin-bottom: 4px; }
+    .telemetry span { color: #fff; }
+    .btn { display: inline-block; background: var(--brand); color: #fff; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+    .btn:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">HTTP Error ${errorCode}</div>
+    <h1>${title}</h1>
+    <p>${customMessage}</p>
+    <div class="telemetry">
+      <div>Ray ID: <span>::RAY_ID::</span></div>
+      <div>Your IP: <span>::CLIENT_IP::</span></div>
+      <div>Geo Location: <span>::GEO::</span></div>
+      <div>Origin Host: <span>${companyName} Edge CDN</span></div>
+    </div>
+    <a href="mailto:${supportEmail}" class="btn">Contact Support</a>
+  </div>
+</body>
+</html>`;
+
+        const workerSnippet = `// Cloudflare Worker Error Interceptor
+export default {
+  async fetch(request, env) {
+    const response = await fetch(request);
+    if (response.status === ${errorCode}) {
+      return new Response(\`${htmlPage.replace(/`/g, '\\`').replace(/\${/g, '\\${')}\`, {
+        status: ${errorCode},
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
+    }
+    return response;
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          errorCode,
+          title,
+          htmlPage,
+          workerSnippet
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 38. CORS (Cross-Origin Resource Sharing) Edge Policy Auditor
+    if (path === '/security/cors-auditor' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let {
+          targetUrl = '',
+          testOrigin = 'https://malicious-attacker.com',
+          allowedOrigins = ['https://app.company.com', 'https://admin.company.com'],
+          allowCredentials = true,
+          allowedMethods = ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+          allowedHeaders = ['Content-Type', 'Authorization', 'X-Requested-With'],
+          maxAge = 86400
+        } = body;
+
+        let liveAudit = false;
+        let corsHeaders = {};
+        const vulnerabilities = [];
+
+        if (targetUrl) {
+          liveAudit = true;
+          try {
+            const probeRes = await fetch(targetUrl, {
+              method: 'OPTIONS',
+              headers: {
+                'Origin': testOrigin,
+                'Access-Control-Request-Method': 'POST',
+                'Access-Control-Request-Headers': 'Authorization, Content-Type'
+              },
+              signal: AbortSignal.timeout(6000)
+            });
+
+            corsHeaders = {
+              'access-control-allow-origin': probeRes.headers.get('access-control-allow-origin') || null,
+              'access-control-allow-credentials': probeRes.headers.get('access-control-allow-credentials') || null,
+              'access-control-allow-methods': probeRes.headers.get('access-control-allow-methods') || null,
+              'access-control-allow-headers': probeRes.headers.get('access-control-allow-headers') || null,
+              'access-control-max-age': probeRes.headers.get('access-control-max-age') || null
+            };
+
+            const acao = corsHeaders['access-control-allow-origin'];
+            const acac = corsHeaders['access-control-allow-credentials'];
+
+            if (acao === '*') {
+              if (acac === 'true') {
+                vulnerabilities.push('CRITICAL: Access-Control-Allow-Origin: * with Access-Control-Allow-Credentials: true is an illegal and hazardous CORS configuration.');
+              } else {
+                vulnerabilities.push('INFORMATIONAL: Access-Control-Allow-Origin is set to wildcard "*". Any website can read API responses if public.');
+              }
+            } else if (acao === testOrigin) {
+              vulnerabilities.push('CRITICAL: Origin Reflection detected! Target API blindly reflects untrusted Origin headers, allowing cross-origin credential theft.');
+            } else if (acao === 'null') {
+              vulnerabilities.push('HIGH: Origin "null" is allowed. Sandboxed iframes and local files can bypass origin checks.');
+            }
+          } catch (e) {
+            vulnerabilities.push(`Probe warning: Could not complete OPTIONS request: ${e.message}`);
+          }
+        }
+
+        // Generate hardened Cloudflare Worker CORS middleware snippet
+        const workerCorsCode = `// Production Cloudflare Worker CORS Middleware
+const ALLOWED_ORIGINS = ${JSON.stringify(allowedOrigins)};
+
+export function handleCors(request) {
+  const origin = request.headers.get('Origin');
+  const isAllowed = ALLOWED_ORIGINS.includes(origin);
+
+  const headers = new Headers();
+  if (isAllowed && origin) {
+    headers.set('Access-Control-Allow-Origin', origin);
+    headers.set('Access-Control-Allow-Credentials', '${allowCredentials}');
+    headers.set('Vary', 'Origin');
+  }
+
+  headers.set('Access-Control-Allow-Methods', '${allowedMethods.join(', ')}');
+  headers.set('Access-Control-Allow-Headers', '${allowedHeaders.join(', ')}');
+  headers.set('Access-Control-Max-Age', '${maxAge}');
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers });
+  }
+
+  return { isAllowed, headers };
+}`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          liveAudit,
+          targetUrl,
+          testOrigin,
+          corsHeaders,
+          vulnerabilities,
+          isSecure: vulnerabilities.length === 0,
+          workerCorsCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 39. Cloudflare Cache-Tag & Surrogate-Key Header Architect
+    if (path === '/cloudflare/cache-tags' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          tags = ['prod:1094', 'cat:electronics', 'brand:apple', 'user:public'],
+          edgeMaxAge = 86400,
+          browserMaxAge = 3600,
+          staleWhileRevalidate = 7200
+        } = body;
+
+        const cleanTags = (Array.isArray(tags) ? tags : String(tags).split(','))
+          .map(t => t.trim().toLowerCase())
+          .filter(Boolean);
+
+        const cacheTagHeader = cleanTags.join(',');
+        const surrogateKeyHeader = cleanTags.join(' ');
+        const cdnCacheControl = `max-age=${edgeMaxAge}, stale-while-revalidate=${staleWhileRevalidate}`;
+        const cacheControl = `public, max-age=${browserMaxAge}`;
+
+        // Tag byte limits check (Cloudflare limit: 16,384 bytes, 1,024 tags)
+        const totalBytes = new TextEncoder().encode(cacheTagHeader).length;
+        const isValid = totalBytes <= 16384 && cleanTags.length <= 1024;
+
+        const purgeApiPayload = {
+          tags: cleanTags.slice(0, 10)
+        };
+
+        const purgeCurlCommand = `curl -X POST "https://api.cloudflare.com/client/v4/zones/\${CLOUDFLARE_ZONE_ID}/purge_cache" \\
+     -H "Authorization: Bearer \${CLOUDFLARE_API_TOKEN}" \\
+     -H "Content-Type: application/json" \\
+     --data '${JSON.stringify(purgeApiPayload)}'`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          tags: cleanTags,
+          totalTags: cleanTags.length,
+          headerSizeBytes: totalBytes,
+          isValid,
+          headers: {
+            'Cache-Tag': cacheTagHeader,
+            'Surrogate-Key': surrogateKeyHeader,
+            'CDN-Cache-Control': cdnCacheControl,
+            'Cache-Control': cacheControl
+          },
+          purgeApiPayload,
+          purgeCurlCommand
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 40. BGP Looking Glass & Edge Anycast Route Inspector
+    if (path === '/network/bgp-route-inspector' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let { host = 'cloudflare.com' } = body;
+        host = host.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+
+        // Resolve A & AAAA records via Cloudflare DoH
+        const fetchDoh = async (type) => {
+          const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=${type}`, {
+            headers: { 'Accept': 'application/dns-json' },
+            signal: AbortSignal.timeout(6000)
+          });
+          const data = await res.json();
+          return (data.Answer || []).map(a => a.data);
+        };
+
+        const [aRecords, aaaaRecords] = await Promise.all([
+          fetchDoh('A').catch(() => []),
+          fetchDoh('AAAA').catch(() => [])
+        ]);
+
+        // Probe edge server response headers
+        let cfRay = null;
+        let server = 'Unknown';
+        let colo = 'N/A';
+        let latencyMs = 0;
+
+        try {
+          const start = Date.now();
+          const p = await fetch(`https://${host}`, {
+            method: 'HEAD',
+            headers: { 'User-Agent': 'Anycast-Edge-Prober/1.0' },
+            signal: AbortSignal.timeout(6000)
+          });
+          latencyMs = Date.now() - start;
+          server = p.headers.get('server') || 'Unknown';
+          cfRay = p.headers.get('cf-ray') || null;
+
+          if (cfRay && cfRay.includes('-')) {
+            colo = cfRay.split('-')[1];
+          }
+        } catch (_) {}
+
+        const airportCodes = {
+          'SIN': 'Singapore Changi Airport, Singapore (Asia-Pacific)',
+          'SFO': 'San Francisco International, USA (North America)',
+          'IAD': 'Washington Dulles International, USA (North America)',
+          'LHR': 'London Heathrow, United Kingdom (Europe)',
+          'FRA': 'Frankfurt am Main, Germany (Europe)',
+          'NRT': 'Tokyo Narita, Japan (Asia-Pacific)',
+          'HND': 'Tokyo Haneda, Japan (Asia-Pacific)',
+          'SYD': 'Sydney Kingsford Smith, Australia (Oceania)',
+          'AMS': 'Amsterdam Schiphol, Netherlands (Europe)',
+          'CDG': 'Paris Charles de Gaulle, France (Europe)',
+          'HKG': 'Hong Kong International, Hong Kong (Asia-Pacific)'
+        };
+
+        const coloLocation = airportCodes[colo] || (colo !== 'N/A' ? `${colo} Edge Point of Presence` : 'Distributed Anycast Node');
+
+        return new Response(JSON.stringify({
+          success: true,
+          host,
+          aRecords,
+          aaaaRecords,
+          isAnycast: aRecords.length > 0 || aaaaRecords.length > 0,
+          edgeServer: server,
+          cfRay,
+          colo,
+          coloLocation,
+          latencyMs
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 41. Cloudflare Queues & Dead-Letter Queue (DLQ) Pipeline Studio
+    if (path === '/cloudflare/queues-dlq' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          queueName = 'order-events-queue',
+          dlqName = 'order-events-dlq',
+          maxBatchSize = 10,
+          maxBatchTimeout = 5,
+          maxRetries = 3,
+          retryDelay = 10,
+          sampleMessages = [],
+          simulateFailureRate = 0.3
+        } = body;
+
+        const safeQueueName = String(queueName).trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-') || 'primary-queue';
+        const safeDlqName = String(dlqName).trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-') || 'primary-dlq';
+        const safeBatchSize = Math.max(1, Math.min(100, Number(maxBatchSize) || 10));
+        const safeBatchTimeout = Math.max(0, Math.min(30, Number(maxBatchTimeout) || 5));
+        const safeMaxRetries = Math.max(0, Math.min(20, Number(maxRetries) || 3));
+        const safeRetryDelay = Math.max(0, Math.min(300, Number(retryDelay) || 10));
+
+        // Default test messages if none provided
+        let messages = Array.isArray(sampleMessages) && sampleMessages.length > 0 ? sampleMessages : [
+          { id: 'msg-01a', event: 'order.placed', customer: 'alex@corp.io', amount: 149.99, priority: 'high' },
+          { id: 'msg-02b', event: 'payment.settled', invoice: 'INV-9021', status: 'approved', priority: 'medium' },
+          { id: 'msg-03c', event: 'inventory.reserve', sku: 'SKU-7721', qty: 2, priority: 'high' },
+          { id: 'msg-04d', event: 'email.receipt', recipient: 'alex@corp.io', template: 'order_receipt_v2' },
+          { id: 'msg-05e', event: 'audit.log', action: 'checkout_completed', clientIp: '198.51.100.44' },
+          { id: 'msg-06f', event: 'shipping.dispatch', trackingCarrier: 'fedex_express', priority: 'high' }
+        ];
+
+        // Run message processing simulation
+        const processedLogs = [];
+        let successCount = 0;
+        let retryCount = 0;
+        let dlqCount = 0;
+
+        messages.forEach((msg, idx) => {
+          const msgId = typeof msg === 'object' && msg !== null && msg.id ? msg.id : `msg-${idx + 1}`;
+          // Deterministic pseudo-random simulation based on index and failure rate
+          const failProb = ((idx * 37 + 19) % 100) / 100;
+          const fails = failProb < simulateFailureRate;
+
+          if (!fails) {
+            successCount++;
+            processedLogs.push({
+              id: msgId,
+              status: 'ACKNOWLEDGED',
+              attempts: 1,
+              latencyMs: 12 + (idx * 4),
+              message: 'Processed and acknowledged successfully',
+              data: msg
+            });
+          } else {
+            // Simulated retries
+            const neededAttempts = 1 + (idx % 4);
+            if (neededAttempts <= safeMaxRetries) {
+              retryCount++;
+              const backoff = safeRetryDelay * Math.pow(2, neededAttempts - 1);
+              processedLogs.push({
+                id: msgId,
+                status: 'RETRIED_THEN_ACKED',
+                attempts: neededAttempts,
+                backoffDelaySec: backoff,
+                latencyMs: 45 + (idx * 8),
+                message: `Failed on attempt 1, retried with ${backoff}s exponential delay, succeeded on attempt ${neededAttempts}`,
+                data: msg
+              });
+            } else {
+              dlqCount++;
+              processedLogs.push({
+                id: msgId,
+                status: 'ROUTED_TO_DLQ',
+                attempts: safeMaxRetries + 1,
+                failureReason: 'Maximum retry threshold exceeded: upstream timeout / schema validation error',
+                routedQueue: safeDlqName,
+                timestamp: new Date().toISOString(),
+                data: msg
+              });
+            }
+          }
+        });
+
+        const wranglerConfig = `// wrangler.jsonc or wrangler.toml
+{
+  "name": "edge-queue-pipeline",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "queues": {
+    "producers": [
+      {
+        "queue": "${safeQueueName}",
+        "binding": "WORKFLOW_QUEUE"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "${safeQueueName}",
+        "max_batch_size": ${safeBatchSize},
+        "max_batch_timeout": ${safeBatchTimeout},
+        "max_retries": ${safeMaxRetries},
+        "dead_letter_queue": "${safeDlqName}",
+        "retry_delay": ${safeRetryDelay}
+      },
+      {
+        "queue": "${safeDlqName}",
+        "max_batch_size": 20,
+        "max_batch_timeout": 10
+      }
+    ]
+  }
+}`;
+
+        const producerCode = `// Producer Cloudflare Worker (src/producer.js)
+export default {
+  async fetch(request, env, ctx) {
+    if (request.method !== 'POST') {
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    try {
+      const payload = await request.json();
+      
+      // Batch send or single message send
+      if (Array.isArray(payload)) {
+        const messages = payload.map((item, index) => ({
+          body: item,
+          contentType: 'json'
+        }));
+        await env.WORKFLOW_QUEUE.sendBatch(messages);
+        return Response.json({ success: true, count: messages.length });
+      }
+
+      await env.WORKFLOW_QUEUE.send(payload, { contentType: 'json' });
+      return Response.json({ success: true, messageId: crypto.randomUUID() });
+    } catch (err) {
+      return Response.json({ error: err.message }, { status: 500 });
+    }
+  }
+};`;
+
+        const consumerCode = `// Consumer Cloudflare Worker with DLQ & Exponential Backoff (src/consumer.js)
+export default {
+  async queue(batch, env, ctx) {
+    console.log(\`Received batch with \${batch.messages.length} messages from \${batch.queue}\`);
+
+    for (const message of batch.messages) {
+      const { id, body, attempts } = message;
+
+      try {
+        // Business logic execution
+        await handleMessage(body);
+
+        // Explicitly acknowledge successful processing
+        message.ack();
+      } catch (error) {
+        console.error(\`Message \${id} failed (attempt \${attempts}):\`, error);
+
+        if (attempts >= ${safeMaxRetries}) {
+          // If no automatic dead_letter_queue binding is set, route explicitly to DLQ
+          if (env.DLQ_QUEUE) {
+            await env.DLQ_QUEUE.send({
+              originalId: id,
+              payload: body,
+              failureReason: error.message,
+              timestamp: Date.now()
+            });
+            message.ack(); // Acknowledge from primary queue after DLQ handoff
+          } else {
+            // Hand off to Cloudflare automated DLQ
+            message.retry();
+          }
+        } else {
+          // Exponential backoff retry delay
+          const delaySeconds = Math.min(300, ${safeRetryDelay} * Math.pow(2, attempts - 1));
+          message.retry({ delaySeconds });
+        }
+      }
+    }
+  }
+};
+
+async function handleMessage(body) {
+  // Validate and process incoming event
+  if (!body) throw new Error('Empty message payload');
+  return true;
+}`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          queueName: safeQueueName,
+          dlqName: safeDlqName,
+          configuration: {
+            maxBatchSize: safeBatchSize,
+            maxBatchTimeout: safeBatchTimeout,
+            maxRetries: safeMaxRetries,
+            retryDelay: safeRetryDelay
+          },
+          metrics: {
+            totalMessages: messages.length,
+            acknowledged: successCount,
+            retriedAndSucceeded: retryCount,
+            routedToDLQ: dlqCount,
+            deliverySuccessRate: ((successCount + retryCount) / messages.length * 100).toFixed(1) + '%'
+          },
+          processedLogs,
+          wranglerConfig,
+          producerCode,
+          consumerCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 42. HTTP Cookie Security & Session Hardener
+    if (path === '/security/cookie-hardener' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          rawCookies = 'session_id=s%3A7a9b0c2e; Path=/; Domain=.corp.io\nauth_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9; Path=/app\nuser_pref=theme_dark; Path=/; SameSite=None',
+          sessionSecret = 'vault_super_secure_edge_secret_key_2026',
+          targetDomain = 'corp.io',
+          enableCHIPS = true
+        } = body;
+
+        const lines = rawCookies.split('\n').map(l => l.trim()).filter(Boolean);
+        const parsedCookies = [];
+        let totalScore = 100;
+        const allIssues = [];
+
+        lines.forEach((line, idx) => {
+          const parts = line.split(';').map(p => p.trim());
+          const [nameVal, ...attrParts] = parts;
+          const eqIdx = nameVal.indexOf('=');
+          const name = eqIdx !== -1 ? nameVal.substring(0, eqIdx).trim() : nameVal.trim();
+          const value = eqIdx !== -1 ? nameVal.substring(eqIdx + 1).trim() : '';
+
+          const attrs = {
+            name,
+            value,
+            secure: false,
+            httpOnly: false,
+            sameSite: null,
+            domain: null,
+            path: null,
+            maxAge: null,
+            partitioned: false,
+            prefix: null
+          };
+
+          if (name.startsWith('__Host-')) attrs.prefix = '__Host-';
+          else if (name.startsWith('__Secure-')) attrs.prefix = '__Secure-';
+
+          attrParts.forEach(attr => {
+            const lower = attr.toLowerCase();
+            if (lower === 'secure') attrs.secure = true;
+            else if (lower === 'httponly') attrs.httpOnly = true;
+            else if (lower === 'partitioned') attrs.partitioned = true;
+            else if (lower.startsWith('samesite=')) attrs.sameSite = attr.split('=')[1]?.trim();
+            else if (lower.startsWith('domain=')) attrs.domain = attr.split('=')[1]?.trim();
+            else if (lower.startsWith('path=')) attrs.path = attr.split('=')[1]?.trim();
+            else if (lower.startsWith('max-age=')) attrs.maxAge = Number(attr.split('=')[1]?.trim()) || null;
+          });
+
+          const cookieIssues = [];
+
+          if (!attrs.secure) {
+            cookieIssues.push({ severity: 'HIGH', message: `Cookie '${name}' lacks the 'Secure' attribute. Vulnerable to MITM interception over plaintext HTTP.` });
+            totalScore -= 20;
+          }
+
+          const isAuthToken = /auth|session|token|jwt|credential|login|sid|id/i.test(name);
+          if (isAuthToken && !attrs.httpOnly) {
+            cookieIssues.push({ severity: 'CRITICAL', message: `Sensitive credential cookie '${name}' lacks 'HttpOnly'. Vulnerable to session hijacking via Cross-Site Scripting (XSS).` });
+            totalScore -= 25;
+          }
+
+          if (!attrs.sameSite) {
+            cookieIssues.push({ severity: 'MEDIUM', message: `Cookie '${name}' missing 'SameSite' attribute. Defaults to Lax in modern browsers, but explicit declaration recommended against CSRF.` });
+            totalScore -= 10;
+          } else if (attrs.sameSite.toLowerCase() === 'none' && !attrs.secure) {
+            cookieIssues.push({ severity: 'CRITICAL', message: `'SameSite=None' without 'Secure' will be rejected by browsers according to RFC 6265bis.` });
+            totalScore -= 25;
+          }
+
+          if (isAuthToken && !attrs.prefix) {
+            cookieIssues.push({ severity: 'LOW', message: `Consider prefixing '${name}' with '__Host-' to lock cookie to exact origin and path=/ without domain loose-scoping.` });
+            totalScore -= 5;
+          }
+
+          if (attrs.prefix === '__Host-') {
+            if (attrs.domain) {
+              cookieIssues.push({ severity: 'HIGH', message: `'__Host-' cookies MUST NOT specify a Domain attribute according to RFC 6265bis.` });
+              totalScore -= 15;
+            }
+            if (attrs.path !== '/') {
+              cookieIssues.push({ severity: 'HIGH', message: `'__Host-' cookies MUST have Path=/ attribute.` });
+              totalScore -= 15;
+            }
+          }
+
+          allIssues.push(...cookieIssues);
+
+          // Build hardened Set-Cookie string
+          let hardenedName = attrs.name;
+          if (isAuthToken && !attrs.prefix) {
+            hardenedName = `__Host-${attrs.name}`;
+          }
+
+          const hardenedDirectives = [`${hardenedName}=${attrs.value}`];
+          if (hardenedName.startsWith('__Host-')) {
+            hardenedDirectives.push('Path=/');
+          } else {
+            hardenedDirectives.push(`Path=${attrs.path || '/'}`);
+            if (attrs.domain || targetDomain) {
+              hardenedDirectives.push(`Domain=${attrs.domain || targetDomain}`);
+            }
+          }
+
+          hardenedDirectives.push('Secure');
+          if (isAuthToken || attrs.httpOnly) hardenedDirectives.push('HttpOnly');
+          hardenedDirectives.push(`SameSite=${attrs.sameSite && attrs.sameSite.toLowerCase() === 'none' ? 'None' : 'Lax'}`);
+          if (enableCHIPS) hardenedDirectives.push('Partitioned');
+          if (attrs.maxAge) hardenedDirectives.push(`Max-Age=${attrs.maxAge}`);
+
+          parsedCookies.push({
+            original: line,
+            parsed: attrs,
+            issues: cookieIssues,
+            hardenedSetCookie: hardenedDirectives.join('; ')
+          });
+        });
+
+        const finalScore = Math.max(0, Math.min(100, totalScore));
+        let grade = 'F';
+        if (finalScore >= 95) grade = 'A+';
+        else if (finalScore >= 85) grade = 'A';
+        else if (finalScore >= 75) grade = 'B';
+        else if (finalScore >= 60) grade = 'C';
+        else if (finalScore >= 45) grade = 'D';
+
+        const workerMiddlewareCode = `// Cloudflare Worker HMAC-SHA256 Cookie Signing & Tamper Verification Middleware
+const COOKIE_SECRET = '${sessionSecret}';
+
+async function getHmacKey(secret) {
+  const enc = new TextEncoder();
+  return crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign', 'verify']
+  );
+}
+
+// Sign a session value before issuing in Set-Cookie
+export async function signCookieValue(value) {
+  const enc = new TextEncoder();
+  const key = await getHmacKey(COOKIE_SECRET);
+  const sigBuffer = await crypto.subtle.sign('HMAC', key, enc.encode(value));
+  const sigHex = Array.from(new Uint8Array(sigBuffer))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+  return \`\${value}.\${sigHex}\`;
+}
+
+// Verify cookie value and reject if signature is forged or tampered
+export async function verifySignedCookieValue(signedValue) {
+  if (!signedValue || !signedValue.includes('.')) return null;
+  const [val, sigHex] = signedValue.split('.');
+  const enc = new TextEncoder();
+  const key = await getHmacKey(COOKIE_SECRET);
+  
+  const expectedSigBuffer = await crypto.subtle.sign('HMAC', key, enc.encode(val));
+  const expectedSigHex = Array.from(new Uint8Array(expectedSigBuffer))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+
+  if (sigHex === expectedSigHex) {
+    return val; // Valid untampered session
+  }
+  return null; // Tampered or expired signature!
+}
+
+export default {
+  async fetch(request, env) {
+    // Audit & harden Set-Cookie response headers on edge
+    const response = await fetch(request);
+    const newHeaders = new Headers(response.headers);
+
+    const rawSetCookie = newHeaders.get('set-cookie');
+    if (rawSetCookie && !rawSetCookie.includes('Secure')) {
+      newHeaders.set('set-cookie', \`\${rawSetCookie}; Secure; HttpOnly; SameSite=Lax; Partitioned\`);
+    }
+
+    return new Response(response.body, {
+      status: response.status,
+      headers: newHeaders
+    });
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          score: finalScore,
+          grade,
+          totalCookies: parsedCookies.length,
+          issuesCount: allIssues.length,
+          allIssues,
+          cookies: parsedCookies,
+          workerMiddlewareCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 43. Multi-Origin Canary & Weight Traffic Splitter
+    if (path === '/edge/canary-traffic-splitter' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          pools = [
+            { id: 'prod', name: 'Production (Stable v1.8)', originUrl: 'https://origin-prod.internal.corp', weight: 80, isCanary: false },
+            { id: 'canary', name: 'Canary Release (v2.0-rc)', originUrl: 'https://origin-canary.internal.corp', weight: 20, isCanary: true }
+          ],
+          routingStrategy = 'sticky-ip',
+          cookieName = 'cf_canary_pool',
+          testRequests = 1000
+        } = body;
+
+        // Normalize weights
+        const totalWeight = pools.reduce((acc, p) => acc + (Number(p.weight) || 0), 0) || 100;
+        const normalizedPools = pools.map(p => ({
+          ...p,
+          weightPercent: ((Number(p.weight) || 0) / totalWeight * 100).toFixed(1)
+        }));
+
+        // FNV-1a 32-bit consistent hashing for deterministic sticky distribution
+        function fnv1a(str) {
+          let hash = 0x811c9dc5;
+          for (let i = 0; i < str.length; i++) {
+            hash ^= str.charCodeAt(i);
+            hash = (hash * 0x01000193) >>> 0;
+          }
+          return hash;
+        }
+
+        // Simulate traffic split
+        const counts = {};
+        normalizedPools.forEach(p => counts[p.id] = 0);
+
+        const sampleClients = [
+          '198.51.100.12', '203.0.113.88', '192.0.2.45', '198.51.100.109',
+          '203.0.113.201', '192.0.2.14', '198.51.100.77', '203.0.113.155'
+        ];
+
+        const reqCount = Math.max(10, Math.min(5000, Number(testRequests) || 1000));
+        for (let i = 0; i < reqCount; i++) {
+          let bucket = 0;
+          if (routingStrategy === 'sticky-ip') {
+            const ip = `198.51.${(i * 13) % 255}.${(i * 37) % 255}`;
+            const hash = fnv1a(ip) % 1000;
+            bucket = hash / 10;
+          } else if (routingStrategy === 'weighted-random') {
+            bucket = Math.random() * 100;
+          } else {
+            const seed = `session-${(i * 17) % 200}`;
+            const hash = fnv1a(seed) % 1000;
+            bucket = hash / 10;
+          }
+
+          let accumulated = 0;
+          let selected = normalizedPools[0];
+          for (const pool of normalizedPools) {
+            accumulated += (Number(pool.weight) / totalWeight * 100);
+            if (bucket <= accumulated) {
+              selected = pool;
+              break;
+            }
+          }
+          counts[selected.id] = (counts[selected.id] || 0) + 1;
+        }
+
+        const simulatedDistribution = normalizedPools.map(p => {
+          const actualCount = counts[p.id] || 0;
+          const actualPercent = ((actualCount / reqCount) * 100).toFixed(1);
+          return {
+            id: p.id,
+            name: p.name,
+            originUrl: p.originUrl,
+            targetWeight: `${p.weightPercent}%`,
+            actualRequests: actualCount,
+            actualPercent: `${actualPercent}%`,
+            deviation: `${(parseFloat(actualPercent) - parseFloat(p.weightPercent)).toFixed(1)}%`
+          };
+        });
+
+        const workerScript = `// Cloudflare Edge Weighted Canary & Failover Splitter
+const POOLS = ${JSON.stringify(normalizedPools, null, 2)};
+const COOKIE_NAME = '${cookieName}';
+const STRATEGY = '${routingStrategy}'; // sticky-ip | sticky-cookie | weighted-random
+
+function hashString(str) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = (hash * 0x01000193) >>> 0;
+  }
+  return hash;
+}
+
+function selectOrigin(request) {
+  // 1. Check for explicit debug / override query param
+  const url = new URL(request.url);
+  const override = url.searchParams.get('cf_origin');
+  if (override) {
+    const matched = POOLS.find(p => p.id === override);
+    if (matched) return matched;
+  }
+
+  // 2. Cookie stickiness
+  if (STRATEGY === 'sticky-cookie') {
+    const cookie = request.headers.get('cookie') || '';
+    const match = cookie.match(new RegExp(\`\${COOKIE_NAME}=([^;]+)\`));
+    if (match) {
+      const saved = POOLS.find(p => p.id === match[1]);
+      if (saved) return saved;
+    }
+  }
+
+  // 3. Hash calculation based on client IP or random
+  let seed = crypto.randomUUID();
+  if (STRATEGY === 'sticky-ip') {
+    seed = request.headers.get('cf-connecting-ip') || '127.0.0.1';
+  }
+
+  const totalWeight = POOLS.reduce((acc, p) => acc + (p.weight || 0), 0);
+  const bucket = (hashString(seed) % 1000) / 10; // 0 - 99.9
+
+  let accum = 0;
+  for (const pool of POOLS) {
+    accum += (pool.weight / totalWeight * 100);
+    if (bucket <= accum) return pool;
+  }
+  return POOLS[0];
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    const selectedPool = selectOrigin(request);
+    const targetUrl = new URL(request.url);
+    const originHost = new URL(selectedPool.originUrl);
+
+    targetUrl.hostname = originHost.hostname;
+    targetUrl.protocol = originHost.protocol;
+    targetUrl.port = originHost.port;
+
+    const modifiedReq = new Request(targetUrl.toString(), {
+      method: request.method,
+      headers: new Headers(request.headers),
+      body: request.body,
+      redirect: 'manual'
+    });
+
+    modifiedReq.headers.set('X-Edge-Routing-Pool', selectedPool.id);
+    modifiedReq.headers.set('X-Edge-Is-Canary', selectedPool.isCanary ? 'true' : 'false');
+    modifiedReq.headers.set('Host', originHost.host);
+
+    try {
+      let response = await fetch(modifiedReq);
+
+      // Automated Failover: If Canary returns 502/503/504, transparently fallback to Primary
+      if (selectedPool.isCanary && [502, 503, 504].includes(response.status)) {
+        console.warn('Canary failed, falling back to Primary origin...');
+        const primary = POOLS.find(p => !p.isCanary) || POOLS[0];
+        const fallbackUrl = new URL(request.url);
+        const pHost = new URL(primary.originUrl);
+        fallbackUrl.hostname = pHost.hostname;
+        
+        response = await fetch(new Request(fallbackUrl.toString(), request));
+        const resHeaders = new Headers(response.headers);
+        resHeaders.set('X-Canary-Fallback-Triggered', 'true');
+        return new Response(response.body, { status: response.status, headers: resHeaders });
+      }
+
+      const resHeaders = new Headers(response.headers);
+      resHeaders.set('X-Edge-Served-By', selectedPool.id);
+      if (STRATEGY === 'sticky-cookie') {
+        resHeaders.append('Set-Cookie', \`\${COOKIE_NAME}=\${selectedPool.id}; Path=/; Secure; SameSite=Lax; Max-Age=86400\`);
+      }
+
+      return new Response(response.body, { status: response.status, headers: resHeaders });
+    } catch (err) {
+      return new Response('Edge Proxy Gateway Error: ' + err.message, { status: 502 });
+    }
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          strategy: routingStrategy,
+          totalSimulatedRequests: reqCount,
+          distribution: simulatedDistribution,
+          pools: normalizedPools,
+          workerScript
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 44. SRI (Subresource Integrity) & Edge Script Locker
+    if (path === '/security/sri-edge-locker' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        let {
+          targetUrl = '',
+          inlineContent = '',
+          htmlSnippet = '<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>\n<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">'
+        } = body;
+
+        let contentBuffer = null;
+        let fetchedContentType = 'text/plain';
+
+        if (targetUrl && targetUrl.trim().startsWith('http')) {
+          try {
+            const fetched = await fetch(targetUrl.trim(), {
+              headers: { 'User-Agent': 'Mozilla/5.0 (Vault-Edge-SRI-Auditor)' },
+              signal: AbortSignal.timeout(8000)
+            });
+            contentBuffer = await fetched.arrayBuffer();
+            fetchedContentType = fetched.headers.get('content-type') || 'application/javascript';
+          } catch (fetchErr) {
+            return new Response(JSON.stringify({ error: `Failed to fetch target URL: ${fetchErr.message}` }), { headers, status: 400 });
+          }
+        } else if (inlineContent && inlineContent.trim().length > 0) {
+          const enc = new TextEncoder();
+          contentBuffer = enc.encode(inlineContent).buffer;
+        } else {
+          // Default sample React bundle snippet
+          const sample = 'console.log("Vault Edge SRI Verified Resource");';
+          const enc = new TextEncoder();
+          contentBuffer = enc.encode(sample).buffer;
+        }
+
+        // Calculate SHA-256, SHA-384, SHA-512 hashes
+        const [h256, h384, h512] = await Promise.all([
+          crypto.subtle.digest('SHA-256', contentBuffer),
+          crypto.subtle.digest('SHA-384', contentBuffer),
+          crypto.subtle.digest('SHA-512', contentBuffer)
+        ]);
+
+        function toBase64(ab) {
+          const bytes = new Uint8Array(ab);
+          let binary = '';
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          return btoa(binary);
+        }
+
+        const sriHashes = {
+          sha256: `sha256-${toBase64(h256)}`,
+          sha384: `sha384-${toBase64(h384)}`,
+          sha512: `sha512-${toBase64(h512)}`
+        };
+
+        const recommendedIntegrity = sriHashes.sha384; // W3C recommendation
+
+        // Audit HTML snippet for tags missing SRI
+        const auditResults = [];
+        const scriptRegex = /<script\b([^>]*)>(.*?)<\/script>/gis;
+        const linkRegex = /<link\b([^>]*)\/?>/gis;
+
+        let match;
+        while ((match = scriptRegex.exec(htmlSnippet)) !== null) {
+          const attrs = match[1];
+          const srcMatch = attrs.match(/src=["']([^"']+)["']/i);
+          if (srcMatch) {
+            const src = srcMatch[1];
+            const hasIntegrity = /integrity=["']([^"']+)["']/i.test(attrs);
+            const hasCrossorigin = /crossorigin=["']([^"']+)["']/i.test(attrs);
+
+            auditResults.push({
+              tag: 'script',
+              resource: src,
+              hasIntegrity,
+              hasCrossorigin,
+              status: hasIntegrity && hasCrossorigin ? 'SECURE' : hasIntegrity ? 'WARNING_MISSING_CROSSORIGIN' : 'VULNERABLE_MISSING_SRI',
+              recommendation: `Add integrity="${recommendedIntegrity}" crossorigin="anonymous"`
+            });
+          }
+        }
+
+        while ((match = linkRegex.exec(htmlSnippet)) !== null) {
+          const attrs = match[1];
+          const hrefMatch = attrs.match(/href=["']([^"']+)["']/i);
+          const isCss = /rel=["']stylesheet["']/i.test(attrs);
+          if (hrefMatch && isCss) {
+            const href = hrefMatch[1];
+            const hasIntegrity = /integrity=["']([^"']+)["']/i.test(attrs);
+            const hasCrossorigin = /crossorigin=["']([^"']+)["']/i.test(attrs);
+
+            auditResults.push({
+              tag: 'link',
+              resource: href,
+              hasIntegrity,
+              hasCrossorigin,
+              status: hasIntegrity && hasCrossorigin ? 'SECURE' : hasIntegrity ? 'WARNING_MISSING_CROSSORIGIN' : 'VULNERABLE_MISSING_SRI',
+              recommendation: `Add integrity="${recommendedIntegrity}" crossorigin="anonymous"`
+            });
+          }
+        }
+
+        const workerHtmlRewriterCode = `// Cloudflare HTMLRewriter Dynamic SRI Edge Enforcer
+// Rewrites outgoing HTML to inject SRI integrity and crossorigin attributes,
+// or blocks untrusted third-party scripts dynamically.
+
+const APPROVED_SRI_REGISTRY = {
+  'react.production.min.js': '${sriHashes.sha384}',
+  'all.min.css': '${sriHashes.sha384}'
+};
+
+class ScriptIntegrityEnforcer {
+  element(element) {
+    const src = element.getAttribute('src');
+    if (!src) return;
+
+    // Check if script belongs to an approved library
+    for (const [filename, expectedHash] of Object.entries(APPROVED_SRI_REGISTRY)) {
+      if (src.includes(filename)) {
+        element.setAttribute('integrity', expectedHash);
+        element.setAttribute('crossorigin', 'anonymous');
+        element.setAttribute('data-sri-locked', 'true');
+        return;
+      }
+    }
+
+    // Optional: Block unauthorized dynamic CDN scripts
+    // element.remove();
+  }
+}
+
+export default {
+  async fetch(request, env) {
+    const response = await fetch(request);
+    const contentType = response.headers.get('content-type') || '';
+
+    if (!contentType.includes('text/html')) {
+      return response;
+    }
+
+    return new HTMLRewriter()
+      .on('script[src]', new ScriptIntegrityEnforcer())
+      .on('link[rel="stylesheet"]', {
+        element(el) {
+          const href = el.getAttribute('href');
+          if (href && !el.getAttribute('integrity')) {
+            el.setAttribute('crossorigin', 'anonymous');
+          }
+        }
+      })
+      .transform(response);
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          byteSize: contentBuffer.byteLength,
+          sriHashes,
+          recommendedIntegrity,
+          tagSnippet: `<script src="${targetUrl || 'https://cdn.example.com/bundle.js'}" integrity="${recommendedIntegrity}" crossorigin="anonymous"></script>`,
+          auditResults,
+          workerHtmlRewriterCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {
+
     console.error('Request error:', err);
     return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
   }

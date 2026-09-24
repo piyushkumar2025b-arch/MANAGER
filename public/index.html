@@ -2782,6 +2782,30 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('regexbench');">
       <span class="icon">🧩</span> Regex & ReDoS Benchmark
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('errorpages');">
+      <span class="icon">🛑</span> Edge Custom Error Pages
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('corsaudit');">
+      <span class="icon">🌐</span> CORS Policy & Preflight Auditor
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('cachetags');">
+      <span class="icon">🏷️</span> Cache-Tag & Surrogate Keys
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('bgproute');">
+      <span class="icon">🗺️</span> Anycast & BGP PoP Inspector
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('queuesdlq');">
+      <span class="icon">📬</span> Queues & DLQ Pipeline Architect
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('cookiehardener');">
+      <span class="icon">🍪</span> HTTP Cookie Security & Hardener
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('canarysplit');">
+      <span class="icon">🚦</span> Multi-Origin Canary Splitter
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('srilocker');">
+      <span class="icon">🔒</span> SRI & Edge Script Locker
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -3054,6 +3078,38 @@ async function loadTab() {
   } else if (currentTab === 'regexbench') {
     if (typeof window.renderRegexBenchStudio === 'function') {
       window.renderRegexBenchStudio();
+    }
+  } else if (currentTab === 'errorpages') {
+    if (typeof window.renderErrorPagesStudio === 'function') {
+      window.renderErrorPagesStudio();
+    }
+  } else if (currentTab === 'corsaudit') {
+    if (typeof window.renderCorsAuditorStudio === 'function') {
+      window.renderCorsAuditorStudio();
+    }
+  } else if (currentTab === 'cachetags') {
+    if (typeof window.renderCacheTagsStudio === 'function') {
+      window.renderCacheTagsStudio();
+    }
+  } else if (currentTab === 'bgproute') {
+    if (typeof window.renderBgpRouteStudio === 'function') {
+      window.renderBgpRouteStudio();
+    }
+  } else if (currentTab === 'queuesdlq') {
+    if (typeof window.renderQueuesDlqStudio === 'function') {
+      window.renderQueuesDlqStudio();
+    }
+  } else if (currentTab === 'cookiehardener') {
+    if (typeof window.renderCookieHardenerStudio === 'function') {
+      window.renderCookieHardenerStudio();
+    }
+  } else if (currentTab === 'canarysplit') {
+    if (typeof window.renderCanarySplitterStudio === 'function') {
+      window.renderCanarySplitterStudio();
+    }
+  } else if (currentTab === 'srilocker') {
+    if (typeof window.renderSriLockerStudio === 'function') {
+      window.renderSriLockerStudio();
     }
   }
 }

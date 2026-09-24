@@ -1417,6 +1417,54 @@ function mergeObjects(target, source) {
       window.renderRegexBenchStudio();
       return;
     }
+    if (tab === 'errorpages') {
+      window.currentTab = 'errorpages';
+      updateNavHighlight('tab-errorpages');
+      window.renderErrorPagesStudio();
+      return;
+    }
+    if (tab === 'corsaudit') {
+      window.currentTab = 'corsaudit';
+      updateNavHighlight('tab-corsaudit');
+      window.renderCorsAuditorStudio();
+      return;
+    }
+    if (tab === 'cachetags') {
+      window.currentTab = 'cachetags';
+      updateNavHighlight('tab-cachetags');
+      window.renderCacheTagsStudio();
+      return;
+    }
+    if (tab === 'bgproute') {
+      window.currentTab = 'bgproute';
+      updateNavHighlight('tab-bgproute');
+      window.renderBgpRouteStudio();
+      return;
+    }
+    if (tab === 'queuesdlq') {
+      window.currentTab = 'queuesdlq';
+      updateNavHighlight('tab-queuesdlq');
+      window.renderQueuesDlqStudio();
+      return;
+    }
+    if (tab === 'cookiehardener') {
+      window.currentTab = 'cookiehardener';
+      updateNavHighlight('tab-cookiehardener');
+      window.renderCookieHardenerStudio();
+      return;
+    }
+    if (tab === 'canarysplit') {
+      window.currentTab = 'canarysplit';
+      updateNavHighlight('tab-canarysplit');
+      window.renderCanarySplitterStudio();
+      return;
+    }
+    if (tab === 'srilocker') {
+      window.currentTab = 'srilocker';
+      updateNavHighlight('tab-srilocker');
+      window.renderSriLockerStudio();
+      return;
+    }
 
     if (typeof origSwitchTab === 'function') {
       origSwitchTab(tab);
@@ -5795,6 +5843,1366 @@ function mergeObjects(target, source) {
     }
   };
 
+  // =========================================================================
+  // 28. EDGE CUSTOM ERROR PAGE & MAINTENANCE MODE STUDIO
+  // =========================================================================
+  window.renderErrorPagesStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🛑</span> Edge Custom Error Page & Maintenance Mode Studio
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Architect branded Cloudflare custom error pages for 500/502/504 origins and 1000-series edge blocks with dynamic ::RAY_ID:: tokens.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('wafsim')">
+            <span>🛡️</span> WAF Rules
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Controls -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;">Error Page Parameters</h2>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Error Status Code</label>
+              <select id="errCodeSelect" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;" onchange="window.generateErrorPage();">
+                <option value="502" selected>502 Bad Gateway (Origin Down)</option>
+                <option value="500">500 Internal Server Error</option>
+                <option value="503">503 Service Maintenance</option>
+                <option value="504">504 Gateway Timeout</option>
+                <option value="521">521 Web Server Is Down (Cloudflare)</option>
+                <option value="1015">1015 Rate Limited (Cloudflare Edge)</option>
+                <option value="1020">1020 Access Denied (Cloudflare WAF)</option>
+              </select>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Company Brand Name</label>
+                <input type="text" id="errBrandName" value="Vault Security Corp" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;" oninput="window.generateErrorPage();" />
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Brand Color</label>
+                <input type="color" id="errBrandColor" value="#7c6af7" style="width:100%;height:42px;padding:2px 4px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;margin-top:4px;cursor:pointer;" onchange="window.generateErrorPage();" />
+              </div>
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Support Email</label>
+              <input type="email" id="errSupportEmail" value="ops@vaultcorp.internal" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;" oninput="window.generateErrorPage();" />
+            </div>
+
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">User Explanatory Message</label>
+              <textarea id="errCustomMsg" rows="3" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:sans-serif;font-size:13px;margin-top:4px;" oninput="window.generateErrorPage();">Our edge servers are temporarily experiencing technical difficulties. Our engineering operations team has been notified and is investigating.</textarea>
+            </div>
+
+            <div style="display:flex;gap:10px;">
+              <button class="btn btn-primary" onclick="window.generateErrorPage()" style="flex:1;padding:10px;font-weight:700;">
+                <span>⚡</span> Refresh Code
+              </button>
+            </div>
+          </div>
+
+          <!-- Preview & Export -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div id="errOutputContainer">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    window.generateErrorPage();
+  };
+
+  window.generateErrorPage = async function() {
+    const errorCode = document.getElementById('errCodeSelect')?.value || '502';
+    const companyName = document.getElementById('errBrandName')?.value || 'Vault Security Corp';
+    const brandColor = document.getElementById('errBrandColor')?.value || '#7c6af7';
+    const supportEmail = document.getElementById('errSupportEmail')?.value || 'ops@vaultcorp.internal';
+    const customMessage = document.getElementById('errCustomMsg')?.value || 'Origin server unreachable';
+
+    const container = document.getElementById('errOutputContainer');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/cloudflare/custom-error-pages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ errorCode, companyName, brandColor, supportEmail, customMessage })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      // Replace Cloudflare token placeholders for the preview iframe
+      const previewHtml = data.htmlPage
+        .replace(/::RAY_ID::/g, '8cf931b92e8c2014-SIN')
+        .replace(/::CLIENT_IP::/g, '198.51.100.42')
+        .replace(/::GEO::/g, 'US, San Francisco');
+
+      container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0;">Live Branded Preview</h3>
+          <div style="display:flex;gap:8px;">
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 8px;border-radius:4px;"
+              onclick="navigator.clipboard.writeText(document.getElementById('rawHtmlArea').value);this.innerText='Copied HTML!';setTimeout(()=>this.innerText='Copy HTML',1500);">
+              Copy HTML
+            </button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 8px;border-radius:4px;"
+              onclick="navigator.clipboard.writeText(document.getElementById('workerErrCode').innerText);this.innerText='Copied Worker!';setTimeout(()=>this.innerText='Copy Worker',1500);">
+              Copy Worker
+            </button>
+          </div>
+        </div>
+
+        <iframe srcdoc="${esc(previewHtml)}" style="width:100%;height:250px;border:1px solid var(--border);border-radius:8px;background:#0d0d12;margin-bottom:16px;"></iframe>
+
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:4px;">Cloudflare Worker Error Interceptor</div>
+          <pre id="workerErrCode" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--accent,#7c6af7);font-family:monospace;font-size:11px;margin:0;max-height:160px;overflow-y:auto;">${esc(data.workerSnippet)}</pre>
+        </div>
+
+        <textarea id="rawHtmlArea" style="display:none;">${esc(data.htmlPage)}</textarea>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:16px;">Generation Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  // =========================================================================
+  // 29. CORS (CROSS-ORIGIN RESOURCE SHARING) POLICY AUDITOR STUDIO
+  // =========================================================================
+  window.renderCorsAuditorStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🌐</span> CORS Edge Policy Auditor & Preflight Simulator
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Audit target endpoints for hazardous CORS configurations (wildcard origins with credentials, reflective headers) and generate secure edge middleware.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('jwtstudio')">
+            <span>🎟️</span> JWT Inspector
+          </button>
+        </div>
+
+        <div style="grid-template-columns:1fr 1fr;display:grid;gap:20px;">
+          <!-- Controls -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;">Target Endpoint or Custom Policy</h2>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Live API Target URL (Optional Preflight Probe)</label>
+              <input type="text" id="corsTargetUrl" placeholder="https://api.example.com/v1/auth" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Simulated Origin Header</label>
+              <input type="text" id="corsTestOrigin" value="https://malicious-attacker.com" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#ef4444;font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Allowed Whitelist Origins (Comma separated)</label>
+              <input type="text" id="corsAllowedOrigins" value="https://app.company.com, https://admin.company.com" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:var(--accent,#7c6af7);font-family:monospace;margin-top:4px;" />
+            </div>
+
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+              <input type="checkbox" id="corsCredentials" checked style="width:18px;height:18px;cursor:pointer;" />
+              <label for="corsCredentials" style="font-size:13px;color:#ddd;cursor:pointer;">Allow Credentials (cookies / HTTP auth headers)</label>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.auditCorsSecurity()" style="width:100%;padding:12px;font-weight:700;">
+              <span>⚡</span> Audit CORS Security & Generate Middleware
+            </button>
+          </div>
+
+          <!-- Results -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div id="corsResultsContainer">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    window.auditCorsSecurity();
+  };
+
+  window.auditCorsSecurity = async function() {
+    const targetUrl = document.getElementById('corsTargetUrl')?.value.trim() || '';
+    const testOrigin = document.getElementById('corsTestOrigin')?.value.trim() || 'https://malicious-attacker.com';
+    const allowedOrigins = (document.getElementById('corsAllowedOrigins')?.value || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    const allowCredentials = document.getElementById('corsCredentials')?.checked ?? true;
+
+    const container = document.getElementById('corsResultsContainer');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/security/cors-auditor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUrl, testOrigin, allowedOrigins, allowCredentials })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <div>
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Security Assessment</div>
+            <div style="font-size:20px;font-weight:800;color:${data.isSecure ? '#22c55e' : '#ef4444'};margin-top:2px;">
+              ${data.isSecure ? '✓ SAFE CONFIGURATION' : '⚠ VULNERABILITIES DETECTED'}
+            </div>
+          </div>
+          <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:4px 8px;border-radius:4px;"
+            onclick="navigator.clipboard.writeText(document.getElementById('corsMiddlewareCode').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy Middleware',1500);">
+            Copy Middleware
+          </button>
+        </div>
+
+        ${data.vulnerabilities.length > 0 ? `
+          <div style="background:#ef444415;border:1px solid #ef4444;border-radius:8px;padding:12px;margin-bottom:14px;display:flex;flex-direction:column;gap:6px;">
+            ${data.vulnerabilities.map(v => `<div style="font-size:12px;color:#ef4444;font-weight:600;">⚠ ${esc(v)}</div>`).join('')}
+          </div>
+        ` : `
+          <div style="background:#22c55e15;border:1px solid #22c55e;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:#22c55e;">
+            ✓ Strict whitelist origin verification enforced. Wildcards and arbitrary reflection blocked.
+          </div>
+        `}
+
+        <div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;margin-bottom:6px;">Hardened Cloudflare Worker Middleware</div>
+          <pre id="corsMiddlewareCode" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--accent,#7c6af7);font-family:monospace;font-size:11px;margin:0;max-height:260px;overflow-y:auto;">${esc(data.workerCorsCode)}</pre>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:16px;">Auditor Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  // =========================================================================
+  // 30. CLOUDFLARE CACHE-TAG & SURROGATE-KEY HEADER ARCHITECT STUDIO
+  // =========================================================================
+  window.renderCacheTagsStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🏷️</span> Cloudflare Cache-Tag & Surrogate-Key Header Architect
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Design granular edge surrogate key caching strategies, calculate header size limits, and generate 1-click purge API payloads.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('cachestudio')">
+            <span>⚡</span> Cache Purge
+          </button>
+        </div>
+
+        <div style="grid-template-columns:1fr 1fr;display:grid;gap:20px;">
+          <!-- Left: Input tags -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h2 style="font-size:16px;font-weight:700;margin:0 0 16px 0;">Tag Configuration</h2>
+
+            <div style="margin-bottom:12px;">
+              <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Cache Tags (Comma-separated)</label>
+              <textarea id="cacheTagsInput" rows="3" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:12px;margin-top:4px;" oninput="window.calculateCacheTags();">prod:1094, cat:electronics, brand:apple, status:in-stock, region:us-east</textarea>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Edge TTL (CDN-Cache-Control)</label>
+                <select id="tagEdgeTtl" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;" onchange="window.calculateCacheTags();">
+                  <option value="3600">1 Hour (3,600s)</option>
+                  <option value="86400" selected>1 Day (86,400s)</option>
+                  <option value="604800">1 Week (604,800s)</option>
+                  <option value="2592000">30 Days (2,592,000s)</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Browser TTL (Cache-Control)</label>
+                <select id="tagBrowserTtl" style="width:100%;padding:10px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;margin-top:4px;" onchange="window.calculateCacheTags();">
+                  <option value="0">No Browser Cache (0s)</option>
+                  <option value="300">5 Minutes (300s)</option>
+                  <option value="3600" selected>1 Hour (3,600s)</option>
+                  <option value="86400">1 Day (86,400s)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+              <span style="font-size:11px;color:var(--muted,#888);">Tag Presets:</span>
+              <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                onclick="document.getElementById('cacheTagsInput').value='article:8921, author:alec, section:tech, trending';window.calculateCacheTags();">News / Blog</button>
+              <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+                onclick="document.getElementById('cacheTagsInput').value='sku:9810, vendor:dell, cat:laptops, inventory:high';window.calculateCacheTags();">E-Commerce SKU</button>
+            </div>
+          </div>
+
+          <!-- Right: Output headers and purge snippet -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <div id="cacheTagsOutputContainer">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    window.calculateCacheTags();
+  };
+
+  window.calculateCacheTags = async function() {
+    const rawTags = document.getElementById('cacheTagsInput')?.value || '';
+    const tags = rawTags.split(',').map(t => t.trim()).filter(Boolean);
+    const edgeMaxAge = parseInt(document.getElementById('tagEdgeTtl')?.value || '86400', 10);
+    const browserMaxAge = parseInt(document.getElementById('tagBrowserTtl')?.value || '3600', 10);
+
+    const container = document.getElementById('cacheTagsOutputContainer');
+    if (!container) return;
+
+    try {
+      const res = await fetch('/api/cloudflare/cache-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags, edgeMaxAge, browserMaxAge })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div>
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Header Size & Validation</div>
+            <div style="font-size:16px;font-weight:800;color:${data.isValid ? '#22c55e' : '#ef4444'};">
+              ${data.headerSizeBytes} bytes / 16,384 bytes (${data.totalTags} tags)
+            </div>
+          </div>
+          <span class="badge" style="background:#22c55e20;color:#22c55e;border:1px solid currentColor;">
+            ✓ RFC 7234 Compliant
+          </span>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+          <div style="background:var(--surface2,#242434);padding:8px 10px;border-radius:6px;">
+            <div style="font-size:10px;color:var(--muted,#888);text-transform:uppercase;">Cache-Tag (Cloudflare Enterprise / Business)</div>
+            <div style="font-family:monospace;font-size:11px;color:var(--accent,#7c6af7);word-break:break-all;">${esc(data.headers['Cache-Tag'])}</div>
+          </div>
+          <div style="background:var(--surface2,#242434);padding:8px 10px;border-radius:6px;">
+            <div style="font-size:10px;color:var(--muted,#888);text-transform:uppercase;">Surrogate-Key (Fastly / RFC Caching)</div>
+            <div style="font-family:monospace;font-size:11px;color:#06b6d4;word-break:break-all;">${esc(data.headers['Surrogate-Key'])}</div>
+          </div>
+          <div style="background:var(--surface2,#242434);padding:8px 10px;border-radius:6px;">
+            <div style="font-size:10px;color:var(--muted,#888);text-transform:uppercase;">CDN-Cache-Control</div>
+            <div style="font-family:monospace;font-size:11px;color:#fff;">${esc(data.headers['CDN-Cache-Control'])}</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:11px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Cloudflare Purge by Tag API</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:2px 8px;border-radius:4px;"
+              onclick="navigator.clipboard.writeText(document.getElementById('purgeCurlCmd').innerText);this.innerText='Copied!';setTimeout(()=>this.innerText='Copy cURL',1500);">
+              Copy cURL
+            </button>
+          </div>
+          <pre id="purgeCurlCmd" style="background:#0d0d12;border:1px solid var(--border);border-radius:8px;padding:10px;color:#fff;font-family:monospace;font-size:11px;margin:0;max-height:120px;overflow-y:auto;">${esc(data.purgeCurlCommand)}</pre>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:16px;">Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  // =========================================================================
+  // 31. BGP LOOKING GLASS & EDGE ANYCAST ROUTE INSPECTOR STUDIO
+  // =========================================================================
+  window.renderBgpRouteStudio = function() {
+    const main = document.querySelector('main') || document.getElementById('mainContent');
+    if (!main) return;
+
+    main.innerHTML = `
+      <div style="max-width:1100px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h1 style="font-size:26px;font-weight:700;display:flex;align-items:center;gap:10px;margin:0;">
+              <span>🗺️</span> BGP Looking Glass & Edge Anycast Route Inspector
+            </h1>
+            <p style="color:var(--muted,#888);font-size:14px;margin:4px 0 0 0;">
+              Trace Anycast routing, locate Cloudflare edge PoP datacenters via IATA airport codes, and inspect DNS A/AAAA records.
+            </p>
+          </div>
+          <button class="btn btn-secondary" onclick="window.switchTab('httpprobe')">
+            <span>⚡</span> HTTP/3 ALPN
+          </button>
+        </div>
+
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;">
+          <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;">
+            <input type="text" id="bgpHostInput" value="cloudflare.com" placeholder="Hostname or IP (e.g. cloudflare.com, 1.1.1.1, github.com)"
+              style="padding:12px 16px;background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;color:#fff;font-family:monospace;font-size:14px;"
+              onkeydown="if(event.key==='Enter') window.inspectBgpRoute();" />
+            <button class="btn btn-primary" onclick="window.inspectBgpRoute()" style="padding:12px 24px;font-weight:700;">
+              <span>⚡</span> Inspect Anycast Route
+            </button>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+            <span style="font-size:12px;color:var(--muted,#888);">Quick Probes:</span>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('bgpHostInput').value='cloudflare.com';window.inspectBgpRoute();">cloudflare.com</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('bgpHostInput').value='1.1.1.1';window.inspectBgpRoute();">1.1.1.1 (Cloudflare DNS)</button>
+            <button class="badge" style="cursor:pointer;background:var(--surface2,#242434);border:1px solid var(--border);color:#ddd;padding:3px 8px;border-radius:4px;"
+              onclick="document.getElementById('bgpHostInput').value='google.com';window.inspectBgpRoute();">google.com</button>
+          </div>
+        </div>
+
+        <div id="bgpRouteOutputContainer">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    `;
+    window.inspectBgpRoute();
+  };
+
+  window.inspectBgpRoute = async function() {
+    const host = document.getElementById('bgpHostInput')?.value.trim() || 'cloudflare.com';
+    const container = document.getElementById('bgpRouteOutputContainer');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:40px;text-align:center;">
+        <div class="spinner" style="margin:0 auto 16px auto;"></div>
+        <div style="font-size:15px;color:#fff;font-weight:600;">Resolving Anycast PoP datacenter for ${esc(host)}...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/network/bgp-route-inspector', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      container.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:20px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Edge PoP Datacenter</div>
+            <div style="font-size:26px;font-weight:900;color:var(--accent,#7c6af7);margin-top:6px;">
+              ${esc(data.colo)}
+            </div>
+            <div style="font-size:11px;color:#aaa;margin-top:2px;">${esc(data.coloLocation)}</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Network Architecture</div>
+            <div style="font-size:24px;font-weight:900;color:#22c55e;margin-top:6px;">
+              ✓ BGP Anycast
+            </div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Round-Trip Latency</div>
+            <div style="font-size:24px;font-weight:900;color:#06b6d4;margin-top:6px;">
+              ${data.latencyMs} ms
+            </div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Edge Server Signature</div>
+            <div style="font-size:20px;font-weight:800;color:#fff;margin-top:6px;">
+              ${esc(data.edgeServer)}
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0 0 10px 0;">IPv4 Anycast Endpoints (A Records)</h3>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${data.aRecords.map(ip => `
+                <div style="font-family:monospace;font-size:12px;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;color:#fff;">
+                  ${esc(ip)}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0 0 10px 0;">IPv6 Anycast Endpoints (AAAA Records)</h3>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${data.aaaaRecords.length > 0 ? data.aaaaRecords.map(ip => `
+                <div style="font-family:monospace;font-size:12px;background:var(--surface2,#242434);padding:8px 12px;border-radius:6px;color:var(--accent,#7c6af7);">
+                  ${esc(ip)}
+                </div>
+              `).join('') : '<div style="color:var(--muted,#888);font-size:12px;">No AAAA records returned</div>'}
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      container.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Inspection Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  // =========================================================================
+  // 32. CLOUDFLARE QUEUES & DEAD-LETTER QUEUE (DLQ) PIPELINE STUDIO
+  // =========================================================================
+
+  window.renderQueuesDlqStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">📬</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Cloudflare Queues & DLQ Pipeline Studio</h1>
+              <span class="badge" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);font-size:11px;">Async Messaging</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Architect reliable asynchronous message pipelines with batching, exponential backoff retries, and dead-letter queue routing. Export production <code style="color:var(--accent,#7c6af7);">wrangler.jsonc</code> bindings and consumer handlers.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column: Settings & Messages -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>⚙️</span> Queue & Retry Policy
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Primary Queue Name</label>
+              <input type="text" id="dlqQueueName" class="form-input" style="width:100%;font-family:monospace;font-size:13px;" value="order-events-queue" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Dead-Letter Queue (DLQ) Name</label>
+              <input type="text" id="dlqNameInput" class="form-input" style="width:100%;font-family:monospace;font-size:13px;" value="order-events-dlq" />
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Max Batch Size</label>
+                <input type="number" id="dlqBatchSize" class="form-input" style="width:100%;font-size:13px;" value="10" min="1" max="100" />
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Max Batch Timeout (s)</label>
+                <input type="number" id="dlqBatchTimeout" class="form-input" style="width:100%;font-size:13px;" value="5" min="0" max="30" />
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Max Retries (DLQ Drop)</label>
+                <input type="number" id="dlqMaxRetries" class="form-input" style="width:100%;font-size:13px;" value="3" min="0" max="20" />
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Retry Delay (s)</label>
+                <input type="number" id="dlqRetryDelay" class="form-input" style="width:100%;font-size:13px;" value="10" min="1" max="300" />
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Simulated Failure Rate</label>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input type="range" id="dlqFailRate" min="0" max="100" value="33" style="flex:1;" oninput="document.getElementById('dlqFailRateVal').textContent = this.value + '%'" />
+                <span id="dlqFailRateVal" style="font-size:13px;font-weight:700;color:#f59e0b;min-width:40px;">33%</span>
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);">Sample Message Batch (JSON Array)</label>
+                <button class="btn btn-secondary" style="font-size:11px;padding:2px 8px;" onclick="window.resetQueuesSampleData()">Reset Sample</button>
+              </div>
+              <textarea id="dlqSamplePayloads" class="form-input" rows="7" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">[
+  { "id": "evt-101", "type": "checkout.completed", "amount": 89.50, "customer": "alex@corp.io" },
+  { "id": "evt-102", "type": "payment.processed", "invoiceId": "INV-4921", "status": "approved" },
+  { "id": "evt-103", "type": "inventory.decrement", "sku": "SKU-9941", "warehouse": "us-east-1" },
+  { "id": "evt-104", "type": "email.receipt", "recipient": "alex@corp.io", "priority": "high" },
+  { "id": "evt-105", "type": "erp.sync", "endpoint": "https://erp.internal.corp/sync" },
+  { "id": "evt-106", "type": "loyalty.points", "userId": "usr_9981", "points": 150 }
+]</textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.simulateQueuePipeline()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🚀</span> Run Queue & DLQ Simulation
+            </button>
+          </div>
+
+          <!-- Right Column: Results & Code Generation -->
+          <div id="dlqResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">📬</span>
+              Click <strong>"Run Queue & DLQ Simulation"</strong> to execute batch consumer processing, test retry backoff, and view generated Worker scripts.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Auto-run first simulation
+    window.simulateQueuePipeline();
+  };
+
+  window.resetQueuesSampleData = function() {
+    const el = document.getElementById('dlqSamplePayloads');
+    if (el) {
+      el.value = `[\n  { "id": "evt-101", "type": "checkout.completed", "amount": 89.50, "customer": "alex@corp.io" },\n  { "id": "evt-102", "type": "payment.processed", "invoiceId": "INV-4921", "status": "approved" },\n  { "id": "evt-103", "type": "inventory.decrement", "sku": "SKU-9941", "warehouse": "us-east-1" },\n  { "id": "evt-104", "type": "email.receipt", "recipient": "alex@corp.io", "priority": "high" },\n  { "id": "evt-105", "type": "erp.sync", "endpoint": "https://erp.internal.corp/sync" },\n  { "id": "evt-106", "type": "loyalty.points", "userId": "usr_9981", "points": 150 }\n]`;
+    }
+  };
+
+  window.simulateQueuePipeline = async function () {
+    const panel = document.getElementById('dlqResultsPanel');
+    if (!panel) return;
+
+    const queueName = document.getElementById('dlqQueueName')?.value || 'order-events-queue';
+    const dlqName = document.getElementById('dlqNameInput')?.value || 'order-events-dlq';
+    const maxBatchSize = Number(document.getElementById('dlqBatchSize')?.value) || 10;
+    const maxBatchTimeout = Number(document.getElementById('dlqBatchTimeout')?.value) || 5;
+    const maxRetries = Number(document.getElementById('dlqMaxRetries')?.value) || 3;
+    const retryDelay = Number(document.getElementById('dlqRetryDelay')?.value) || 10;
+    const failRateVal = Number(document.getElementById('dlqFailRate')?.value || 33) / 100;
+    
+    let sampleMessages = [];
+    try {
+      const raw = document.getElementById('dlqSamplePayloads')?.value || '[]';
+      sampleMessages = JSON.parse(raw);
+    } catch (_) {
+      sampleMessages = [{ id: 'sample-1', payload: 'demo-message' }];
+    }
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Simulating Cloudflare Queues batch dispatch & worker consumption...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/cloudflare/queues-dlq', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          queueName,
+          dlqName,
+          maxBatchSize,
+          maxBatchTimeout,
+          maxRetries,
+          retryDelay,
+          simulateFailureRate: failRateVal,
+          sampleMessages
+        })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Simulation failed');
+
+      panel.innerHTML = `
+        <!-- Metrics Cards -->
+        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Messages</div>
+            <div style="font-size:22px;font-weight:900;color:#fff;margin-top:4px;">${data.metrics.totalMessages}</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Acknowledged</div>
+            <div style="font-size:22px;font-weight:900;color:#10b981;margin-top:4px;">${data.metrics.acknowledged}</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Recovered via Retry</div>
+            <div style="font-size:22px;font-weight:900;color:#f59e0b;margin-top:4px;">${data.metrics.retriedAndSucceeded}</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Routed to DLQ</div>
+            <div style="font-size:22px;font-weight:900;color:#ef4444;margin-top:4px;">${data.metrics.routedToDLQ}</div>
+          </div>
+        </div>
+
+        <!-- Message Pipeline Trace -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;display:flex;align-items:center;justify-content:space-between;">
+            <span>📋 Batch Execution Trace</span>
+            <span style="font-size:12px;color:#10b981;font-weight:600;">Success Rate: ${data.metrics.deliverySuccessRate}</span>
+          </h3>
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;padding-right:4px;">
+            ${data.processedLogs.map(log => {
+              let badgeColor = '#10b981';
+              let badgeBg = 'rgba(16,185,129,0.15)';
+              if (log.status === 'RETRIED_THEN_ACKED') {
+                badgeColor = '#f59e0b';
+                badgeBg = 'rgba(245,158,11,0.15)';
+              } else if (log.status === 'ROUTED_TO_DLQ') {
+                badgeColor = '#ef4444';
+                badgeBg = 'rgba(239,68,68,0.15)';
+              }
+
+              return `
+                <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-family:monospace;font-size:12px;font-weight:700;color:#fff;">${esc(log.id)}</span>
+                    <span style="background:${badgeBg};color:${badgeColor};border:1px solid ${badgeColor}44;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;">
+                      ${esc(log.status)}
+                    </span>
+                  </div>
+                  <div style="text-align:right;font-size:12px;color:var(--muted,#888);">
+                    <span>Attempts: <strong>${log.attempts}</strong></span>
+                    ${log.backoffDelaySec ? `<span style="margin-left:8px;color:#f59e0b;">(${log.backoffDelaySec}s backoff)</span>` : ''}
+                    ${log.failureReason ? `<div style="font-size:11px;color:#ef4444;margin-top:2px;">${esc(log.failureReason)}</div>` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Code Generation Tabs -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div style="display:flex;gap:8px;" id="dlqCodeTabs">
+              <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;background:var(--accent,#7c6af7);color:#fff;" onclick="window.switchDlqCodeTab('wrangler', this)">wrangler.jsonc</button>
+              <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.switchDlqCodeTab('consumer', this)">consumer.js</button>
+              <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.switchDlqCodeTab('producer', this)">producer.js</button>
+            </div>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyActiveDlqCode()">
+              <span>📋</span> Copy Snippet
+            </button>
+          </div>
+
+          <pre id="dlqCodeBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:14px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:260px;line-height:1.5;">${esc(data.wranglerConfig)}</pre>
+        </div>
+      `;
+
+      window._currentDlqSnippets = {
+        wrangler: data.wranglerConfig,
+        consumer: data.consumerCode,
+        producer: data.producerCode,
+        active: 'wrangler'
+      };
+
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Simulation Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.switchDlqCodeTab = function(tabName, btn) {
+    if (!window._currentDlqSnippets) return;
+    window._currentDlqSnippets.active = tabName;
+    const block = document.getElementById('dlqCodeBlock');
+    if (block) {
+      block.textContent = window._currentDlqSnippets[tabName] || '';
+    }
+    const container = document.getElementById('dlqCodeTabs');
+    if (container) {
+      container.querySelectorAll('button').forEach(b => {
+        b.style.background = '';
+        b.style.color = '';
+      });
+    }
+    if (btn) {
+      btn.style.background = 'var(--accent, #7c6af7)';
+      btn.style.color = '#fff';
+    }
+  };
+
+  window.copyActiveDlqCode = function() {
+    if (!window._currentDlqSnippets) return;
+    const text = window._currentDlqSnippets[window._currentDlqSnippets.active];
+    if (text) {
+      navigator.clipboard.writeText(text);
+      if (typeof window.showToast === 'function') window.showToast('Copied to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 33. HTTP COOKIE SECURITY & SESSION HARDENER STUDIO
+  // =========================================================================
+
+  window.renderCookieHardenerStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🍪</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">HTTP Cookie Security & Session Hardener</h1>
+              <span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);font-size:11px;">RFC 6265bis & CHIPS</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Audit cookies for session hijacking, XSS, and CSRF vulnerabilities. Generate hardened partitioned directives and Cloudflare Worker HMAC-SHA256 cookie signing middleware.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>📝</span> Raw Set-Cookie Directives
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Cookies to Audit (One per line)</label>
+              <textarea id="cookieAuditInput" class="form-input" rows="7" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">session_id=s%3A89f0a2c; Path=/; Domain=.corp.io
+auth_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.tK; Path=/api
+user_prefs=theme_dark; Path=/; SameSite=None
+tracking_id=trk_8829104; Path=/</textarea>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Target Domain</label>
+                <input type="text" id="cookieDomain" class="form-input" style="width:100%;font-size:13px;" value="vault.corp.io" />
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">HMAC Secret Key</label>
+                <input type="text" id="cookieSecret" class="form-input" style="width:100%;font-size:13px;font-family:monospace;" value="vault_edge_crypto_key_2026" />
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--surface2,#242434);border-radius:8px;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" id="cookieChipsToggle" checked />
+                <span>Inject <strong>CHIPS Partitioned</strong> attribute (cross-site embedded)</span>
+              </label>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.auditCookiesNow()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🛡️</span> Audit & Harden Cookies
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="cookieResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🍪</span>
+              Click <strong>"Audit & Harden Cookies"</strong> to inspect flags, calculate compliance score, and generate hardened headers.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.auditCookiesNow();
+  };
+
+  window.auditCookiesNow = async function () {
+    const panel = document.getElementById('cookieResultsPanel');
+    if (!panel) return;
+
+    const rawCookies = document.getElementById('cookieAuditInput')?.value || '';
+    const targetDomain = document.getElementById('cookieDomain')?.value || 'corp.io';
+    const sessionSecret = document.getElementById('cookieSecret')?.value || 'secret';
+    const enableCHIPS = document.getElementById('cookieChipsToggle')?.checked ?? true;
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Analyzing cookie directives against RFC 6265bis specifications...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/security/cookie-hardener', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawCookies, targetDomain, sessionSecret, enableCHIPS })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Audit failed');
+
+      let gradeColor = '#ef4444';
+      if (['A+', 'A'].includes(data.grade)) gradeColor = '#10b981';
+      else if (data.grade === 'B') gradeColor = '#06b6d4';
+      else if (['C', 'D'].includes(data.grade)) gradeColor = '#f59e0b';
+
+      panel.innerHTML = `
+        <!-- Grade & Score Card -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;align-items:center;gap:20px;">
+            <div style="width:68px;height:68px;border-radius:50%;background:${gradeColor}22;border:3px solid ${gradeColor};display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;color:${gradeColor};">
+              ${esc(data.grade)}
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted,#888);text-transform:uppercase;">Security Compliance Grade</div>
+              <div style="font-size:22px;font-weight:800;color:#fff;margin-top:2px;">${data.score} / 100 Score</div>
+            </div>
+          </div>
+
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;justify-content:center;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px;">
+              <span style="color:var(--muted,#888);">Audited Cookies:</span>
+              <strong style="color:#fff;">${data.totalCookies}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+              <span style="color:var(--muted,#888);">Identified Security Deficiencies:</span>
+              <strong style="color:${data.issuesCount > 0 ? '#ef4444' : '#10b981'};">${data.issuesCount} Issues</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Deficiencies & Recommendations -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">🛡️ Security Audit Findings</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;">
+            ${data.allIssues.length > 0 ? data.allIssues.map(issue => `
+              <div style="background:var(--surface2,#242434);border-left:4px solid ${issue.severity === 'CRITICAL' ? '#ef4444' : issue.severity === 'HIGH' ? '#f59e0b' : '#06b6d4'};border-radius:6px;padding:8px 12px;font-size:12px;">
+                <span style="font-weight:800;color:${issue.severity === 'CRITICAL' ? '#ef4444' : issue.severity === 'HIGH' ? '#f59e0b' : '#06b6d4'};margin-right:6px;">[${issue.severity}]</span>
+                <span style="color:#e2e8f0;">${esc(issue.message)}</span>
+              </div>
+            `).join('') : '<div style="color:#10b981;font-size:13px;">All cookies meet rigorous RFC 6265bis security standards!</div>'}
+          </div>
+        </div>
+
+        <!-- Hardened Directives -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">🔒 Hardened Set-Cookie Headers</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyHardenedCookies()">
+              <span>📋</span> Copy Headers
+            </button>
+          </div>
+          <pre id="hardenedCookieBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#10b981;overflow-x:auto;line-height:1.5;">${esc(data.cookies.map(c => `Set-Cookie: ${c.hardenedSetCookie}`).join('\n'))}</pre>
+        </div>
+
+        <!-- Worker HMAC Middleware -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Edge HMAC Signing Middleware</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyCookieMiddleware()">
+              <span>📋</span> Copy Middleware
+            </button>
+          </div>
+          <pre id="cookieMiddlewareBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerMiddlewareCode)}</pre>
+        </div>
+      `;
+
+      window._currentCookieCode = data.workerMiddlewareCode;
+      window._currentHardenedHeaders = data.cookies.map(c => `Set-Cookie: ${c.hardenedSetCookie}`).join('\n');
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Audit Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyHardenedCookies = function() {
+    if (window._currentHardenedHeaders) {
+      navigator.clipboard.writeText(window._currentHardenedHeaders);
+      if (typeof window.showToast === 'function') window.showToast('Copied hardened cookies to clipboard!');
+    }
+  };
+
+  window.copyCookieMiddleware = function() {
+    if (window._currentCookieCode) {
+      navigator.clipboard.writeText(window._currentCookieCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied HMAC middleware to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 34. MULTI-ORIGIN CANARY & WEIGHT TRAFFIC SPLITTER STUDIO
+  // =========================================================================
+
+  window.renderCanarySplitterStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🚦</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Multi-Origin Canary & Weight Traffic Splitter</h1>
+              <span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4;border:1px solid rgba(6,182,212,0.3);font-size:11px;">Edge Load Balancer</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Simulate weighted multi-origin routing and zero-downtime canary rollouts. Generates Cloudflare Worker edge code with sticky IP/cookie hashing, automated 5xx failover, and analytics headers.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>⚖️</span> Origin Pool Configurations
+            </h3>
+
+            <!-- Pool 1: Production -->
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:700;color:#fff;font-size:13px;">Origin A (Production)</span>
+                <span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981;font-size:11px;">Primary</span>
+              </div>
+              <input type="text" id="canaryPoolAUrl" class="form-input" style="font-family:monospace;font-size:12px;" value="https://origin-prod.internal.corp" />
+              <div style="display:flex;align-items:center;gap:8px;">
+                <label style="font-size:12px;color:var(--muted,#888);min-width:60px;">Weight %:</label>
+                <input type="number" id="canaryWeightA" class="form-input" style="width:80px;font-size:12px;" value="80" min="1" max="99" oninput="document.getElementById('canaryWeightB').value = 100 - this.value;" />
+              </div>
+            </div>
+
+            <!-- Pool 2: Canary -->
+            <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:700;color:#f59e0b;font-size:13px;">Origin B (Canary Release)</span>
+                <span class="badge" style="background:rgba(245,158,11,0.15);color:#f59e0b;font-size:11px;">Canary v2.4</span>
+              </div>
+              <input type="text" id="canaryPoolBUrl" class="form-input" style="font-family:monospace;font-size:12px;" value="https://origin-canary.internal.corp" />
+              <div style="display:flex;align-items:center;gap:8px;">
+                <label style="font-size:12px;color:var(--muted,#888);min-width:60px;">Weight %:</label>
+                <input type="number" id="canaryWeightB" class="form-input" style="width:80px;font-size:12px;" value="20" min="1" max="99" oninput="document.getElementById('canaryWeightA').value = 100 - this.value;" />
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Routing & Affinity Strategy</label>
+              <select id="canaryStrategy" class="form-input" style="width:100%;font-size:13px;">
+                <option value="sticky-ip" selected>Sticky Client IP Hash (Consistent per Visitor)</option>
+                <option value="sticky-cookie">Sticky Cookie Affinity (cf_canary_pool)</option>
+                <option value="weighted-random">Weighted Random (Stateless Distribution)</option>
+              </select>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Cookie Name</label>
+                <input type="text" id="canaryCookieName" class="form-input" style="width:100%;font-size:13px;font-family:monospace;" value="cf_canary_pool" />
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Simulation Requests</label>
+                <input type="number" id="canaryTestReqs" class="form-input" style="width:100%;font-size:13px;" value="1000" min="50" max="5000" />
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.simulateCanarySplit()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🚦</span> Run Traffic Distribution Simulation
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="canaryResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🚦</span>
+              Click <strong>"Run Traffic Distribution Simulation"</strong> to verify consistent hashing and export the Edge Proxy Worker.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.simulateCanarySplit();
+  };
+
+  window.simulateCanarySplit = async function () {
+    const panel = document.getElementById('canaryResultsPanel');
+    if (!panel) return;
+
+    const urlA = document.getElementById('canaryPoolAUrl')?.value || 'https://origin-prod.internal.corp';
+    const weightA = Number(document.getElementById('canaryWeightA')?.value) || 80;
+    const urlB = document.getElementById('canaryPoolBUrl')?.value || 'https://origin-canary.internal.corp';
+    const weightB = Number(document.getElementById('canaryWeightB')?.value) || 20;
+    const routingStrategy = document.getElementById('canaryStrategy')?.value || 'sticky-ip';
+    const cookieName = document.getElementById('canaryCookieName')?.value || 'cf_canary_pool';
+    const testRequests = Number(document.getElementById('canaryTestReqs')?.value) || 1000;
+
+    const pools = [
+      { id: 'prod', name: 'Production (Stable)', originUrl: urlA, weight: weightA, isCanary: false },
+      { id: 'canary', name: 'Canary (v2.4.0)', originUrl: urlB, weight: weightB, isCanary: true }
+    ];
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Simulating ${testRequests} client requests with FNV-1a consistent hashing...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/edge/canary-traffic-splitter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pools, routingStrategy, cookieName, testRequests })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Canary simulation failed');
+
+      panel.innerHTML = `
+        <!-- Distribution Cards -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          ${data.distribution.map(d => {
+            const isCanary = d.id === 'canary';
+            const color = isCanary ? '#f59e0b' : '#10b981';
+            return `
+              <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;border-top:4px solid ${color};">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <span style="font-weight:700;color:#fff;font-size:14px;">${esc(d.name)}</span>
+                  <span style="font-size:11px;color:var(--muted,#888);">Target: ${esc(d.targetWeight)}</span>
+                </div>
+                <div style="font-size:28px;font-weight:900;color:${color};margin-bottom:4px;">
+                  ${esc(d.actualPercent)}
+                </div>
+                <div style="font-size:12px;color:var(--muted,#888);">
+                  ${d.actualRequests} / ${data.totalSimulatedRequests} reqs (Delta: ${esc(d.deviation)})
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- Visual Distribution Bar -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:12px;color:var(--muted,#888);">
+            <span>Traffic Split Visualization</span>
+            <span>${data.strategy}</span>
+          </div>
+          <div style="height:24px;width:100%;border-radius:8px;overflow:hidden;display:flex;">
+            <div style="width:${data.distribution[0].actualPercent};background:#10b981;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;">
+              Production ${data.distribution[0].actualPercent}
+            </div>
+            <div style="width:${data.distribution[1].actualPercent};background:#f59e0b;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;">
+              Canary ${data.distribution[1].actualPercent}
+            </div>
+          </div>
+        </div>
+
+        <!-- Automatic Edge Failover Banner -->
+        <div style="background:rgba(124,106,247,0.1);border:1px solid rgba(124,106,247,0.3);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+          <span style="font-size:20px;">🛡️</span>
+          <div style="font-size:12px;color:#e2e8f0;line-height:1.4;">
+            <strong>Automated Zero-Downtime Failover:</strong> If the Canary origin returns 502, 503, or 504 errors, the Worker automatically reroutes the visitor to Production and injects <code style="color:var(--accent,#7c6af7);">X-Canary-Fallback-Triggered: true</code>.
+          </div>
+        </div>
+
+        <!-- Generated Cloudflare Worker Script -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Ready-to-Deploy Cloudflare Worker Proxy</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyCanaryWorker()">
+              <span>📋</span> Copy Worker Code
+            </button>
+          </div>
+          <pre id="canaryWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:260px;line-height:1.5;">${esc(data.workerScript)}</pre>
+        </div>
+      `;
+
+      window._currentCanaryScript = data.workerScript;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Canary Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyCanaryWorker = function() {
+    if (window._currentCanaryScript) {
+      navigator.clipboard.writeText(window._currentCanaryScript);
+      if (typeof window.showToast === 'function') window.showToast('Copied Canary Worker to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 35. SRI (SUBRESOURCE INTEGRITY) & EDGE SCRIPT LOCKER STUDIO
+  // =========================================================================
+
+  window.renderSriLockerStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🔒</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">SRI (Subresource Integrity) & Edge Script Locker</h1>
+              <span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899;border:1px solid rgba(236,72,153,0.3);font-size:11px;">Magecart Defense</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Compute cryptographic SRI hashes (SHA-256, SHA-384, SHA-512) for scripts and stylesheets. Audit CDN scripts for supply-chain attacks and generate Cloudflare HTMLRewriter edge scripts.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>🌐</span> Target Resource or HTML Page
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Remote CDN Script / CSS URL (Optional)</label>
+              <input type="text" id="sriRemoteUrl" class="form-input" style="width:100%;font-family:monospace;font-size:12px;" value="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Inline Script or CSS Content</label>
+              <textarea id="sriInlineContent" class="form-input" rows="4" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">console.log("Vault Edge SRI Verified Resource");</textarea>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">HTML Snippet to Audit for Missing SRI</label>
+              <textarea id="sriHtmlSnippet" class="form-input" rows="5" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;"><script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://unpkg.com/lodash@4.17.21/lodash.min.js"></script></textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.generateSriAndAudit()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🔒</span> Compute SRI & Audit HTML
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="sriResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🔒</span>
+              Click <strong>"Compute SRI & Audit HTML"</strong> to calculate cryptographic hashes and audit CDN tags.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.generateSriAndAudit();
+  };
+
+  window.generateSriAndAudit = async function () {
+    const panel = document.getElementById('sriResultsPanel');
+    if (!panel) return;
+
+    const targetUrl = document.getElementById('sriRemoteUrl')?.value || '';
+    const inlineContent = document.getElementById('sriInlineContent')?.value || '';
+    const htmlSnippet = document.getElementById('sriHtmlSnippet')?.value || '';
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Computing cryptographic SHA-256/384/512 digests and scanning HTML tags...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/security/sri-edge-locker', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUrl, inlineContent, htmlSnippet })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'SRI generation failed');
+
+      panel.innerHTML = `
+        <!-- Cryptographic Hashes Card -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;display:flex;align-items:center;gap:8px;">
+            <span>🔑</span> Cryptographic SRI Hashes
+          </h3>
+
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;font-weight:700;color:#10b981;">
+                <span>SHA-384 (W3C Recommended Standard)</span>
+                <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="navigator.clipboard.writeText('${esc(data.sriHashes.sha384)}')">Copy</button>
+              </div>
+              <input type="text" readonly class="form-input" style="width:100%;font-family:monospace;font-size:12px;color:#10b981;" value="${esc(data.sriHashes.sha384)}" />
+            </div>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;font-weight:700;color:var(--muted,#888);">
+                <span>SHA-256</span>
+                <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="navigator.clipboard.writeText('${esc(data.sriHashes.sha256)}')">Copy</button>
+              </div>
+              <input type="text" readonly class="form-input" style="width:100%;font-family:monospace;font-size:12px;" value="${esc(data.sriHashes.sha256)}" />
+            </div>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;font-weight:700;color:var(--muted,#888);">
+                <span>SHA-512</span>
+                <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="navigator.clipboard.writeText('${esc(data.sriHashes.sha512)}')">Copy</button>
+              </div>
+              <input type="text" readonly class="form-input" style="width:100%;font-family:monospace;font-size:12px;" value="${esc(data.sriHashes.sha512)}" />
+            </div>
+          </div>
+        </div>
+
+        <!-- HTML Snippet Example -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">🏷️ Hardened Script Tag</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="navigator.clipboard.writeText('${esc(data.tagSnippet)}')">
+              <span>📋</span> Copy Tag
+            </button>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#38bdf8;overflow-x:auto;">${esc(data.tagSnippet)}</pre>
+        </div>
+
+        <!-- HTML Supply Chain Audit Findings -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">🛡️ CDN Supply-Chain Tag Audit</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;">
+            ${data.auditResults && data.auditResults.length > 0 ? data.auditResults.map(a => `
+              <div style="background:var(--surface2,#242434);border-left:4px solid ${a.status === 'SECURE' ? '#10b981' : '#ef4444'};border-radius:6px;padding:10px 14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                  <span style="font-family:monospace;font-size:12px;font-weight:700;color:#fff;">${esc(a.resource)}</span>
+                  <span style="font-size:11px;font-weight:800;color:${a.status === 'SECURE' ? '#10b981' : '#ef4444'};">
+                    ${esc(a.status)}
+                  </span>
+                </div>
+                <div style="font-size:11px;color:var(--muted,#888);">${esc(a.recommendation)}</div>
+              </div>
+            `).join('') : '<div style="color:var(--muted,#888);font-size:12px;">No script or stylesheet tags identified in provided HTML snippet.</div>'}
+          </div>
+        </div>
+
+        <!-- Edge HTMLRewriter Worker Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare HTMLRewriter SRI Injector</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copySriWorker()">
+              <span>📋</span> Copy Worker Code
+            </button>
+          </div>
+          <pre id="sriWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerHtmlRewriterCode)}</pre>
+        </div>
+      `;
+
+      window._currentSriWorkerCode = data.workerHtmlRewriterCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">SRI Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copySriWorker = function() {
+    if (window._currentSriWorkerCode) {
+      navigator.clipboard.writeText(window._currentSriWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied SRI HTMLRewriter Worker to clipboard!');
+    }
+  };
+
+
 
   // =========================================================================
   // TAB BUTTON INJECTION
@@ -5993,6 +7401,62 @@ function mergeObjects(target, source) {
     regBtn.innerHTML = '<span>🧩</span> Regex & ReDoS';
     regBtn.onclick = () => window.switchTab('regexbench');
 
+    // 28. Custom Error Pages
+    const errBtn = document.createElement('button');
+    errBtn.className = 'tab';
+    errBtn.id = 'tab-errorpages';
+    errBtn.innerHTML = '<span>🛑</span> Custom Error Pages';
+    errBtn.onclick = () => window.switchTab('errorpages');
+
+    // 29. CORS Policy Auditor
+    const corsBtn = document.createElement('button');
+    corsBtn.className = 'tab';
+    corsBtn.id = 'tab-corsaudit';
+    corsBtn.innerHTML = '<span>🌐</span> CORS Auditor';
+    corsBtn.onclick = () => window.switchTab('corsaudit');
+
+    // 30. Cache-Tags & Purge
+    const tagBtn = document.createElement('button');
+    tagBtn.className = 'tab';
+    tagBtn.id = 'tab-cachetags';
+    tagBtn.innerHTML = '<span>🏷️</span> Cache-Tags';
+    tagBtn.onclick = () => window.switchTab('cachetags');
+
+    // 31. Anycast & BGP PoP
+    const bgpBtn = document.createElement('button');
+    bgpBtn.className = 'tab';
+    bgpBtn.id = 'tab-bgproute';
+    bgpBtn.innerHTML = '<span>🗺️</span> Anycast & BGP PoP';
+    bgpBtn.onclick = () => window.switchTab('bgproute');
+
+    // 32. Queues & DLQ Pipeline
+    const qBtn = document.createElement('button');
+    qBtn.className = 'tab';
+    qBtn.id = 'tab-queuesdlq';
+    qBtn.innerHTML = '<span>📬</span> Queues & DLQ';
+    qBtn.onclick = () => window.switchTab('queuesdlq');
+
+    // 33. Cookie Security & Hardener
+    const cookieBtn = document.createElement('button');
+    cookieBtn.className = 'tab';
+    cookieBtn.id = 'tab-cookiehardener';
+    cookieBtn.innerHTML = '<span>🍪</span> Cookie Hardener';
+    cookieBtn.onclick = () => window.switchTab('cookiehardener');
+
+    // 34. Canary Traffic Splitter
+    const canaryBtn = document.createElement('button');
+    canaryBtn.className = 'tab';
+    canaryBtn.id = 'tab-canarysplit';
+    canaryBtn.innerHTML = '<span>🚦</span> Canary Splitter';
+    canaryBtn.onclick = () => window.switchTab('canarysplit');
+
+    // 35. SRI Edge Locker
+    const sriBtn = document.createElement('button');
+    sriBtn.className = 'tab';
+    sriBtn.id = 'tab-srilocker';
+    sriBtn.innerHTML = '<span>🔒</span> SRI Edge Locker';
+    sriBtn.onclick = () => window.switchTab('srilocker');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
@@ -6023,6 +7487,14 @@ function mergeObjects(target, source) {
       tabsContainer.insertBefore(ztBtn, emailBtn.nextSibling);
       tabsContainer.insertBefore(httpBtn, ztBtn.nextSibling);
       tabsContainer.insertBefore(regBtn, httpBtn.nextSibling);
+      tabsContainer.insertBefore(errBtn, regBtn.nextSibling);
+      tabsContainer.insertBefore(corsBtn, errBtn.nextSibling);
+      tabsContainer.insertBefore(tagBtn, corsBtn.nextSibling);
+      tabsContainer.insertBefore(bgpBtn, tagBtn.nextSibling);
+      tabsContainer.insertBefore(qBtn, bgpBtn.nextSibling);
+      tabsContainer.insertBefore(cookieBtn, qBtn.nextSibling);
+      tabsContainer.insertBefore(canaryBtn, cookieBtn.nextSibling);
+      tabsContainer.insertBefore(sriBtn, canaryBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
@@ -6051,6 +7523,14 @@ function mergeObjects(target, source) {
       tabsContainer.appendChild(ztBtn);
       tabsContainer.appendChild(httpBtn);
       tabsContainer.appendChild(regBtn);
+      tabsContainer.appendChild(errBtn);
+      tabsContainer.appendChild(corsBtn);
+      tabsContainer.appendChild(tagBtn);
+      tabsContainer.appendChild(bgpBtn);
+      tabsContainer.appendChild(qBtn);
+      tabsContainer.appendChild(cookieBtn);
+      tabsContainer.appendChild(canaryBtn);
+      tabsContainer.appendChild(sriBtn);
     }
   }
 
