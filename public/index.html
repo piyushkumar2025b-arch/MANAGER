@@ -2842,6 +2842,18 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('typesgen');">
       <span class="icon">📐</span> Edge Type Safety & Zod Schema Studio
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webhookverify');">
+      <span class="icon">🔐</span> Multi-Vendor Edge Webhook Verifier
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('emailrouting');">
+      <span class="icon">📧</span> Cloudflare Email Routing & MIME Parser
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('reverseproxy');">
+      <span class="icon">🔄</span> Edge Reverse Proxy & Micro-Frontend Gateway
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('geopersonalize');">
+      <span class="icon">🌍</span> Edge Geolocation & Geo-Fencing Studio
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -3194,6 +3206,22 @@ async function loadTab() {
   } else if (currentTab === 'typesgen') {
     if (typeof window.renderTypesGenStudio === 'function') {
       window.renderTypesGenStudio();
+    }
+  } else if (currentTab === 'webhookverify') {
+    if (typeof window.renderWebhookVerifyStudio === 'function') {
+      window.renderWebhookVerifyStudio();
+    }
+  } else if (currentTab === 'emailrouting') {
+    if (typeof window.renderEmailRoutingStudio === 'function') {
+      window.renderEmailRoutingStudio();
+    }
+  } else if (currentTab === 'reverseproxy') {
+    if (typeof window.renderReverseProxyStudio === 'function') {
+      window.renderReverseProxyStudio();
+    }
+  } else if (currentTab === 'geopersonalize') {
+    if (typeof window.renderGeoPersonalizeStudio === 'function') {
+      window.renderGeoPersonalizeStudio();
     }
   }
 }

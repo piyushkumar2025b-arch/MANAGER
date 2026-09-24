@@ -9244,6 +9244,915 @@ segment-002.ts
     }
   };
 
+  // =========================================================================
+  // 48. MULTI-VENDOR EDGE WEBHOOK VERIFICATION & HMAC STUDIO
+  // =========================================================================
+
+  window._webhookVerifyState = {
+    provider: 'stripe',
+    action: 'verify',
+    secret: 'whsec_99482_live_edge_key',
+    toleranceSec: 300
+  };
+
+  window.renderWebhookVerifyStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🔐</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Multi-Vendor Edge Webhook Verifier & HMAC Studio</h1>
+              <span class="badge" style="background:rgba(99,102,241,0.15);color:var(--accent,#7c6af7);border:1px solid rgba(99,102,241,0.3);font-size:11px;">Subtle Crypto & Replay Shield</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Verify cryptographic HMAC-SHA256 signatures, simulate webhook provider requests, audit replay attack protection, and export Cloudflare Worker edge gateway code.
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" onclick="window.loadWebhookPreset('stripe')" style="font-size:12px;padding:6px 12px;">
+              <span>💳</span> Stripe
+            </button>
+            <button class="btn btn-secondary" onclick="window.loadWebhookPreset('github')" style="font-size:12px;padding:6px 12px;">
+              <span>🐙</span> GitHub
+            </button>
+            <button class="btn btn-secondary" onclick="window.loadWebhookPreset('shopify')" style="font-size:12px;padding:6px 12px;">
+              <span>🛍️</span> Shopify
+            </button>
+            <button class="btn btn-secondary" onclick="window.loadWebhookPreset('slack')" style="font-size:12px;padding:6px 12px;">
+              <span>💬</span> Slack
+            </button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left: Config & Inputs -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Webhook Provider</label>
+                <select id="whProvider" class="form-input" style="width:100%;" onchange="window.loadWebhookPreset(this.value)">
+                  <option value="stripe">Stripe (stripe-signature)</option>
+                  <option value="github">GitHub (x-hub-signature-256)</option>
+                  <option value="shopify">Shopify (x-shopify-hmac-sha256)</option>
+                  <option value="slack">Slack (x-slack-signature v0)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Action Mode</label>
+                <select id="whAction" class="form-input" style="width:100%;" onchange="window.toggleWebhookAction(this.value)">
+                  <option value="verify">Verify Inbound Webhook</option>
+                  <option value="sign">Generate Authentic Signature</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Signing Secret Key</label>
+              <input type="text" id="whSecret" class="form-input" value="whsec_sample_edge_secret_key_99482" style="width:100%;font-family:monospace;" />
+            </div>
+
+            <div id="whSigRow">
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Provided Signature Header</label>
+              <input type="text" id="whSignature" class="form-input" placeholder="e.g. t=1727195520,v1=a9f4c3... or sha256=..." style="width:100%;font-family:monospace;" />
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Timestamp (Epoch Sec)</label>
+                <div style="display:flex;gap:6px;">
+                  <input type="number" id="whTimestamp" class="form-input" value="${Math.floor(Date.now() / 1000)}" style="width:100%;font-family:monospace;" />
+                  <button class="btn btn-secondary" onclick="document.getElementById('whTimestamp').value = Math.floor(Date.now()/1000)" style="font-size:11px;padding:4px 8px;">Now</button>
+                </div>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Tolerance Window</label>
+                <input type="number" id="whTolerance" class="form-input" value="300" style="width:100%;" />
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Raw Payload (JSON/String)</label>
+              <textarea id="whPayload" class="form-input" rows="7" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">{
+  "id": "evt_1PxyZ9948",
+  "object": "event",
+  "type": "payment_intent.succeeded",
+  "data": {
+    "amount": 4999,
+    "currency": "usd",
+    "customer": "cus_99382"
+  }
+}</textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.executeWebhookVerify()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>⚡</span> Run Edge Verification
+            </button>
+          </div>
+
+          <!-- Right: Diagnostic Output -->
+          <div id="whResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🔐</span>
+              Click <strong>"Run Edge Verification"</strong> to evaluate webhook cryptographic signatures.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Load initial sign state
+    window.loadWebhookPreset('stripe');
+  };
+
+  window.loadWebhookPreset = function (provider) {
+    const provSelect = document.getElementById('whProvider');
+    if (provSelect) provSelect.value = provider;
+
+    const secretInput = document.getElementById('whSecret');
+    const payloadInput = document.getElementById('whPayload');
+    const now = Math.floor(Date.now() / 1000);
+    const tsInput = document.getElementById('whTimestamp');
+    if (tsInput) tsInput.value = now;
+
+    if (provider === 'stripe') {
+      if (secretInput) secretInput.value = 'whsec_99482_demo_key';
+      if (payloadInput) payloadInput.value = JSON.stringify({ id: 'evt_1Pxy', type: 'payment_intent.succeeded', amount: 4999 }, null, 2);
+    } else if (provider === 'github') {
+      if (secretInput) secretInput.value = 'gh_webhook_secret_9981';
+      if (payloadInput) payloadInput.value = JSON.stringify({ ref: 'refs/heads/main', repository: { name: 'vault-edge' } }, null, 2);
+    } else if (provider === 'shopify') {
+      if (secretInput) secretInput.value = 'shpss_shopify_secret_token';
+      if (payloadInput) payloadInput.value = JSON.stringify({ id: 994812, email: 'alex@corp.io', total_price: '49.00' }, null, 2);
+    } else if (provider === 'slack') {
+      if (secretInput) secretInput.value = 'slack_signing_secret_9921';
+      if (payloadInput) payloadInput.value = 'command=%2Fvault&text=status&user_id=U99482';
+    }
+
+    // Auto sign to produce initial valid signature
+    window.generateInitialSignature();
+  };
+
+  window.toggleWebhookAction = function (act) {
+    const row = document.getElementById('whSigRow');
+    if (row) row.style.display = act === 'sign' ? 'none' : 'block';
+  };
+
+  window.generateInitialSignature = async function () {
+    const provider = document.getElementById('whProvider')?.value || 'stripe';
+    const secret = document.getElementById('whSecret')?.value || '';
+    const payload = document.getElementById('whPayload')?.value || '';
+    const timestamp = document.getElementById('whTimestamp')?.value || Math.floor(Date.now() / 1000);
+
+    try {
+      const res = await fetch('/api/security/webhook-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, action: 'sign', secret, payload, timestamp })
+      });
+      const data = await res.json();
+      if (data.success && data.generatedSignature) {
+        const sigInput = document.getElementById('whSignature');
+        if (sigInput) sigInput.value = data.generatedSignature;
+        window.executeWebhookVerify();
+      }
+    } catch (_) {}
+  };
+
+  window.executeWebhookVerify = async function () {
+    const panel = document.getElementById('whResultsPanel');
+    if (!panel) return;
+
+    const provider = document.getElementById('whProvider')?.value || 'stripe';
+    const action = document.getElementById('whAction')?.value || 'verify';
+    const secret = document.getElementById('whSecret')?.value || '';
+    const payload = document.getElementById('whPayload')?.value || '';
+    const signature = document.getElementById('whSignature')?.value || '';
+    const timestamp = document.getElementById('whTimestamp')?.value || Math.floor(Date.now() / 1000);
+    const toleranceSec = Number(document.getElementById('whTolerance')?.value) || 300;
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Computing HMAC-SHA256 signature via Web Crypto...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/security/webhook-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, action, secret, payload, signature, timestamp, toleranceSec })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Verification failed');
+
+      const isVerified = data.isValid;
+      const statusColor = isVerified ? '#10b981' : '#ef4444';
+      const statusBadge = isVerified ? 'VERIFIED AUTHENTIC' : 'INVALID / FORGED';
+
+      panel.innerHTML = `
+        <!-- Status Card -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid ${statusColor};border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:12px;color:var(--muted,#888);text-transform:uppercase;font-weight:700;">Signature Audit Status</div>
+              <div style="font-size:20px;font-weight:800;color:${statusColor};display:flex;align-items:center;gap:8px;margin-top:4px;">
+                <span>${isVerified ? '✅' : '❌'}</span> ${statusBadge}
+              </div>
+            </div>
+            <span class="badge" style="background:${statusColor}22;color:${statusColor};border:1px solid ${statusColor}44;font-size:12px;padding:6px 12px;">
+              ${provider.toUpperCase()} GATEWAY
+            </span>
+          </div>
+          ${data.isExpired ? `
+            <div style="margin-top:12px;padding:8px 12px;background:#ef444415;border:1px solid #ef444440;border-radius:6px;color:#ef4444;font-size:12px;">
+              ⚠️ <strong>Replay Attack Detected:</strong> Timestamp age is ${data.timestampAgeSec}s, which exceeds tolerance (${toleranceSec}s).
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Diagnostic Details -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px;">
+          <h3 style="font-size:14px;font-weight:700;margin:0;">🔍 Cryptographic Signature Breakdown</h3>
+          
+          <div>
+            <div style="font-size:11px;color:var(--muted,#888);font-weight:600;">Expected Computed Signature</div>
+            <pre style="margin:4px 0 0 0;background:#0d0d14;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:monospace;font-size:11px;color:#38bdf8;word-break:break-all;">${esc(data.expectedSignature || 'N/A')}</pre>
+          </div>
+
+          <div>
+            <div style="font-size:11px;color:var(--muted,#888);font-weight:600;">Extracted Provided Signature</div>
+            <pre style="margin:4px 0 0 0;background:#0d0d14;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:monospace;font-size:11px;color:${isVerified ? '#10b981' : '#f59e0b'};word-break:break-all;">${esc(data.extractedProvidedSig || signature || 'N/A')}</pre>
+          </div>
+
+          <div>
+            <div style="font-size:11px;color:var(--muted,#888);font-weight:600;">Raw String Signed</div>
+            <pre style="margin:4px 0 0 0;background:#0d0d14;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:monospace;font-size:11px;color:#94a3b8;max-height:80px;overflow-y:auto;white-space:pre-wrap;">${esc(data.dataToSign || '')}</pre>
+          </div>
+
+          <div>
+            <div style="font-size:11px;color:var(--muted,#888);font-weight:600;">Generated HTTP Header</div>
+            <pre style="margin:4px 0 0 0;background:#0d0d14;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:monospace;font-size:11px;color:#10b981;word-break:break-all;">${esc(data.generatedHeader || '')}</pre>
+          </div>
+        </div>
+
+        <!-- Worker Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:14px;font-weight:700;margin:0;">⚡ Edge Webhook Middleware Worker</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyWebhookWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerMiddlewareCode)}</pre>
+        </div>
+      `;
+
+      window._currentWebhookWorkerCode = data.workerMiddlewareCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Verification Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyWebhookWorker = function () {
+    if (window._currentWebhookWorkerCode) {
+      navigator.clipboard.writeText(window._currentWebhookWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied Webhook Verifier Worker!');
+    }
+  };
+
+
+  // =========================================================================
+  // 49. CLOUDFLARE EMAIL ROUTING & INBOUND MIME PARSER STUDIO
+  // =========================================================================
+
+  window._emailRoutingState = {
+    forwardTarget: 'ops-team@corp-internal.com',
+    r2Bucket: 'vault-emails-archive'
+  };
+
+  window.renderEmailRoutingStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">📧</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Cloudflare Email Routing & MIME Parser Studio</h1>
+              <span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);font-size:11px;">RFC 822 & SPF/DKIM</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Parse inbound MIME email streams, evaluate SPF/DKIM/DMARC deliverability, scan for phishing indicators, and generate Cloudflare Email Worker code.
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" onclick="window.loadEmailPreset('clean')" style="font-size:12px;padding:6px 12px;">
+              <span>🟢</span> Stripe Invoice (Clean)
+            </button>
+            <button class="btn btn-secondary" onclick="window.loadEmailPreset('spoof')" style="font-size:12px;padding:6px 12px;">
+              <span>🔴</span> Spoofed Phish (SPF Fail)
+            </button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left: EML Input & Rules -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Forward Target</label>
+                <input type="email" id="emlForwardTarget" class="form-input" value="ops-team@external-domain.com" style="width:100%;" />
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">R2 Archive Bucket</label>
+                <input type="text" id="emlR2Bucket" class="form-input" value="vault-emails-archive" style="width:100%;font-family:monospace;" />
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Raw MIME / RFC 822 Email (EML)</label>
+              <textarea id="emlRawText" class="form-input" rows="14" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">From: "Stripe Billing" <billing@stripe.com>
+To: admin@myedgevault.com
+Subject: Invoice #INV-9284 Paid Successfully
+Date: Wed, 24 Sep 2026 14:32:00 +0000
+Message-ID: <stripe-inv-9284@mail.stripe.com>
+MIME-Version: 1.0
+Received-SPF: pass (cloudflare.net: domain of stripe.com designates 199.115.117.5 as permitted sender)
+Authentication-Results: mx.cloudflare.net; spf=pass (stripe.com); dkim=pass header.d=stripe.com header.s=s1; dmarc=pass
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=stripe.com; s=s1; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=;
+Content-Type: multipart/alternative; boundary="----=_Part_9284_1029384"
+
+------=_Part_9284_1029384
+Content-Type: text/plain; charset=UTF-8
+
+Your invoice #INV-9284 for $49.00 USD has been successfully processed. Thank you for your business.
+
+------=_Part_9284_1029384
+Content-Type: text/html; charset=UTF-8
+
+<p>Your invoice <strong>#INV-9284</strong> for <strong>$49.00 USD</strong> has been successfully processed.</p>
+------=_Part_9284_1029384--</textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.executeEmailRouting()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>⚡</span> Parse & Audit Inbound Email
+            </button>
+          </div>
+
+          <!-- Right: Output & Worker -->
+          <div id="emlResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">📧</span>
+              Click <strong>"Parse & Audit Inbound Email"</strong> to analyze headers, security status, and worker handlers.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.executeEmailRouting();
+  };
+
+  window.loadEmailPreset = function (type) {
+    const rawEl = document.getElementById('emlRawText');
+    if (!rawEl) return;
+
+    if (type === 'spoof') {
+      rawEl.value = `From: "Bank Wire Dept" <urgent-notify@fraud-payee-spoofer.net>
+To: admin@myedgevault.com
+Subject: URGENT: Wire Transfer Authorization & Immediate Account Action Required
+Date: Wed, 24 Sep 2026 15:10:00 +0000
+Message-ID: <wire-urg-1002@fraud-payee-spoofer.net>
+Received-SPF: fail (cloudflare.net: domain of fraud-payee-spoofer.net does not designate 45.33.12.1)
+Authentication-Results: mx.cloudflare.net; spf=fail; dkim=none; dmarc=fail
+Content-Type: text/plain; charset=UTF-8
+
+Please verify password and authorize this wire transfer immediately to prevent account suspension.`;
+    } else {
+      rawEl.value = `From: "Stripe Billing" <billing@stripe.com>
+To: admin@myedgevault.com
+Subject: Invoice #INV-9284 Paid Successfully
+Date: Wed, 24 Sep 2026 14:32:00 +0000
+Message-ID: <stripe-inv-9284@mail.stripe.com>
+Received-SPF: pass (cloudflare.net: domain of stripe.com designates 199.115.117.5 as permitted sender)
+Authentication-Results: mx.cloudflare.net; spf=pass (stripe.com); dkim=pass header.d=stripe.com header.s=s1; dmarc=pass
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=stripe.com; s=s1; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=;
+Content-Type: text/plain; charset=UTF-8
+
+Your invoice #INV-9284 for $49.00 USD has been successfully processed. Thank you for your business.`;
+    }
+
+    window.executeEmailRouting();
+  };
+
+  window.executeEmailRouting = async function () {
+    const panel = document.getElementById('emlResultsPanel');
+    if (!panel) return;
+
+    const rawEml = document.getElementById('emlRawText')?.value || '';
+    const forwardTarget = document.getElementById('emlForwardTarget')?.value || '';
+    const r2Bucket = document.getElementById('emlR2Bucket')?.value || '';
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Parsing RFC 822 headers and deliverability signatures...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/edge/email-routing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawEml, forwardTarget, r2Bucket })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Parsing failed');
+
+      const isSpam = data.riskScore > 30;
+      const riskColor = isSpam ? '#ef4444' : '#10b981';
+
+      panel.innerHTML = `
+        <!-- Deliverability & Auth Card -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">🛡️ Email Authentication & Security</h3>
+            <span class="badge" style="background:${riskColor}22;color:${riskColor};border:1px solid ${riskColor}44;font-size:12px;padding:4px 10px;">
+              Threat Score: ${data.riskScore}/100 (${isSpam ? 'Suspicious' : 'Clean'})
+            </span>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;">
+            <div style="background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:11px;color:var(--muted,#888);font-weight:600;">SPF Status</div>
+              <div style="font-weight:700;font-size:13px;margin-top:4px;color:${data.spfStatus === 'pass' ? '#10b981' : '#ef4444'};">
+                ${data.spfStatus.toUpperCase()}
+              </div>
+            </div>
+
+            <div style="background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:11px;color:var(--muted,#888);font-weight:600;">DKIM Signature</div>
+              <div style="font-weight:700;font-size:13px;margin-top:4px;color:${data.dkimStatus === 'pass' ? '#10b981' : '#ef4444'};">
+                ${data.dkimStatus.toUpperCase()} (${esc(data.dkimDomain)})
+              </div>
+            </div>
+
+            <div style="background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
+              <div style="font-size:11px;color:var(--muted,#888);font-weight:600;">DMARC Policy</div>
+              <div style="font-weight:700;font-size:13px;margin-top:4px;color:${data.dmarcStatus === 'pass' ? '#10b981' : '#ef4444'};">
+                ${data.dmarcStatus.toUpperCase()}
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:var(--muted,#888);">
+            ${data.riskFlags.map(f => `<div style="display:flex;align-items:center;gap:6px;margin-top:2px;"><span>${f.includes('Clean') || f.includes('clean') ? '✅' : '⚠️'}</span> ${esc(f)}</div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Parsed Metadata Card -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:14px;font-weight:700;margin:0 0 10px 0;">📨 Parsed RFC 822 Metadata</h3>
+          <div style="font-size:12px;line-height:1.6;display:flex;flex-direction:column;gap:4px;">
+            <div><strong>From:</strong> <span style="font-family:monospace;color:#38bdf8;">${esc(data.from)}</span></div>
+            <div><strong>To:</strong> <span style="font-family:monospace;color:#a78bfa;">${esc(data.to)}</span></div>
+            <div><strong>Subject:</strong> <span>${esc(data.subject)}</span></div>
+            <div><strong>Date:</strong> <span style="color:var(--muted,#888);">${esc(data.date)}</span></div>
+            <div><strong>Message-ID:</strong> <span style="font-family:monospace;font-size:11px;color:var(--muted,#888);">${esc(data.messageId)}</span></div>
+          </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+            <div style="font-size:11px;color:var(--muted,#888);font-weight:600;margin-bottom:4px;">Extracted Plaintext Content</div>
+            <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:monospace;font-size:12px;color:#e2e8f0;white-space:pre-wrap;max-height:100px;overflow-y:auto;">${esc(data.extractedPlaintext || '(Empty Body)')}</pre>
+          </div>
+        </div>
+
+        <!-- Worker Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:14px;font-weight:700;margin:0;">⚡ Cloudflare Email Worker Code</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyEmailWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerEmailCode)}</pre>
+        </div>
+      `;
+
+      window._currentEmailWorkerCode = data.workerEmailCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Email Processing Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyEmailWorker = function () {
+    if (window._currentEmailWorkerCode) {
+      navigator.clipboard.writeText(window._currentEmailWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied Email Routing Worker!');
+    }
+  };
+
+
+  // =========================================================================
+  // 50. EDGE URL REWRITE, DYNAMIC REVERSE PROXY & GATEWAY STUDIO
+  // =========================================================================
+
+  window._reverseProxyState = {
+    rules: [
+      { prefix: '/api/v2', upstream: 'https://origin-v2.internal.net', stripPrefix: true, cacheTtl: 300, injectHeaders: { 'X-Proxy-Gateway': 'Cloudflare-Edge-v2' } },
+      { prefix: '/store', upstream: 'https://cdn.myshopify-store.com', stripPrefix: false, cacheTtl: 60, injectHeaders: { 'X-Micro-Frontend': 'Storefront' } },
+      { prefix: '/docs', upstream: 'https://mintlify.cdn.cloudflare.net', stripPrefix: false, cacheTtl: 3600, injectHeaders: { 'X-Cache-Tier': 'Static-Docs' } }
+    ]
+  };
+
+  window.renderReverseProxyStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🔄</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Edge URL Rewrite & Micro-Frontend Gateway</h1>
+              <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);font-size:11px;">Dynamic Reverse Proxy</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Configure path-based micro-frontend routes, upstream origin rewrites, header sanitization, edge cache policies, and generate production Cloudflare Worker reverse proxies.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left: Proxy Rules Config -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <h3 style="font-size:14px;font-weight:700;margin:0;">Routing Gateway Rules</h3>
+              <button class="btn btn-secondary" onclick="window.addProxyRule()" style="font-size:11px;padding:4px 10px;">
+                <span>＋</span> Add Rule
+              </button>
+            </div>
+
+            <div id="proxyRulesList" style="display:flex;flex-direction:column;gap:10px;max-height:240px;overflow-y:auto;">
+              ${window._reverseProxyState.rules.map((r, idx) => `
+                <div style="background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-family:monospace;font-weight:700;color:var(--accent,#7c6af7);font-size:13px;">${esc(r.prefix)}/*</span>
+                    <button class="btn btn-secondary" onclick="window.removeProxyRule(${idx})" style="font-size:10px;padding:2px 6px;color:#ef4444;">Remove</button>
+                  </div>
+                  <div style="font-size:11px;color:var(--muted,#888);word-break:break-all;">
+                    &rarr; Upstream: <span style="font-family:monospace;color:#fff;">${esc(r.upstream)}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--muted,#888);display:flex;gap:12px;">
+                    <span>Strip Prefix: <strong>${r.stripPrefix ? 'Yes' : 'No'}</strong></span>
+                    <span>Edge Cache: <strong>${r.cacheTtl}s</strong></span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+
+            <div style="border-top:1px solid var(--border);padding-top:12px;">
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Test Inbound URL</label>
+              <input type="text" id="proxyTestUrl" class="form-input" value="https://myedgevault.com/api/v2/products/analytics?format=json" style="width:100%;font-family:monospace;" />
+            </div>
+
+            <button class="btn btn-primary" onclick="window.executeReverseProxyTest()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>⚡</span> Simulate Proxy Routing & Headers
+            </button>
+          </div>
+
+          <!-- Right: Output -->
+          <div id="proxyResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🔄</span>
+              Click <strong>"Simulate Proxy Routing & Headers"</strong> to test edge prefix matching and header injection.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.executeReverseProxyTest();
+  };
+
+  window.addProxyRule = function () {
+    const prefix = prompt('Enter path prefix (e.g. /auth):', '/auth');
+    if (!prefix) return;
+    const upstream = prompt('Enter upstream host (e.g. https://auth-service.corp.internal):', 'https://auth-service.corp.internal');
+    if (!upstream) return;
+
+    window._reverseProxyState.rules.push({
+      prefix: prefix.trim(),
+      upstream: upstream.trim(),
+      stripPrefix: true,
+      cacheTtl: 0,
+      injectHeaders: { 'X-Edge-Auth-Proxy': 'true' }
+    });
+
+    window.renderReverseProxyStudio();
+  };
+
+  window.removeProxyRule = function (idx) {
+    window._reverseProxyState.rules.splice(idx, 1);
+    window.renderReverseProxyStudio();
+  };
+
+  window.executeReverseProxyTest = async function () {
+    const panel = document.getElementById('proxyResultsPanel');
+    if (!panel) return;
+
+    const testUrl = document.getElementById('proxyTestUrl')?.value || 'https://myedgevault.com/api/v2/products/analytics?format=json';
+    const rules = window._reverseProxyState.rules;
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Executing prefix matching algorithm...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/edge/reverse-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rules, testUrl })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Proxy simulation failed');
+
+      panel.innerHTML = `
+        <!-- Routing Decision Card -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid ${data.isMatched ? '#10b981' : '#f59e0b'};border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="font-size:12px;color:var(--muted,#888);font-weight:700;text-transform:uppercase;">Proxy Gateway Match Status</div>
+            <span class="badge" style="background:${data.isMatched ? '#10b981' : '#f59e0b'}22;color:${data.isMatched ? '#10b981' : '#f59e0b'};border:1px solid ${data.isMatched ? '#10b981' : '#f59e0b'}44;font-size:12px;">
+              ${data.isMatched ? 'PREFIX MATCHED' : 'DEFAULT PASSTHROUGH'}
+            </span>
+          </div>
+
+          <div style="font-size:12px;margin-bottom:8px;">
+            <strong>Target Upstream Rewritten URL:</strong>
+            <pre style="margin:4px 0 0 0;background:#0d0d14;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:monospace;font-size:12px;color:#38bdf8;word-break:break-all;">${esc(data.rewrittenUpstreamUrl)}</pre>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;font-size:12px;">
+            <div style="background:#0d0d14;border:1px solid var(--border);border-radius:6px;padding:8px;">
+              <span style="color:var(--muted,#888);">Upstream Host:</span> <strong>${esc(data.targetHost)}</strong>
+            </div>
+            <div style="background:#0d0d14;border:1px solid var(--border);border-radius:6px;padding:8px;">
+              <span style="color:var(--muted,#888);">Edge Cache TTL:</span> <strong>${data.appliedTtl} seconds</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Injected Headers Card -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:14px;font-weight:700;margin:0 0 10px 0;">⚡ Mutated Request Headers</h3>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-family:monospace;">
+            ${Object.entries(data.injectedHeaders || {}).map(([k, v]) => `
+              <div style="background:#0d0d14;border:1px solid var(--border);border-radius:6px;padding:6px 8px;display:flex;justify-content:space-between;">
+                <span style="color:var(--accent,#7c6af7);">${esc(k)}</span>
+                <span style="color:#fff;">${esc(v)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Worker Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:14px;font-weight:700;margin:0;">⚡ Reverse Proxy Cloudflare Worker Code</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyProxyWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerProxyCode)}</pre>
+        </div>
+      `;
+
+      window._currentProxyWorkerCode = data.workerProxyCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Simulation Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyProxyWorker = function () {
+    if (window._currentProxyWorkerCode) {
+      navigator.clipboard.writeText(window._currentProxyWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied Reverse Proxy Worker!');
+    }
+  };
+
+
+  // =========================================================================
+  // 51. EDGE GEOLOCATION PERSONALIZATION, GEO-FENCING & GEOIP STUDIO
+  // =========================================================================
+
+  window._geoPersonalizeState = {
+    simulatedCountry: 'US',
+    basePriceUsd: 49.99
+  };
+
+  window.renderGeoPersonalizeStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🌍</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Edge Geolocation & Personalization Engine</h1>
+              <span class="badge" style="background:rgba(124,106,247,0.15);color:var(--accent,#7c6af7);border:1px solid rgba(124,106,247,0.3);font-size:11px;">request.cf Engine</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Harness Cloudflare edge geolocation to localize currency and tax, enforce national compliance geo-fencing, and route to closest regional databases.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left: Location & Rules Config -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Simulated GeoIP Origin</label>
+              <select id="geoCountry" class="form-input" style="width:100%;" onchange="window.executeGeoPersonalize()">
+                <option value="US">🇺🇸 United States (New York, NA)</option>
+                <option value="GB">🇬🇧 United Kingdom (London, Europe)</option>
+                <option value="DE">🇩🇪 Germany (Frankfurt, EU)</option>
+                <option value="JP">🇯🇵 Japan (Tokyo, Asia)</option>
+                <option value="BR">🇧🇷 Brazil (São Paulo, South America)</option>
+                <option value="SG">🇸🇬 Singapore (Southeast Asia)</option>
+                <option value="AU">🇦🇺 Australia (Sydney, Oceania)</option>
+                <option value="CA">🇨🇦 Canada (Toronto, NA)</option>
+                <option value="IN">🇮🇳 India (Mumbai, Asia)</option>
+                <option value="KP">🇰🇵 North Korea (Embargoed / Blocked)</option>
+                <option value="RU">🇷🇺 Russian Federation (Sanctioned / Blocked)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Base Catalog Price (USD $)</label>
+              <input type="number" step="0.01" id="geoBasePrice" class="form-input" value="49.99" style="width:100%;font-family:monospace;" oninput="window.executeGeoPersonalize()" />
+            </div>
+
+            <div style="background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;">
+              <div style="font-weight:700;color:var(--accent,#7c6af7);margin-bottom:4px;">🛡️ Active Geo-Fence Policies</div>
+              <div style="color:var(--muted,#888);line-height:1.5;">
+                • <strong>Blocked Countries:</strong> KP, IR, SY, RU (HTTP 403 Forbidden)<br/>
+                • <strong>Challenged Countries:</strong> CN, VN (Cloudflare Turnstile)<br/>
+                • <strong>EU Countries:</strong> Automatic OSS/MOSS VAT & GDPR Consent Mode
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.executeGeoPersonalize()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>⚡</span> Run Geolocation Personalization
+            </button>
+          </div>
+
+          <!-- Right: Output -->
+          <div id="geoResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🌍</span>
+              Select a location to simulate Cloudflare edge geolocation personalizations.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.executeGeoPersonalize();
+  };
+
+  window.executeGeoPersonalize = async function () {
+    const panel = document.getElementById('geoResultsPanel');
+    if (!panel) return;
+
+    const simulatedCountry = document.getElementById('geoCountry')?.value || 'US';
+    const basePriceUsd = Number(document.getElementById('geoBasePrice')?.value) || 49.99;
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Synthesizing request.cf telemetry and tax conversions...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/edge/geo-personalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ simulatedCountry, basePriceUsd })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Geo evaluation failed');
+
+      const isAllowed = data.fenceAction === 'ALLOW';
+      const fenceColor = isAllowed ? '#10b981' : (data.fenceAction === 'CHALLENGE' ? '#f59e0b' : '#ef4444');
+
+      panel.innerHTML = `
+        <!-- Geo-Fence Compliance Card -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid ${fenceColor};border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:12px;color:var(--muted,#888);text-transform:uppercase;font-weight:700;">Geo-Fence Policy Verdict</div>
+              <div style="font-size:20px;font-weight:800;color:${fenceColor};margin-top:4px;">
+                ${data.fenceAction === 'ALLOW' ? '🟢 ALLOW (HTTP 200)' : data.fenceAction === 'CHALLENGE' ? '🟡 MANAGED CHALLENGE' : '🔴 BLOCKED (HTTP 403)'}
+              </div>
+            </div>
+            <span class="badge" style="background:${fenceColor}22;color:${fenceColor};border:1px solid ${fenceColor}44;font-size:12px;">
+              ${data.geo.country} • ${data.geo.city}
+            </span>
+          </div>
+          <div style="font-size:12px;color:var(--muted,#888);margin-top:8px;">
+            ${esc(data.fenceReason)}
+          </div>
+        </div>
+
+        <!-- Localized Pricing & Currency Card -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:14px;font-weight:700;margin:0 0 12px 0;">💰 Localized Price & VAT Engine</h3>
+          <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;text-align:center;">
+            <div style="background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:10px;">
+              <div style="font-size:11px;color:var(--muted,#888);">Local Currency</div>
+              <div style="font-size:15px;font-weight:800;color:var(--accent,#7c6af7);margin-top:4px;">
+                ${data.pricing.currency} (${data.pricing.currencySymbol})
+              </div>
+            </div>
+            <div style="background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:10px;">
+              <div style="font-size:11px;color:var(--muted,#888);">${data.pricing.vatName || 'Tax / VAT'}</div>
+              <div style="font-size:15px;font-weight:800;color:#f59e0b;margin-top:4px;">
+                +${data.pricing.currencySymbol}${data.pricing.taxAmount}
+              </div>
+            </div>
+            <div style="background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:10px;">
+              <div style="font-size:11px;color:var(--muted,#888);">Final Customer Total</div>
+              <div style="font-size:15px;font-weight:800;color:#10b981;margin-top:4px;">
+                ${data.pricing.formattedTotal}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Regional Database Latency Optimizer -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:14px;font-weight:700;margin:0 0 10px 0;">🌐 Database Replica Routing (Lowest Latency)</h3>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">
+            ${(data.regionalRouting?.allRegions || []).map((r, i) => `
+              <div style="background:#0d0d14;border:1px solid ${i === 0 ? '#10b981' : 'var(--border)'};border-radius:6px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <span style="font-weight:700;color:#fff;">${esc(r.regionName)}</span>
+                  ${i === 0 ? '<span class="badge" style="font-size:10px;background:#10b98122;color:#10b981;margin-left:6px;">OPTIMAL ORIGIN</span>' : ''}
+                </div>
+                <div style="font-family:monospace;color:var(--muted,#888);">
+                  ${r.distanceKm.toLocaleString()} km • <span style="color:#38bdf8;">~${r.estimatedLatencyMs}ms</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Worker Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:14px;font-weight:700;margin:0;">⚡ HTMLRewriter & GeoIP Cloudflare Worker</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyGeoWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerGeoCode)}</pre>
+        </div>
+      `;
+
+      window._currentGeoWorkerCode = data.workerGeoCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Personalization Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyGeoWorker = function () {
+    if (window._currentGeoWorkerCode) {
+      navigator.clipboard.writeText(window._currentGeoWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied Geo Personalization Worker!');
+    }
+  };
+
 
 
 
@@ -9585,6 +10494,34 @@ segment-002.ts
     typesBtn.innerHTML = '<span>📐</span> Type Safety & Zod';
     typesBtn.onclick = () => window.switchTab('typesgen');
 
+    // 48. Webhook Verifier
+    const whVerifyBtn = document.createElement('button');
+    whVerifyBtn.className = 'tab';
+    whVerifyBtn.id = 'tab-webhookverify';
+    whVerifyBtn.innerHTML = '<span>🔐</span> Webhook Verifier';
+    whVerifyBtn.onclick = () => window.switchTab('webhookverify');
+
+    // 49. Email Routing & MIME Parser
+    const emailRouteBtn = document.createElement('button');
+    emailRouteBtn.className = 'tab';
+    emailRouteBtn.id = 'tab-emailrouting';
+    emailRouteBtn.innerHTML = '<span>📧</span> Email Routing';
+    emailRouteBtn.onclick = () => window.switchTab('emailrouting');
+
+    // 50. Reverse Proxy Gateway
+    const revProxyBtn = document.createElement('button');
+    revProxyBtn.className = 'tab';
+    revProxyBtn.id = 'tab-reverseproxy';
+    revProxyBtn.innerHTML = '<span>🔄</span> Reverse Proxy';
+    revProxyBtn.onclick = () => window.switchTab('reverseproxy');
+
+    // 51. Geo Personalize
+    const geoBtn = document.createElement('button');
+    geoBtn.className = 'tab';
+    geoBtn.id = 'tab-geopersonalize';
+    geoBtn.innerHTML = '<span>🌍</span> Geo Personalize';
+    geoBtn.onclick = () => window.switchTab('geopersonalize');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
@@ -9635,6 +10572,10 @@ segment-002.ts
       tabsContainer.insertBefore(hlsBtn, graphqlBtn.nextSibling);
       tabsContainer.insertBefore(logpushBtn, hlsBtn.nextSibling);
       tabsContainer.insertBefore(typesBtn, logpushBtn.nextSibling);
+      tabsContainer.insertBefore(whVerifyBtn, typesBtn.nextSibling);
+      tabsContainer.insertBefore(emailRouteBtn, whVerifyBtn.nextSibling);
+      tabsContainer.insertBefore(revProxyBtn, emailRouteBtn.nextSibling);
+      tabsContainer.insertBefore(geoBtn, revProxyBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
@@ -9683,6 +10624,10 @@ segment-002.ts
       tabsContainer.appendChild(hlsBtn);
       tabsContainer.appendChild(logpushBtn);
       tabsContainer.appendChild(typesBtn);
+      tabsContainer.appendChild(whVerifyBtn);
+      tabsContainer.appendChild(emailRouteBtn);
+      tabsContainer.appendChild(revProxyBtn);
+      tabsContainer.appendChild(geoBtn);
     }
   }
 

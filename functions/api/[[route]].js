@@ -14268,6 +14268,702 @@ export default {
       }
     }
 
+    // 57. Multi-Vendor Edge Webhook Verification & HMAC Signature Studio
+    if (path === '/security/webhook-verify' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          provider = 'stripe', // stripe, github, shopify, slack
+          action = 'verify',   // verify, sign
+          secret = 'whsec_sample_edge_secret_key_99482',
+          payload = JSON.stringify({ event: 'payment_intent.succeeded', amount: 4999, currency: 'usd', customer: 'cus_9938' }, null, 2),
+          signature = '',
+          timestamp = Math.floor(Date.now() / 1000),
+          toleranceSec = 300
+        } = body;
+
+        // Web Crypto HMAC-SHA256 Helper
+        async function computeHmacSha256(keyStr, dataStr) {
+          const enc = new TextEncoder();
+          const key = await crypto.subtle.importKey(
+            'raw',
+            enc.encode(keyStr),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']
+          );
+          const sigBuf = await crypto.subtle.sign('HMAC', key, enc.encode(dataStr));
+          const hex = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(sigBuf)));
+          return { hex, base64 };
+        }
+
+        // Timing-safe string comparison
+        function timingSafeEqualStr(a, b) {
+          if (typeof a !== 'string' || typeof b !== 'string') return false;
+          if (a.length !== b.length) return false;
+          let result = 0;
+          for (let i = 0; i < a.length; i++) {
+            result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+          }
+          return result === 0;
+        }
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        let dataToSign = '';
+        let generatedSignature = '';
+        let generatedHeader = '';
+        let expectedSignature = '';
+        let extractedProvidedSig = '';
+        let isValid = false;
+        let timestampAgeSec = 0;
+        let isExpired = false;
+
+        const effectiveTimestamp = Number(timestamp) || nowSec;
+
+        if (provider === 'stripe') {
+          dataToSign = `${effectiveTimestamp}.${payload}`;
+          const { hex } = await computeHmacSha256(secret, dataToSign);
+          expectedSignature = hex;
+          generatedSignature = `t=${effectiveTimestamp},v1=${hex}`;
+          generatedHeader = `stripe-signature: ${generatedSignature}`;
+
+          if (action === 'verify') {
+            const parts = (signature || '').split(',').reduce((acc, curr) => {
+              const [k, v] = curr.trim().split('=');
+              if (k && v) acc[k] = v;
+              return acc;
+            }, {});
+
+            const sigTs = Number(parts.t) || effectiveTimestamp;
+            extractedProvidedSig = parts.v1 || signature;
+            timestampAgeSec = Math.abs(nowSec - sigTs);
+            isExpired = timestampAgeSec > toleranceSec;
+
+            const checkDataToSign = `${sigTs}.${payload}`;
+            const checkHmac = await computeHmacSha256(secret, checkDataToSign);
+            isValid = timingSafeEqualStr(extractedProvidedSig, checkHmac.hex) && !isExpired;
+          }
+        } else if (provider === 'github') {
+          dataToSign = payload;
+          const { hex } = await computeHmacSha256(secret, dataToSign);
+          expectedSignature = hex;
+          generatedSignature = `sha256=${hex}`;
+          generatedHeader = `x-hub-signature-256: ${generatedSignature}`;
+
+          if (action === 'verify') {
+            extractedProvidedSig = (signature || '').startsWith('sha256=')
+              ? signature.slice(7)
+              : signature;
+            isValid = timingSafeEqualStr(extractedProvidedSig, expectedSignature);
+          }
+        } else if (provider === 'shopify') {
+          dataToSign = payload;
+          const { base64 } = await computeHmacSha256(secret, dataToSign);
+          expectedSignature = base64;
+          generatedSignature = base64;
+          generatedHeader = `x-shopify-hmac-sha256: ${generatedSignature}`;
+
+          if (action === 'verify') {
+            extractedProvidedSig = (signature || '').trim();
+            isValid = timingSafeEqualStr(extractedProvidedSig, expectedSignature);
+          }
+        } else if (provider === 'slack') {
+          dataToSign = `v0:${effectiveTimestamp}:${payload}`;
+          const { hex } = await computeHmacSha256(secret, dataToSign);
+          expectedSignature = `v0=${hex}`;
+          generatedSignature = `v0=${hex}`;
+          generatedHeader = `x-slack-signature: ${generatedSignature}\nx-slack-request-timestamp: ${effectiveTimestamp}`;
+
+          if (action === 'verify') {
+            extractedProvidedSig = (signature || '').trim();
+            timestampAgeSec = Math.abs(nowSec - effectiveTimestamp);
+            isExpired = timestampAgeSec > toleranceSec;
+            isValid = timingSafeEqualStr(extractedProvidedSig, expectedSignature) && !isExpired;
+          }
+        }
+
+        const workerMiddlewareCode = `// Cloudflare Worker: Multi-Vendor Edge Webhook Verifier
+// Provider: ${provider.toUpperCase()}
+export default {
+  async fetch(request, env, ctx) {
+    if (request.method !== 'POST') {
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    const secret = env.${provider.toUpperCase()}_WEBHOOK_SECRET;
+    const rawBody = await request.text();
+
+    ${provider === 'stripe' ? `
+    const sigHeader = request.headers.get('stripe-signature');
+    if (!sigHeader) return new Response('Missing Signature Header', { status: 400 });
+
+    const parts = sigHeader.split(',').reduce((acc, curr) => {
+      const [k, v] = curr.trim().split('=');
+      if (k && v) acc[k] = v;
+      return acc;
+    }, {});
+
+    const ts = Number(parts.t);
+    const providedSig = parts.v1;
+    const now = Math.floor(Date.now() / 1000);
+
+    // Replay attack prevention (5 minute tolerance)
+    if (Math.abs(now - ts) > 300) {
+      return new Response('Webhook Timestamp Expired / Replay Attack', { status: 400 });
+    }
+
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw', enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const expectedBuf = await crypto.subtle.sign('HMAC', key, enc.encode(\`\${ts}.\${rawBody}\`));
+    const expectedSig = Array.from(new Uint8Array(expectedBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    if (providedSig !== expectedSig) {
+      return new Response('Invalid Stripe Signature', { status: 401 });
+    }
+` : provider === 'github' ? `
+    const sigHeader = request.headers.get('x-hub-signature-256');
+    if (!sigHeader) return new Response('Missing GitHub Signature Header', { status: 400 });
+
+    const providedSig = sigHeader.startsWith('sha256=') ? sigHeader.slice(7) : sigHeader;
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw', enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const expectedBuf = await crypto.subtle.sign('HMAC', key, enc.encode(rawBody));
+    const expectedSig = Array.from(new Uint8Array(expectedBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    if (providedSig !== expectedSig) {
+      return new Response('Invalid GitHub Signature', { status: 401 });
+    }
+` : provider === 'shopify' ? `
+    const providedSig = request.headers.get('x-shopify-hmac-sha256');
+    if (!providedSig) return new Response('Missing Shopify Signature Header', { status: 400 });
+
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw', enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const expectedBuf = await crypto.subtle.sign('HMAC', key, enc.encode(rawBody));
+    const expectedSig = btoa(String.fromCharCode(...new Uint8Array(expectedBuf)));
+
+    if (providedSig !== expectedSig) {
+      return new Response('Invalid Shopify Signature', { status: 401 });
+    }
+` : `
+    const sigHeader = request.headers.get('x-slack-signature');
+    const tsHeader = request.headers.get('x-slack-request-timestamp');
+    if (!sigHeader || !tsHeader) return new Response('Missing Slack Headers', { status: 400 });
+
+    const ts = Number(tsHeader);
+    const now = Math.floor(Date.now() / 1000);
+    if (Math.abs(now - ts) > 300) {
+      return new Response('Slack Timestamp Expired / Replay Attack', { status: 400 });
+    }
+
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw', enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const expectedBuf = await crypto.subtle.sign('HMAC', key, enc.encode(\`v0:\${ts}:\${rawBody}\`));
+    const expectedSig = 'v0=' + Array.from(new Uint8Array(expectedBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    if (sigHeader !== expectedSig) {
+      return new Response('Invalid Slack Signature', { status: 401 });
+    }
+`}
+    // Webhook signature verified at Edge! Forward or handle payload
+    const event = JSON.parse(rawBody);
+    console.log('Verified edge event received:', event);
+
+    return Response.json({ success: true, verified: true });
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          provider,
+          action,
+          isValid,
+          isExpired,
+          timestampAgeSec,
+          dataToSign,
+          generatedSignature,
+          generatedHeader,
+          expectedSignature,
+          extractedProvidedSig,
+          workerMiddlewareCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 58. Cloudflare Email Routing & Inbound MIME Parser Studio
+    if (path === '/edge/email-routing' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          rawEml = `From: "Stripe Billing" <billing@stripe.com>
+To: admin@myedgevault.com
+Subject: Invoice #INV-9284 Paid Successfully
+Date: Wed, 24 Sep 2026 14:32:00 +0000
+Message-ID: <stripe-inv-9284@mail.stripe.com>
+MIME-Version: 1.0
+Received-SPF: pass (cloudflare.net: domain of stripe.com designates 199.115.117.5 as permitted sender)
+Authentication-Results: mx.cloudflare.net; spf=pass (stripe.com); dkim=pass header.d=stripe.com header.s=s1; dmarc=pass
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=stripe.com; s=s1; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=;
+Content-Type: multipart/alternative; boundary="----=_Part_9284_1029384"
+
+------=_Part_9284_1029384
+Content-Type: text/plain; charset=UTF-8
+
+Your invoice #INV-9284 for $49.00 USD has been successfully processed. Thank you for your business.
+
+------=_Part_9284_1029384
+Content-Type: text/html; charset=UTF-8
+
+<p>Your invoice <strong>#INV-9284</strong> for <strong>$49.00 USD</strong> has been successfully processed.</p>
+------=_Part_9284_1029384--`,
+          forwardTarget = 'ops-team@external-domain.com',
+          r2Bucket = 'vault-emails-archive'
+        } = body;
+
+        // Parse RFC 822 Header & Body
+        const lines = rawEml.split(/\r?\n/);
+        const headersMap = {};
+        let headerBoundaryIndex = lines.length;
+
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].trim() === '') {
+            headerBoundaryIndex = i;
+            break;
+          }
+          const colonIdx = lines[i].indexOf(':');
+          if (colonIdx > 0) {
+            const key = lines[i].slice(0, colonIdx).trim().toLowerCase();
+            const val = lines[i].slice(colonIdx + 1).trim();
+            headersMap[key] = val;
+          }
+        }
+
+        const rawBodyPart = lines.slice(headerBoundaryIndex + 1).join('\n');
+
+        // Extract metadata
+        const from = headersMap['from'] || 'Unknown Sender';
+        const to = headersMap['to'] || 'Unknown Recipient';
+        const subject = headersMap['subject'] || '(No Subject)';
+        const date = headersMap['date'] || new Date().toUTCString();
+        const messageId = headersMap['message-id'] || `msg-${Date.now()}`;
+        const contentType = headersMap['content-type'] || 'text/plain';
+
+        // Extract Security & Deliverability Headers
+        const spfHeader = headersMap['received-spf'] || headersMap['authentication-results'] || '';
+        let spfStatus = 'neutral';
+        if (/spf=pass|pass\s*\(/i.test(spfHeader)) spfStatus = 'pass';
+        else if (/spf=fail|fail\s*\(/i.test(spfHeader)) spfStatus = 'fail';
+        else if (/softfail/i.test(spfHeader)) spfStatus = 'softfail';
+
+        const dkimHeader = headersMap['dkim-signature'] || headersMap['authentication-results'] || '';
+        let dkimStatus = 'none';
+        let dkimDomain = 'N/A';
+        const dkimMatch = dkimHeader.match(/d=([a-zA-Z0-9.-]+)/);
+        if (dkimMatch) dkimDomain = dkimMatch[1];
+        if (/dkim=pass|v=1/i.test(dkimHeader)) dkimStatus = 'pass';
+
+        let dmarcStatus = 'pass';
+        if (headersMap['authentication-results'] && /dmarc=fail/i.test(headersMap['authentication-results'])) {
+          dmarcStatus = 'fail';
+        }
+
+        // Spam & Threat Heuristic Score
+        let riskScore = 5;
+        const riskFlags = [];
+        if (spfStatus === 'fail') { riskScore += 40; riskFlags.push('SPF Authentication Failed'); }
+        if (dkimStatus !== 'pass') { riskScore += 20; riskFlags.push('Missing/Unverified DKIM Signature'); }
+        if (/urgent|wire transfer|account suspended|verify password/i.test(subject + ' ' + rawBodyPart)) {
+          riskScore += 25;
+          riskFlags.push('Urgency/Suspicious Financial Keywords Detected');
+        }
+        if (riskScore < 30) riskFlags.push('Email passed SPF/DKIM verification cleanly');
+
+        // Extract Content Plaintext
+        let extractedPlaintext = '';
+        if (contentType.includes('multipart/')) {
+          const parts = rawBodyPart.split(/------?=_?[a-zA-Z0-9_.-]+/);
+          for (const p of parts) {
+            if (p.includes('text/plain')) {
+              const textLines = p.split(/\r?\n/).filter(l => !l.startsWith('Content-'));
+              extractedPlaintext = textLines.join('\n').trim();
+              break;
+            }
+          }
+          if (!extractedPlaintext && parts.length > 1) {
+            extractedPlaintext = parts[1].replace(/<[^>]+>/g, '').trim();
+          }
+        } else {
+          extractedPlaintext = rawBodyPart.trim();
+        }
+
+        const workerEmailCode = `// Cloudflare Worker: Inbound Email Router & MIME Processor
+export default {
+  async email(message, env, ctx) {
+    const from = message.from;
+    const to = message.to;
+    const subject = message.headers.get('subject') || '(No Subject)';
+    console.log(\`Edge received email from \${from} to \${to}: \${subject}\`);
+
+    // 1. Read raw stream or headers
+    const rawEml = await new Response(message.raw).text();
+
+    // 2. Archive to Cloudflare R2 object storage
+    if (env.${r2Bucket.toUpperCase().replace(/[^A-Z0-9_]/g, '_')}) {
+      const emailKey = \`archive/\${new Date().toISOString().slice(0, 10)}/\${message.id || Date.now()}.eml\`;
+      await env.${r2Bucket.toUpperCase().replace(/[^A-Z0-9_]/g, '_')}.put(emailKey, rawEml, {
+        customMetadata: { from, to, subject }
+      });
+      console.log('Archived inbound email to R2:', emailKey);
+    }
+
+    // 3. Conditional auto-forwarding rule
+    if (to.includes('admin') || to.includes('ops')) {
+      await message.forward('${forwardTarget}');
+      console.log('Forwarded message to upstream team: ${forwardTarget}');
+    }
+
+    // 4. Dispatch alert webhook (e.g. Telegram / Discord)
+    if (env.ALERT_WEBHOOK_URL) {
+      ctx.waitUntil(fetch(env.ALERT_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: \`📧 **New Edge Inbound Email**\\n**From:** \${from}\\n**Subject:** \${subject}\`
+        })
+      }));
+    }
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          from,
+          to,
+          subject,
+          date,
+          messageId,
+          contentType,
+          spfStatus,
+          dkimStatus,
+          dkimDomain,
+          dmarcStatus,
+          riskScore: Math.min(100, riskScore),
+          riskFlags,
+          extractedPlaintext,
+          workerEmailCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 59. Edge URL Rewrite, Dynamic Reverse Proxy & Micro-Frontend Gateway
+    if (path === '/edge/reverse-proxy' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          rules = [
+            { prefix: '/api/v2', upstream: 'https://origin-v2.internal.net', stripPrefix: true, cacheTtl: 300, injectHeaders: { 'X-Proxy-Gateway': 'Cloudflare-Edge-v2' } },
+            { prefix: '/store', upstream: 'https://cdn.myshopify-store.com', stripPrefix: false, cacheTtl: 60, injectHeaders: { 'X-Micro-Frontend': 'Storefront' } },
+            { prefix: '/docs', upstream: 'https://mintlify.cdn.cloudflare.net', stripPrefix: false, cacheTtl: 3600, injectHeaders: { 'X-Cache-Tier': 'Static-Docs' } }
+          ],
+          testUrl = 'https://myedgevault.com/api/v2/products/analytics?format=json'
+        } = body;
+
+        let parsedUrl;
+        try {
+          parsedUrl = new URL(testUrl);
+        } catch (_) {
+          parsedUrl = new URL('https://myedgevault.com/api/v2/products/analytics?format=json');
+        }
+
+        // Longest prefix match
+        const sortedRules = [...rules].sort((a, b) => (b.prefix || '').length - (a.prefix || '').length);
+        let matchedRule = null;
+        for (const r of sortedRules) {
+          if (parsedUrl.pathname.startsWith(r.prefix)) {
+            matchedRule = r;
+            break;
+          }
+        }
+
+        let rewrittenUpstreamUrl = '';
+        let targetHost = '';
+        let injectedHeaders = {};
+        let appliedTtl = 0;
+
+        if (matchedRule) {
+          const upstreamBase = matchedRule.upstream.replace(/\/+$/, '');
+          let subPath = parsedUrl.pathname;
+          if (matchedRule.stripPrefix) {
+            subPath = subPath.slice(matchedRule.prefix.length);
+            if (!subPath.startsWith('/')) subPath = '/' + subPath;
+          }
+          rewrittenUpstreamUrl = `${upstreamBase}${subPath}${parsedUrl.search}`;
+          try {
+            targetHost = new URL(upstreamBase).host;
+          } catch (_) {
+            targetHost = 'upstream.origin.internal';
+          }
+          injectedHeaders = {
+            'X-Forwarded-Host': parsedUrl.host,
+            'X-Forwarded-Proto': parsedUrl.protocol.replace(':', ''),
+            'Host': targetHost,
+            ...(matchedRule.injectHeaders || {})
+          };
+          appliedTtl = matchedRule.cacheTtl || 0;
+        } else {
+          rewrittenUpstreamUrl = `https://default-origin.internal${parsedUrl.pathname}${parsedUrl.search}`;
+          targetHost = 'default-origin.internal';
+          appliedTtl = 0;
+        }
+
+        const workerProxyCode = `// Cloudflare Worker: Edge Reverse Proxy & Micro-Frontend Gateway
+const PROXY_RULES = ${JSON.stringify(rules, null, 2)};
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // Sort by longest prefix match
+    const matchedRule = PROXY_RULES
+      .sort((a, b) => b.prefix.length - a.prefix.length)
+      .find(r => url.pathname.startsWith(r.prefix));
+
+    if (!matchedRule) {
+      // Passthrough to default origin
+      return fetch(request);
+    }
+
+    // Rewrite upstream URL
+    let targetPath = url.pathname;
+    if (matchedRule.stripPrefix) {
+      targetPath = targetPath.slice(matchedRule.prefix.length);
+      if (!targetPath.startsWith('/')) targetPath = '/' + targetPath;
+    }
+    const upstreamUrl = new URL(matchedRule.upstream);
+    upstreamUrl.pathname = (upstreamUrl.pathname.replace(/\\/+$/, '') + targetPath).replace(/\\/\\//g, '/');
+    upstreamUrl.search = url.search;
+
+    // Mutate and inject proxy headers
+    const newHeaders = new Headers(request.headers);
+    newHeaders.set('X-Forwarded-Host', url.host);
+    newHeaders.set('X-Forwarded-Proto', url.protocol.replace(':', ''));
+    newHeaders.set('Host', upstreamUrl.host);
+
+    if (matchedRule.injectHeaders) {
+      for (const [k, v] of Object.entries(matchedRule.injectHeaders)) {
+        newHeaders.set(k, v);
+      }
+    }
+
+    // Strip sensitive origin headers
+    newHeaders.delete('cf-connecting-ip');
+    newHeaders.delete('cf-ray');
+
+    const proxyRequest = new Request(upstreamUrl.toString(), {
+      method: request.method,
+      headers: newHeaders,
+      body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+      redirect: 'follow'
+    });
+
+    // Execute edge fetch with Cloudflare caching policies
+    return fetch(proxyRequest, {
+      cf: {
+        cacheTtl: matchedRule.cacheTtl,
+        cacheEverything: matchedRule.cacheTtl > 0
+      }
+    });
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          testUrl: parsedUrl.toString(),
+          isMatched: !!matchedRule,
+          matchedRule,
+          rewrittenUpstreamUrl,
+          targetHost,
+          injectedHeaders,
+          appliedTtl,
+          workerProxyCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 60. Edge Geolocation Personalization, Geo-Fencing & GeoIP Currency Engine
+    if (path === '/edge/geo-personalize' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          simulatedCountry = 'US',
+          basePriceUsd = 49.99,
+          geoFenceConfig = {
+            blockedCountries: ['KP', 'IR', 'SY', 'RU'],
+            challengedCountries: ['CN', 'VN'],
+            allowedCountries: ['*']
+          }
+        } = body;
+
+        // Rich Geo Catalog
+        const GEO_CATALOG = {
+          US: { country: 'US', countryName: 'United States', city: 'New York', continent: 'NA', timezone: 'America/New_York', lat: 40.7128, lng: -74.0060, currency: 'USD', symbol: '$', rate: 1.0, vatRate: 0.08875, vatName: 'NY State & City Sales Tax', isEU: false },
+          GB: { country: 'GB', countryName: 'United Kingdom', city: 'London', continent: 'EU', timezone: 'Europe/London', lat: 51.5074, lng: -0.1278, currency: 'GBP', symbol: '£', rate: 0.79, vatRate: 0.20, vatName: 'UK Standard VAT (20%)', isEU: false },
+          DE: { country: 'DE', countryName: 'Germany', city: 'Frankfurt', continent: 'EU', timezone: 'Europe/Berlin', lat: 50.1109, lng: 8.6821, currency: 'EUR', symbol: '€', rate: 0.92, vatRate: 0.19, vatName: 'German MwSt / EU VAT (19%)', isEU: true },
+          JP: { country: 'JP', countryName: 'Japan', city: 'Tokyo', continent: 'AS', timezone: 'Asia/Tokyo', lat: 35.6762, lng: 139.6503, currency: 'JPY', symbol: '¥', rate: 153.2, vatRate: 0.10, vatName: 'Japan Consumption Tax (10%)', isEU: false },
+          BR: { country: 'BR', countryName: 'Brazil', city: 'São Paulo', continent: 'SA', timezone: 'America/Sao_Paulo', lat: -23.5505, lng: -46.6333, currency: 'BRL', symbol: 'R$', rate: 5.45, vatRate: 0.17, vatName: 'Brazil ICMS (17%)', isEU: false },
+          SG: { country: 'SG', countryName: 'Singapore', city: 'Singapore', continent: 'AS', timezone: 'Asia/Singapore', lat: 1.3521, lng: 103.8198, currency: 'SGD', symbol: 'S$', rate: 1.34, vatRate: 0.09, vatName: 'Singapore GST (9%)', isEU: false },
+          AU: { country: 'AU', countryName: 'Australia', city: 'Sydney', continent: 'OC', timezone: 'Australia/Sydney', lat: -33.8688, lng: 151.2093, currency: 'AUD', symbol: 'A$', rate: 1.52, vatRate: 0.10, vatName: 'Australian GST (10%)', isEU: false },
+          CA: { country: 'CA', countryName: 'Canada', city: 'Toronto', continent: 'NA', timezone: 'America/Toronto', lat: 43.6532, lng: -79.3832, currency: 'CAD', symbol: 'C$', rate: 1.37, vatRate: 0.13, vatName: 'Ontario HST (13%)', isEU: false },
+          IN: { country: 'IN', countryName: 'India', city: 'Mumbai', continent: 'AS', timezone: 'Asia/Kolkata', lat: 19.0760, lng: 72.8777, currency: 'INR', symbol: '₹', rate: 84.1, vatRate: 0.18, vatName: 'India GST (18%)', isEU: false },
+          KP: { country: 'KP', countryName: 'North Korea', city: 'Pyongyang', continent: 'AS', timezone: 'Asia/Pyongyang', lat: 39.0392, lng: 125.7625, currency: 'KPW', symbol: '₩', rate: 900.0, vatRate: 0, vatName: 'None', isEU: false },
+          RU: { country: 'RU', countryName: 'Russian Federation', city: 'Moscow', continent: 'EU', timezone: 'Europe/Moscow', lat: 55.7558, lng: 37.6173, currency: 'RUB', symbol: '₽', rate: 92.5, vatRate: 0.20, vatName: 'Russian VAT', isEU: false }
+        };
+
+        const geo = GEO_CATALOG[simulatedCountry.toUpperCase()] || GEO_CATALOG.US;
+
+        // Geo-fence evaluation
+        let fenceAction = 'ALLOW';
+        let fenceReason = 'Access granted. Country compliant with edge policy.';
+
+        if ((geoFenceConfig.blockedCountries || []).includes(geo.country)) {
+          fenceAction = 'BLOCK';
+          fenceReason = `Access denied (HTTP 403). Requests from ${geo.countryName} (${geo.country}) are blocked by edge compliance rules.`;
+        } else if ((geoFenceConfig.challengedCountries || []).includes(geo.country)) {
+          fenceAction = 'CHALLENGE';
+          fenceReason = `Managed Challenge required. Requests from ${geo.countryName} must pass Cloudflare Turnstile bot verification.`;
+        }
+
+        // Localized Currency Calculations
+        const numPrice = Number(basePriceUsd) || 49.99;
+        const localizedRaw = numPrice * geo.rate;
+        const localizedPrice = geo.currency === 'JPY' ? Math.round(localizedRaw) : Number(localizedRaw.toFixed(2));
+        const taxAmount = Number((localizedPrice * geo.vatRate).toFixed(geo.currency === 'JPY' ? 0 : 2));
+        const totalPriceWithTax = localizedPrice + taxAmount;
+
+        // Regional Database Latency Optimizer (Haversine Distance)
+        const PRIMARY_REGIONS = [
+          { code: 'us-east', name: 'US East (N. Virginia)', lat: 38.03, lng: -78.47 },
+          { code: 'eu-central', name: 'EU Central (Frankfurt)', lat: 50.11, lng: 8.68 },
+          { code: 'ap-northeast', name: 'AP Northeast (Tokyo)', lat: 35.68, lng: 139.75 },
+          { code: 'ap-southeast', name: 'AP Southeast (Singapore)', lat: 1.35, lng: 103.82 }
+        ];
+
+        function haversineDistKm(lat1, lon1, lat2, lon2) {
+          const R = 6371;
+          const dLat = (lat2 - lat1) * Math.PI / 180;
+          const dLon = (lon2 - lon1) * Math.PI / 180;
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          return Math.round(R * c);
+        }
+
+        const regionalDistances = PRIMARY_REGIONS.map(reg => {
+          const distKm = haversineDistKm(geo.lat, geo.lng, reg.lat, reg.lng);
+          const estLatencyMs = Math.max(1, Math.round(distKm * 0.015 + 4)); // Fiber optic propagation estimate
+          return {
+            regionCode: reg.code,
+            regionName: reg.name,
+            distanceKm: distKm,
+            estimatedLatencyMs: estLatencyMs
+          };
+        }).sort((a, b) => a.distanceKm - b.distanceKm);
+
+        const closestRegion = regionalDistances[0];
+
+        const workerGeoCode = `// Cloudflare Worker: Edge Geolocation & Personalization Engine
+const BLOCKED_COUNTRIES = ${JSON.stringify(geoFenceConfig.blockedCountries || [])};
+const CHALLENGED_COUNTRIES = ${JSON.stringify(geoFenceConfig.challengedCountries || [])};
+
+export default {
+  async fetch(request, env, ctx) {
+    const cf = request.cf || {};
+    const country = cf.country || 'US';
+    const city = cf.city || 'Edge Node';
+    const continent = cf.continent || 'Global';
+
+    // 1. Edge Geo-Fencing
+    if (BLOCKED_COUNTRIES.includes(country)) {
+      return new Response(\`Access Denied: Service not available in \${country}.\`, {
+        status: 403,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+    }
+
+    if (CHALLENGED_COUNTRIES.includes(country)) {
+      // Force interactive bot challenge
+      return new Response('Edge Bot Challenge Required', {
+        status: 403,
+        headers: { 'X-Cloudflare-Challenge': 'true' }
+      });
+    }
+
+    // 2. Dynamic HTML Rewriter for Instant Localization
+    const response = await fetch(request);
+    return new HTMLRewriter()
+      .on('[data-geo-greeting]', {
+        element(e) {
+          e.setInnerContent(\`Welcome from \${city}, \${country}!\`);
+        }
+      })
+      .on('[data-geo-currency]', {
+        element(e) {
+          const localCurr = country === 'GB' ? 'GBP (£)' : (cf.isEUCountry ? 'EUR (€)' : 'USD ($)');
+          e.setInnerContent(localCurr);
+        }
+      })
+      .transform(response);
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          geo,
+          fenceAction,
+          fenceReason,
+          pricing: {
+            basePriceUsd: numPrice,
+            currency: geo.currency,
+            currencySymbol: geo.symbol,
+            exchangeRate: geo.rate,
+            localizedPrice,
+            vatRate: geo.vatRate,
+            vatName: geo.vatName,
+            taxAmount,
+            totalPriceWithTax,
+            formattedTotal: `${geo.symbol}${totalPriceWithTax.toLocaleString()}`
+          },
+          regionalRouting: {
+            closestRegion,
+            allRegions: regionalDistances
+          },
+          workerGeoCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {
