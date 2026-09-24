@@ -12908,6 +12908,447 @@ export default {
       }
     }
 
+    // 45. Edge WebSocket & Real-Time Presence Server Studio
+    if (path === '/cloudflare/edge-websockets' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          roomName = 'global-presence-room',
+          clientCount = 4,
+          sampleMessage = '{"event":"user.join","userId":"usr_4402","name":"Alex"}',
+          enableHibernation = true
+        } = body;
+
+        const safeRoom = String(roomName).trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-') || 'general';
+        const safeCount = Math.max(1, Math.min(30, Number(clientCount) || 4));
+
+        // Simulate connected clients in this room
+        const clients = [];
+        for (let i = 1; i <= safeCount; i++) {
+          clients.push({
+            socketId: `ws-${safeRoom}-${Math.random().toString(36).substring(2, 8)}`,
+            userId: `usr_00${i}`,
+            ip: `198.51.100.${10 + i}`,
+            connectedAt: new Date(Date.now() - (i * 45000)).toISOString(),
+            pingLatencyMs: 14 + (i * 3),
+            status: 'CONNECTED',
+            hibernated: enableHibernation && (i > 1) // First active, others hibernated for zero-cost CPU
+          });
+        }
+
+        // Simulated broadcast execution
+        const startBroadcast = Date.now();
+        const broadcastResults = clients.map(c => ({
+          socketId: c.socketId,
+          deliveryLatencyMs: 2 + Math.floor(Math.random() * 5),
+          delivered: true
+        }));
+
+        const workerWebSocketCode = `// Cloudflare Worker WebSocket Server with Hibernation API & Durable Objects
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // Only handle websocket upgrade on /ws endpoint
+    if (url.pathname === '/ws') {
+      const upgradeHeader = request.headers.get('Upgrade');
+      if (!upgradeHeader || upgradeHeader.toLowerCase() !== 'websocket') {
+        return new Response('Expected Upgrade: websocket', { status: 426 });
+      }
+
+      // Create WebSocket Pair
+      const webSocketPair = new WebSocketPair();
+      const [client, server] = Object.values(webSocketPair);
+
+      // Cloudflare Hibernation API: accepts socket and wakes worker only on message
+      server.accept();
+
+      server.addEventListener('message', event => {
+        try {
+          const msg = JSON.parse(event.data);
+          console.log('Received message:', msg);
+
+          // Broadcast response or echo
+          server.send(JSON.stringify({
+            event: 'ack',
+            room: '${safeRoom}',
+            received: msg,
+            timestamp: Date.now()
+          }));
+        } catch (_) {
+          server.send(event.data);
+        }
+      });
+
+      server.addEventListener('close', event => {
+        console.log(\`Socket closed with code \${event.code}: \${event.reason}\`);
+      });
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client
+      });
+    }
+
+    return new Response('WebSocket Edge Gateway running.', { status: 200 });
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          room: safeRoom,
+          protocol: 'RFC 6455 / Cloudflare Edge WebSocket API',
+          clientCount: safeCount,
+          enableHibernation,
+          clients,
+          broadcast: {
+            payload: sampleMessage,
+            totalDelivered: safeCount,
+            avgLatencyMs: (broadcastResults.reduce((acc, c) => acc + c.deliveryLatencyMs, 0) / safeCount).toFixed(1),
+            results: broadcastResults
+          },
+          workerWebSocketCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 46. Edge Bot Management & Browser Fingerprint Analyzer
+    if (path === '/security/bot-analyzer' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          userAgent = request.headers.get('user-agent') || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+          secChUa = '"Google Chrome";v="126", "Chromium";v="126", "Not-A.Brand";v="24"',
+          secChUaPlatform = '"macOS"',
+          incomingHeaders = {
+            'accept-encoding': 'gzip, deflate, br, zstd',
+            'accept-language': 'en-US,en;q=0.9',
+            'sec-fetch-dest': 'document',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-site': 'none',
+            'sec-fetch-user': '?1',
+            'upgrade-insecure-requests': '1'
+          }
+        } = body;
+
+        const ua = String(userAgent).trim();
+        const signals = [];
+        let botScore = 95; // 1 = definite malicious bot, 99 = verified human
+        let classification = 'LIKELY_HUMAN';
+
+        // Check UA automation markers
+        if (/headlesschrome/i.test(ua)) {
+          signals.push({ type: 'CRITICAL', rule: 'HeadlessChrome Marker Detected', penalty: 70 });
+          botScore -= 70;
+          classification = 'HEADLESS_BROWSER';
+        }
+        if (/puppeteer|playwright|selenium|phantomjs|webdriver/i.test(ua)) {
+          signals.push({ type: 'CRITICAL', rule: 'Browser Automation Framework (Puppeteer/Playwright/Selenium)', penalty: 85 });
+          botScore -= 85;
+          classification = 'HEADLESS_BROWSER';
+        }
+        if (/curl\/|wget\/|python-requests|aiohttp|go-http-client|postmanruntime|insomnia/i.test(ua)) {
+          signals.push({ type: 'HIGH', rule: 'HTTP Script / Developer CLI Client', penalty: 65 });
+          botScore -= 65;
+          classification = 'AUTOMATED_SCRAPER';
+        }
+        if (/googlebot|bingbot|yandexbot|duckduckbot|slurp|baiduspider/i.test(ua)) {
+          signals.push({ type: 'INFO', rule: 'Known Search Engine Crawler (Verifiable via Reverse DNS)', penalty: 0 });
+          botScore = 30;
+          classification = 'SEARCH_ENGINE_CRAWLER';
+        }
+
+        // Check Client Hints consistency
+        if (!secChUa && /chrome\//i.test(ua)) {
+          signals.push({ type: 'MEDIUM', rule: 'Modern Chrome UA missing Sec-CH-UA Client Hints', penalty: 20 });
+          botScore -= 20;
+        }
+
+        const headerKeys = Object.keys(incomingHeaders).map(k => k.toLowerCase());
+        if (!headerKeys.includes('accept-language')) {
+          signals.push({ type: 'MEDIUM', rule: 'Missing Accept-Language header (common in primitive bots)', penalty: 15 });
+          botScore -= 15;
+        }
+        if (!headerKeys.includes('sec-fetch-dest') && /chrome\/|safari\//i.test(ua)) {
+          signals.push({ type: 'LOW', rule: 'Missing Sec-Fetch-* metadata headers in browser request', penalty: 10 });
+          botScore -= 10;
+        }
+
+        botScore = Math.max(1, Math.min(99, botScore));
+        if (botScore < 30 && classification === 'LIKELY_HUMAN') classification = 'AUTOMATED_SCRAPER';
+        else if (botScore < 60 && classification === 'LIKELY_HUMAN') classification = 'SUSPICIOUS_CLIENT';
+
+        let recommendedAction = 'ALLOW';
+        if (botScore <= 15) recommendedAction = 'BLOCK';
+        else if (botScore <= 40) recommendedAction = 'MANAGED_CHALLENGE';
+        else if (botScore <= 60) recommendedAction = 'RATE_LIMIT';
+
+        // JA4 TLS fingerprint simulation using Web Crypto
+        const enc = new TextEncoder();
+        const [uaDigest, chDigest] = await Promise.all([
+          crypto.subtle.digest('SHA-256', enc.encode(ua)),
+          crypto.subtle.digest('SHA-256', enc.encode(secChUa + secChUaPlatform))
+        ]);
+        const uaHex = Array.from(new Uint8Array(uaDigest)).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+        const chHex = Array.from(new Uint8Array(chDigest)).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12);
+        const rawJa4 = `t13d1516h2_${uaHex}_${chHex}`;
+
+        const workerWafCode = `// Cloudflare Worker Bot Management & Mitigation Gateway
+export default {
+  async fetch(request, env, ctx) {
+    // Inspect Cloudflare Bot Management metadata
+    const botScore = request.cf?.botManagement?.score ?? ${botScore};
+    const verifiedBot = request.cf?.botManagement?.verifiedBot ?? false;
+
+    // Allow verified search engine crawlers (Googlebot, Bingbot)
+    if (verifiedBot) {
+      return fetch(request);
+    }
+
+    // Enforce bot mitigation based on edge intelligence
+    if (botScore <= 15) {
+      return new Response(JSON.stringify({
+        error: 'Access Denied',
+        message: 'Automated scraping and malicious bot traffic blocked at edge.',
+        botScore
+      }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (botScore <= 40) {
+      // Direct client to Cloudflare Turnstile / Managed Challenge
+      return new Response('Cloudflare Turnstile Managed Challenge Required', {
+        status: 429,
+        headers: { 'CF-Mitigation': 'managed-challenge' }
+      });
+    }
+
+    // Legitimate human traffic: proxy to origin with enriched bot telemetry
+    const modifiedReq = new Request(request);
+    modifiedReq.headers.set('X-Edge-Bot-Score', String(botScore));
+    return fetch(modifiedReq);
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          botScore,
+          classification,
+          recommendedAction,
+          ja4Fingerprint: rawJa4,
+          signalsCount: signals.length,
+          signals,
+          workerWafCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 47. OpenAPI / Swagger Edge Gateway & Schema Validator
+    if (path === '/edge/openapi-validator' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          method: reqMethod = 'POST',
+          path: reqPath = '/api/v1/orders',
+          requestHeaders = { 'content-type': 'application/json', 'authorization': 'Bearer token_xyz' },
+          requestBody = {
+            orderId: 'ORD-9012',
+            items: [{ sku: 'SKU-01', quantity: 2, price: 29.99 }],
+            customerEmail: 'alex@corp.io',
+            shippingAddress: { city: 'San Francisco', postalCode: '94105' }
+          }
+        } = body;
+
+        // Built-in validation against OpenAPI 3.1 Order schema
+        const errors = [];
+        const checkedPath = String(reqPath).trim();
+        const checkedMethod = String(reqMethod).toUpperCase();
+
+        if (checkedPath !== '/api/v1/orders') {
+          errors.push({ location: 'path', parameter: 'path', message: `Route '${checkedPath}' not defined in OpenAPI schema spec.` });
+        }
+
+        if (checkedMethod !== 'POST' && checkedMethod !== 'GET') {
+          errors.push({ location: 'method', parameter: 'method', message: `HTTP method '${checkedMethod}' not allowed on ${checkedPath}. Allowed: GET, POST.` });
+        }
+
+        const payload = typeof requestBody === 'object' && requestBody !== null ? requestBody : {};
+        if (checkedMethod === 'POST') {
+          if (!payload.orderId) {
+            errors.push({ location: 'body', parameter: 'orderId', message: "Missing required property 'orderId'." });
+          }
+          if (!payload.customerEmail || !payload.customerEmail.includes('@')) {
+            errors.push({ location: 'body', parameter: 'customerEmail', message: "Property 'customerEmail' must be a valid email format." });
+          }
+          if (!Array.isArray(payload.items) || payload.items.length === 0) {
+            errors.push({ location: 'body', parameter: 'items', message: "Property 'items' must be a non-empty array." });
+          } else {
+            payload.items.forEach((item, idx) => {
+              if (!item.sku) errors.push({ location: 'body', parameter: `items[${idx}].sku`, message: "Required property 'sku' missing." });
+              if (typeof item.quantity !== 'number' || item.quantity <= 0) errors.push({ location: 'body', parameter: `items[${idx}].quantity`, message: "Quantity must be a positive integer." });
+            });
+          }
+        }
+
+        const isValid = errors.length === 0;
+
+        const workerGatewayCode = `// Cloudflare Worker OpenAPI Schema Enforcing Edge Gateway
+const OPENAPI_SPEC = {
+  "/api/v1/orders": {
+    "post": {
+      "required": ["orderId", "customerEmail", "items"],
+      "properties": {
+        "orderId": { "type": "string" },
+        "customerEmail": { "type": "string", "format": "email" },
+        "items": { "type": "array", "minItems": 1 }
+      }
+    }
+  }
+};
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const method = request.method.toLowerCase();
+    const route = OPENAPI_SPEC[url.pathname];
+
+    if (route && route[method]) {
+      const spec = route[method];
+      if (request.headers.get('content-type')?.includes('application/json')) {
+        try {
+          const body = await request.clone().json();
+          for (const requiredProp of spec.required || []) {
+            if (!(requiredProp in body)) {
+              return Response.json({
+                error: 'OpenAPI Validation Error',
+                detail: \`Field '\${requiredProp}' is required by API contract.\`
+              }, { status: 422 });
+            }
+          }
+        } catch (_) {
+          return Response.json({ error: 'Malformed JSON payload' }, { status: 400 });
+        }
+      }
+    }
+
+    // Validated: Forward safely to backend origin
+    return fetch(request);
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          isValid,
+          checkedPath,
+          checkedMethod,
+          errorsCount: errors.length,
+          validationErrors: errors,
+          workerGatewayCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 48. Edge Image Resizing & WebP/AVIF Format Transformer
+    if (path === '/cloudflare/image-resizer' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          imageUrl = 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809',
+          width = 800,
+          height = 600,
+          fit = 'cover',
+          quality = 85,
+          format = 'auto'
+        } = body;
+
+        const safeWidth = Math.max(16, Math.min(3840, Number(width) || 800));
+        const safeHeight = height ? Math.max(16, Math.min(3840, Number(height) || 600)) : null;
+        const safeQuality = Math.max(1, Math.min(100, Number(quality) || 85));
+        const safeFit = ['scale-down', 'contain', 'cover', 'crop', 'pad'].includes(fit) ? fit : 'cover';
+        const safeFormat = ['auto', 'webp', 'avif', 'jpeg', 'png'].includes(format) ? format : 'auto';
+
+        const cdnParams = [
+          `width=${safeWidth}`,
+          safeHeight ? `height=${safeHeight}` : null,
+          `fit=${safeFit}`,
+          `quality=${safeQuality}`,
+          `format=${safeFormat}`
+        ].filter(Boolean).join(',');
+
+        const transformedUrl = `/cdn-cgi/image/${cdnParams}/${imageUrl.trim()}`;
+
+        // Bandwidth reduction estimates
+        const originalEstimatedBytes = Math.round(safeWidth * (safeHeight || safeWidth * 0.75) * 1.5);
+        const webpEstimatedBytes = Math.round(originalEstimatedBytes * 0.35); // -65%
+        const avifEstimatedBytes = Math.round(originalEstimatedBytes * 0.18); // -82%
+
+        const htmlPictureTag = `<picture>
+  <source srcset="/cdn-cgi/image/width=${safeWidth},format=avif,quality=${safeQuality}/${imageUrl}" type="image/avif">
+  <source srcset="/cdn-cgi/image/width=${safeWidth},format=webp,quality=${safeQuality}/${imageUrl}" type="image/webp">
+  <img src="/cdn-cgi/image/width=${safeWidth},format=auto,quality=${safeQuality}/${imageUrl}" alt="Transformed Edge Image" width="${safeWidth}" ${safeHeight ? `height="${safeHeight}"` : ''} loading="lazy" decoding="async">
+</picture>`;
+
+        const workerImageCode = `// Cloudflare Worker Dynamic Edge Image Resizing & Polish
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    // Extract image resizing params from URL or query params
+    const width = parseInt(url.searchParams.get('w') || '${safeWidth}', 10);
+    const quality = parseInt(url.searchParams.get('q') || '${safeQuality}', 10);
+    const fit = url.searchParams.get('fit') || '${safeFit}';
+
+    // Target source image from origin or R2 bucket
+    const imageOriginUrl = '${imageUrl}';
+
+    // Cloudflare Edge Image Resizing instruction
+    return fetch(imageOriginUrl, {
+      cf: {
+        image: {
+          width,
+          fit,
+          quality,
+          format: 'auto', // Automatically serves AVIF or WebP based on client Accept header
+          metadata: 'copyright' // Strip EXIF data while preserving copyright
+        },
+        cacheEverything: true,
+        cacheTtl: 86400
+      }
+    });
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          transformedUrl,
+          parameters: {
+            width: safeWidth,
+            height: safeHeight,
+            fit: safeFit,
+            quality: safeQuality,
+            format: safeFormat
+          },
+          bandwidthSavings: {
+            originalSizeEst: `${(originalEstimatedBytes / 1024).toFixed(0)} KB (Baseline JPEG/PNG)`,
+            webpSizeEst: `${(webpEstimatedBytes / 1024).toFixed(0)} KB (WebP ~65% reduction)`,
+            avifSizeEst: `${(avifEstimatedBytes / 1024).toFixed(0)} KB (AVIF ~82% reduction)`
+          },
+          htmlPictureTag,
+          workerImageCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {

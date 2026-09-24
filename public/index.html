@@ -2806,6 +2806,18 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('srilocker');">
       <span class="icon">🔒</span> SRI & Edge Script Locker
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('websockets');">
+      <span class="icon">⚡</span> Edge WebSocket & Presence Server
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('botanalyzer');">
+      <span class="icon">🤖</span> Bot Management & JA4 Analyzer
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('openapigateway');">
+      <span class="icon">📐</span> OpenAPI Edge Schema Gateway
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('imageresize');">
+      <span class="icon">🖼️</span> Edge Image Resizing & Polish
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -3110,6 +3122,22 @@ async function loadTab() {
   } else if (currentTab === 'srilocker') {
     if (typeof window.renderSriLockerStudio === 'function') {
       window.renderSriLockerStudio();
+    }
+  } else if (currentTab === 'websockets') {
+    if (typeof window.renderEdgeWebSocketsStudio === 'function') {
+      window.renderEdgeWebSocketsStudio();
+    }
+  } else if (currentTab === 'botanalyzer') {
+    if (typeof window.renderBotAnalyzerStudio === 'function') {
+      window.renderBotAnalyzerStudio();
+    }
+  } else if (currentTab === 'openapigateway') {
+    if (typeof window.renderOpenApiGatewayStudio === 'function') {
+      window.renderOpenApiGatewayStudio();
+    }
+  } else if (currentTab === 'imageresize') {
+    if (typeof window.renderImageResizerStudio === 'function') {
+      window.renderImageResizerStudio();
     }
   }
 }

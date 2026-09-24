@@ -1465,6 +1465,30 @@ function mergeObjects(target, source) {
       window.renderSriLockerStudio();
       return;
     }
+    if (tab === 'websockets') {
+      window.currentTab = 'websockets';
+      updateNavHighlight('tab-websockets');
+      window.renderEdgeWebSocketsStudio();
+      return;
+    }
+    if (tab === 'botanalyzer') {
+      window.currentTab = 'botanalyzer';
+      updateNavHighlight('tab-botanalyzer');
+      window.renderBotAnalyzerStudio();
+      return;
+    }
+    if (tab === 'openapigateway') {
+      window.currentTab = 'openapigateway';
+      updateNavHighlight('tab-openapigateway');
+      window.renderOpenApiGatewayStudio();
+      return;
+    }
+    if (tab === 'imageresize') {
+      window.currentTab = 'imageresize';
+      updateNavHighlight('tab-imageresize');
+      window.renderImageResizerStudio();
+      return;
+    }
 
     if (typeof origSwitchTab === 'function') {
       origSwitchTab(tab);
@@ -7202,6 +7226,723 @@ tracking_id=trk_8829104; Path=/</textarea>
     }
   };
 
+  // =========================================================================
+  // 36. EDGE WEBSOCKET & REAL-TIME PRESENCE SERVER STUDIO
+  // =========================================================================
+
+  window.renderEdgeWebSocketsStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">⚡</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Edge WebSocket & Real-Time Presence Studio</h1>
+              <span class="badge" style="background:rgba(124,106,247,0.15);color:var(--accent,#7c6af7);border:1px solid rgba(124,106,247,0.3);font-size:11px;">WebSocket Hibernation API</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Architect zero-cost real-time pub/sub and multiplayer presence using Cloudflare Workers WebSocket Hibernation API and Durable Objects.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>🔌</span> WebSocket Room & Session Settings
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Room Channel / Topic ID</label>
+              <input type="text" id="wsRoomName" class="form-input" style="width:100%;font-family:monospace;font-size:13px;" value="presence-channel-alpha" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Simulated Connected Peers</label>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input type="range" id="wsClientCount" min="1" max="15" value="5" style="flex:1;" oninput="document.getElementById('wsClientCountVal').textContent = this.value + ' peers'" />
+                <span id="wsClientCountVal" style="font-size:13px;font-weight:700;color:var(--accent,#7c6af7);min-width:60px;">5 peers</span>
+              </div>
+            </div>
+
+            <div style="padding:12px;background:var(--surface2,#242434);border-radius:8px;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" id="wsHibernationToggle" checked />
+                <span>Enable <strong>WebSocket Hibernation</strong> (Zero CPU cost when idle)</span>
+              </label>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Broadcast Message (JSON)</label>
+              <textarea id="wsMessagePayload" class="form-input" rows="4" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">{
+  "event": "cursor.move",
+  "userId": "usr_dev_440",
+  "x": 382,
+  "y": 591,
+  "state": "active"
+}</textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.simulateWebSockets()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>⚡</span> Simulate WebSocket Handshake & Broadcast
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="wsResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">⚡</span>
+              Click <strong>"Simulate WebSocket Handshake"</strong> to test edge socket pairs, hibernation, and broadcast latency.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.simulateWebSockets();
+  };
+
+  window.simulateWebSockets = async function () {
+    const panel = document.getElementById('wsResultsPanel');
+    if (!panel) return;
+
+    const roomName = document.getElementById('wsRoomName')?.value || 'general';
+    const clientCount = Number(document.getElementById('wsClientCount')?.value) || 5;
+    const enableHibernation = document.getElementById('wsHibernationToggle')?.checked ?? true;
+    const sampleMessage = document.getElementById('wsMessagePayload')?.value || '{}';
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Establishing RFC 6455 101 Switching Protocols upgrade...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/cloudflare/edge-websockets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomName, clientCount, sampleMessage, enableHibernation })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'WebSocket simulation failed');
+
+      panel.innerHTML = `
+        <!-- Status & Protocol Overview -->
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Connected Peers</div>
+            <div style="font-size:24px;font-weight:900;color:var(--accent,#7c6af7);margin-top:4px;">${data.clientCount}</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Avg Broadcast Latency</div>
+            <div style="font-size:24px;font-weight:900;color:#10b981;margin-top:4px;">${data.broadcast.avgLatencyMs} ms</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Hibernation Mode</div>
+            <div style="font-size:16px;font-weight:800;color:#38bdf8;margin-top:8px;">${data.enableHibernation ? 'ACTIVE (0-CPU)' : 'STANDBY'}</div>
+          </div>
+        </div>
+
+        <!-- Connected Clients Table -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">🌐 Edge Peer Sockets in Room: ${esc(data.room)}</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;">
+            ${data.clients.map(c => `
+              <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <span style="font-family:monospace;font-size:12px;font-weight:700;color:#fff;">${esc(c.socketId)}</span>
+                  <span style="margin-left:8px;font-size:11px;color:var(--muted,#888);">(${esc(c.ip)})</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:12px;color:#10b981;">${c.pingLatencyMs}ms ping</span>
+                  <span class="badge" style="background:${c.hibernated ? 'rgba(56,189,248,0.15)' : 'rgba(16,185,129,0.15)'};color:${c.hibernated ? '#38bdf8' : '#10b981'};font-size:11px;">
+                    ${c.hibernated ? 'Hibernating' : 'Active'}
+                  </span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Cloudflare Worker Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Worker WebSocket Server</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyWsWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="wsWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:240px;line-height:1.5;">${esc(data.workerWebSocketCode)}</pre>
+        </div>
+      `;
+
+      window._currentWsWorkerCode = data.workerWebSocketCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">WebSocket Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyWsWorker = function() {
+    if (window._currentWsWorkerCode) {
+      navigator.clipboard.writeText(window._currentWsWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied WebSocket Worker to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 37. EDGE BOT MANAGEMENT & BROWSER FINGERPRINT ANALYZER STUDIO
+  // =========================================================================
+
+  window.renderBotAnalyzerStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🤖</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Edge Bot Management & JA4 Fingerprint Studio</h1>
+              <span class="badge" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);font-size:11px;">Scraper Mitigation</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Detect headless browsers, scrapers, and malicious automation using Client Hints, JA4 TLS heuristics, and Cloudflare Bot Management scoring.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <h3 style="font-size:16px;font-weight:700;margin:0;">🕵️ Client Fingerprint Inputs</h3>
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-secondary" style="font-size:10px;padding:2px 6px;" onclick="window.applyBotPreset('human')">Human</button>
+                <button class="btn btn-secondary" style="font-size:10px;padding:2px 6px;" onclick="window.applyBotPreset('puppeteer')">Puppeteer</button>
+                <button class="btn btn-secondary" style="font-size:10px;padding:2px 6px;" onclick="window.applyBotPreset('curl')">cURL</button>
+                <button class="btn btn-secondary" style="font-size:10px;padding:2px 6px;" onclick="window.applyBotPreset('googlebot')">Googlebot</button>
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">User-Agent Header</label>
+              <textarea id="botUaInput" class="form-input" rows="3" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36</textarea>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Sec-CH-UA (Client Hints)</label>
+                <input type="text" id="botSecChUa" class="form-input" style="width:100%;font-size:12px;font-family:monospace;" value='"Google Chrome";v="126", "Chromium";v="126"' />
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Sec-CH-UA-Platform</label>
+                <input type="text" id="botSecPlatform" class="form-input" style="width:100%;font-size:12px;font-family:monospace;" value='"macOS"' />
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.analyzeBotFingerprint()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🤖</span> Analyze Bot Score & JA4
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="botResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🤖</span>
+              Click <strong>"Analyze Bot Score & JA4"</strong> to evaluate automation signals and view mitigation policies.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.analyzeBotFingerprint();
+  };
+
+  window.applyBotPreset = function(type) {
+    const ua = document.getElementById('botUaInput');
+    const ch = document.getElementById('botSecChUa');
+    const pf = document.getElementById('botSecPlatform');
+    if (!ua || !ch || !pf) return;
+
+    if (type === 'human') {
+      ua.value = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+      ch.value = '"Google Chrome";v="126", "Chromium";v="126"';
+      pf.value = '"macOS"';
+    } else if (type === 'puppeteer') {
+      ua.value = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/124.0.6367.60 Safari/537.36';
+      ch.value = '';
+      pf.value = '';
+    } else if (type === 'curl') {
+      ua.value = 'curl/8.4.0';
+      ch.value = '';
+      pf.value = '';
+    } else if (type === 'googlebot') {
+      ua.value = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+      ch.value = '';
+      pf.value = '';
+    }
+    window.analyzeBotFingerprint();
+  };
+
+  window.analyzeBotFingerprint = async function () {
+    const panel = document.getElementById('botResultsPanel');
+    if (!panel) return;
+
+    const userAgent = document.getElementById('botUaInput')?.value || '';
+    const secChUa = document.getElementById('botSecChUa')?.value || '';
+    const secChUaPlatform = document.getElementById('botSecPlatform')?.value || '';
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Analyzing TLS ClientHello JA4 fingerprint & automation markers...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/security/bot-analyzer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userAgent, secChUa, secChUaPlatform })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Bot analysis failed');
+
+      let scoreColor = '#10b981';
+      if (data.botScore <= 20) scoreColor = '#ef4444';
+      else if (data.botScore <= 50) scoreColor = '#f59e0b';
+      else if (data.botScore <= 75) scoreColor = '#38bdf8';
+
+      panel.innerHTML = `
+        <!-- Score Card -->
+        <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:16px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;align-items:center;gap:16px;">
+            <div style="width:68px;height:68px;border-radius:50%;background:${scoreColor}22;border:3px solid ${scoreColor};display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:${scoreColor};">
+              ${data.botScore}
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Cloudflare Bot Score (1-99)</div>
+              <div style="font-size:15px;font-weight:800;color:#fff;margin-top:2px;">${esc(data.classification)}</div>
+            </div>
+          </div>
+
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;justify-content:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;margin-bottom:4px;">Recommended Edge Action</div>
+            <div style="font-size:16px;font-weight:900;color:${data.recommendedAction === 'BLOCK' ? '#ef4444' : data.recommendedAction === 'MANAGED_CHALLENGE' ? '#f59e0b' : '#10b981'};">
+              ${data.recommendedAction}
+            </div>
+          </div>
+        </div>
+
+        <!-- JA4 Fingerprint Card -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px 20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">JA4 TLS Fingerprint</span>
+            <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="navigator.clipboard.writeText('${esc(data.ja4Fingerprint)}')">Copy JA4</button>
+          </div>
+          <div style="font-family:monospace;font-size:13px;font-weight:700;color:#38bdf8;background:#0d0d14;padding:8px 12px;border-radius:6px;border:1px solid var(--border);">
+            ${esc(data.ja4Fingerprint)}
+          </div>
+        </div>
+
+        <!-- Detected Signals -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">🔍 Evaluated Detection Signals</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;">
+            ${data.signals.length > 0 ? data.signals.map(s => `
+              <div style="background:var(--surface2,#242434);border-left:4px solid ${s.type === 'CRITICAL' ? '#ef4444' : s.type === 'HIGH' ? '#f59e0b' : '#06b6d4'};border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+                <span style="color:#e2e8f0;">${esc(s.rule)}</span>
+                <span style="color:#ef4444;font-weight:700;">-${s.penalty} pts</span>
+              </div>
+            `).join('') : '<div style="color:#10b981;font-size:13px;">No automated scraper or headless browser signals detected.</div>'}
+          </div>
+        </div>
+
+        <!-- Worker WAF Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Bot Mitigation Worker</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyBotWaf()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="botWafBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:200px;line-height:1.5;">${esc(data.workerWafCode)}</pre>
+        </div>
+      `;
+
+      window._currentBotWafCode = data.workerWafCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Bot Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyBotWaf = function() {
+    if (window._currentBotWafCode) {
+      navigator.clipboard.writeText(window._currentBotWafCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied Bot Mitigation Worker to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 38. OPENAPI / SWAGGER EDGE GATEWAY & SCHEMA VALIDATOR STUDIO
+  // =========================================================================
+
+  window.renderOpenApiGatewayStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">📐</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">OpenAPI Edge Gateway & Schema Validator</h1>
+              <span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4;border:1px solid rgba(6,182,212,0.3);font-size:11px;">Schema Enforcement</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Validate API requests against OpenAPI contracts directly on Cloudflare edge before reaching backend microservices. Stop malformed requests with zero origin latency.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>📝</span> Test Request Payload
+            </h3>
+
+            <div style="display:grid;grid-template-columns:100px 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Method</label>
+                <select id="apiMethod" class="form-input" style="width:100%;font-size:13px;font-weight:700;">
+                  <option value="POST" selected>POST</option>
+                  <option value="GET">GET</option>
+                  <option value="PUT">PUT</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">API Route Path</label>
+                <input type="text" id="apiPath" class="form-input" style="width:100%;font-family:monospace;font-size:13px;" value="/api/v1/orders" />
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Request Body (JSON)</label>
+              <textarea id="apiBodyInput" class="form-input" rows="8" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">{
+  "orderId": "ORD-9921",
+  "customerEmail": "alex@corp.io",
+  "items": [
+    { "sku": "SKU-PRO-01", "quantity": 2, "price": 49.99 }
+  ],
+  "shippingAddress": {
+    "city": "San Francisco",
+    "postalCode": "94105"
+  }
+}</textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.validateApiContract()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>📐</span> Validate Against OpenAPI Contract
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="apiResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">📐</span>
+              Click <strong>"Validate Against OpenAPI Contract"</strong> to verify schema properties and generate Edge Gateway code.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.validateApiContract();
+  };
+
+  window.validateApiContract = async function () {
+    const panel = document.getElementById('apiResultsPanel');
+    if (!panel) return;
+
+    const method = document.getElementById('apiMethod')?.value || 'POST';
+    const path = document.getElementById('apiPath')?.value || '/api/v1/orders';
+    let requestBody = {};
+    try {
+      requestBody = JSON.parse(document.getElementById('apiBodyInput')?.value || '{}');
+    } catch (_) {
+      requestBody = null;
+    }
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Executing edge JSON schema contract validation...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/edge/openapi-validator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method, path, requestBody })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Validation failed');
+
+      panel.innerHTML = `
+        <!-- Validation Status Card -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;border-top:4px solid ${data.isValid ? '#10b981' : '#ef4444'};">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="font-size:12px;color:var(--muted,#888);text-transform:uppercase;">Contract Conformance</span>
+              <div style="font-size:22px;font-weight:900;color:${data.isValid ? '#10b981' : '#ef4444'};margin-top:2px;">
+                ${data.isValid ? 'VALID CONTRACT REQUEST' : 'SCHEMA VIOLATIONS IDENTIFIED'}
+              </div>
+            </div>
+            <span class="badge" style="background:${data.isValid ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'};color:${data.isValid ? '#10b981' : '#ef4444'};font-size:12px;">
+              ${data.errorsCount} Violations
+            </span>
+          </div>
+        </div>
+
+        <!-- Violation Details -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">📋 Schema Rule Evaluations</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;">
+            ${data.validationErrors.length > 0 ? data.validationErrors.map(e => `
+              <div style="background:var(--surface2,#242434);border-left:4px solid #ef4444;border-radius:6px;padding:8px 12px;font-size:12px;">
+                <span style="font-weight:700;color:#ef4444;">[${esc(e.location)}: ${esc(e.parameter)}]</span>
+                <span style="color:#e2e8f0;margin-left:6px;">${esc(e.message)}</span>
+              </div>
+            `).join('') : '<div style="color:#10b981;font-size:13px;">Payload adheres 100% strictly to OpenAPI 3.1 schema specifications!</div>'}
+          </div>
+        </div>
+
+        <!-- Worker Gateway Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Edge Schema Gateway</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyApiGateway()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="apiGatewayBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerGatewayCode)}</pre>
+        </div>
+      `;
+
+      window._currentApiGatewayCode = data.workerGatewayCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Schema Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyApiGateway = function() {
+    if (window._currentApiGatewayCode) {
+      navigator.clipboard.writeText(window._currentApiGatewayCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied OpenAPI Gateway to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 39. EDGE IMAGE RESIZING & WEBP/AVIF TRANSFORMER STUDIO
+  // =========================================================================
+
+  window.renderImageResizerStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🖼️</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Edge Image Resizing & Format Studio</h1>
+              <span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);font-size:11px;">Polish & WebP/AVIF</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Transform and optimize images on Cloudflare edge. Generate responsive srcset picture tags, WebP/AVIF compression savings, and Worker image resizing proxies.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>📐</span> Image Dimensions & Geometry
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Source Image URL</label>
+              <input type="text" id="imgSourceUrl" class="form-input" style="width:100%;font-family:monospace;font-size:12px;" value="https://images.unsplash.com/photo-1579546929518-9e396f3cc809" />
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Target Width (px)</label>
+                <input type="number" id="imgTargetWidth" class="form-input" style="width:100%;font-size:13px;" value="800" min="50" max="3840" />
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Target Height (px)</label>
+                <input type="number" id="imgTargetHeight" class="form-input" style="width:100%;font-size:13px;" value="600" min="50" max="3840" />
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Crop / Fit Mode</label>
+                <select id="imgFitMode" class="form-input" style="width:100%;font-size:13px;">
+                  <option value="cover" selected>cover (Fill box, crop excess)</option>
+                  <option value="contain">contain (Fit inside box)</option>
+                  <option value="scale-down">scale-down</option>
+                  <option value="crop">crop</option>
+                  <option value="pad">pad</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Format</label>
+                <select id="imgFormat" class="form-input" style="width:100%;font-size:13px;">
+                  <option value="auto" selected>auto (AVIF / WebP by client Accept)</option>
+                  <option value="webp">webp</option>
+                  <option value="avif">avif</option>
+                  <option value="jpeg">jpeg</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Compression Quality</label>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input type="range" id="imgQuality" min="10" max="100" value="85" style="flex:1;" oninput="document.getElementById('imgQualityVal').textContent = this.value + '%'" />
+                <span id="imgQualityVal" style="font-size:13px;font-weight:700;color:#10b981;min-width:40px;">85%</span>
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.generateImageResizer()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🖼️</span> Generate Edge Image Transformation
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="imgResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🖼️</span>
+              Click <strong>"Generate Edge Image Transformation"</strong> to calculate byte savings and HTML picture tags.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.generateImageResizer();
+  };
+
+  window.generateImageResizer = async function () {
+    const panel = document.getElementById('imgResultsPanel');
+    if (!panel) return;
+
+    const imageUrl = document.getElementById('imgSourceUrl')?.value || '';
+    const width = Number(document.getElementById('imgTargetWidth')?.value) || 800;
+    const height = Number(document.getElementById('imgTargetHeight')?.value) || 600;
+    const fit = document.getElementById('imgFitMode')?.value || 'cover';
+    const format = document.getElementById('imgFormat')?.value || 'auto';
+    const quality = Number(document.getElementById('imgQuality')?.value) || 85;
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Computing edge CDN image resizing path and format savings...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/cloudflare/image-resizer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl, width, height, fit, format, quality })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Resizing computation failed');
+
+      panel.innerHTML = `
+        <!-- Bandwidth Savings Comparison -->
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Baseline Origin</div>
+            <div style="font-size:18px;font-weight:800;color:#94a3b8;margin-top:4px;">${data.bandwidthSavings.originalSizeEst.split(' ')[0]} KB</div>
+            <div style="font-size:11px;color:var(--muted,#888);">JPEG/PNG</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">WebP Edge Polish</div>
+            <div style="font-size:18px;font-weight:800;color:#10b981;margin-top:4px;">${data.bandwidthSavings.webpSizeEst.split(' ')[0]} KB</div>
+            <div style="font-size:11px;color:#10b981;">~65% Savings</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">AVIF Next-Gen</div>
+            <div style="font-size:18px;font-weight:800;color:#06b6d4;margin-top:4px;">${data.bandwidthSavings.avifSizeEst.split(' ')[0]} KB</div>
+            <div style="font-size:11px;color:#06b6d4;">~82% Savings</div>
+          </div>
+        </div>
+
+        <!-- Transformed Edge URL -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px 20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:12px;font-weight:700;color:var(--muted,#888);text-transform:uppercase;">Cloudflare Edge CDN Image URL</span>
+            <button class="btn btn-secondary" style="font-size:10px;padding:2px 8px;" onclick="navigator.clipboard.writeText('${esc(data.transformedUrl)}')">Copy URL</button>
+          </div>
+          <div style="font-family:monospace;font-size:12px;color:#10b981;background:#0d0d14;padding:8px 12px;border-radius:6px;border:1px solid var(--border);overflow-x:auto;">
+            ${esc(data.transformedUrl)}
+          </div>
+        </div>
+
+        <!-- HTML <picture> Tag Example -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">🏷️ Responsive HTML Picture Element</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="navigator.clipboard.writeText('${esc(data.htmlPictureTag)}')">
+              <span>📋</span> Copy Picture Tag
+            </button>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#38bdf8;overflow-x:auto;line-height:1.5;">${esc(data.htmlPictureTag)}</pre>
+        </div>
+
+        <!-- Cloudflare Worker Image Proxy Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Worker Image Resizer Proxy</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyImageWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="imgWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerImageCode)}</pre>
+        </div>
+      `;
+
+      window._currentImageWorkerCode = data.workerImageCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Image Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyImageWorker = function() {
+    if (window._currentImageWorkerCode) {
+      navigator.clipboard.writeText(window._currentImageWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied Image Worker to clipboard!');
+    }
+  };
+
+
 
 
   // =========================================================================
@@ -7457,6 +8198,34 @@ tracking_id=trk_8829104; Path=/</textarea>
     sriBtn.innerHTML = '<span>🔒</span> SRI Edge Locker';
     sriBtn.onclick = () => window.switchTab('srilocker');
 
+    // 36. Edge WebSockets
+    const wsBtn = document.createElement('button');
+    wsBtn.className = 'tab';
+    wsBtn.id = 'tab-websockets';
+    wsBtn.innerHTML = '<span>⚡</span> Edge WebSockets';
+    wsBtn.onclick = () => window.switchTab('websockets');
+
+    // 37. Bot & JA4 Analyzer
+    const botBtn = document.createElement('button');
+    botBtn.className = 'tab';
+    botBtn.id = 'tab-botanalyzer';
+    botBtn.innerHTML = '<span>🤖</span> Bot & JA4';
+    botBtn.onclick = () => window.switchTab('botanalyzer');
+
+    // 38. OpenAPI Gateway
+    const apiBtn = document.createElement('button');
+    apiBtn.className = 'tab';
+    apiBtn.id = 'tab-openapigateway';
+    apiBtn.innerHTML = '<span>📐</span> OpenAPI Gateway';
+    apiBtn.onclick = () => window.switchTab('openapigateway');
+
+    // 39. Image Resizing & Polish
+    const imgBtn = document.createElement('button');
+    imgBtn.className = 'tab';
+    imgBtn.id = 'tab-imageresize';
+    imgBtn.innerHTML = '<span>🖼️</span> Image Resizing';
+    imgBtn.onclick = () => window.switchTab('imageresize');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
@@ -7495,6 +8264,10 @@ tracking_id=trk_8829104; Path=/</textarea>
       tabsContainer.insertBefore(cookieBtn, qBtn.nextSibling);
       tabsContainer.insertBefore(canaryBtn, cookieBtn.nextSibling);
       tabsContainer.insertBefore(sriBtn, canaryBtn.nextSibling);
+      tabsContainer.insertBefore(wsBtn, sriBtn.nextSibling);
+      tabsContainer.insertBefore(botBtn, wsBtn.nextSibling);
+      tabsContainer.insertBefore(apiBtn, botBtn.nextSibling);
+      tabsContainer.insertBefore(imgBtn, apiBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
@@ -7531,6 +8304,10 @@ tracking_id=trk_8829104; Path=/</textarea>
       tabsContainer.appendChild(cookieBtn);
       tabsContainer.appendChild(canaryBtn);
       tabsContainer.appendChild(sriBtn);
+      tabsContainer.appendChild(wsBtn);
+      tabsContainer.appendChild(botBtn);
+      tabsContainer.appendChild(apiBtn);
+      tabsContainer.appendChild(imgBtn);
     }
   }
 
