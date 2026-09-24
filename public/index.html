@@ -2830,6 +2830,18 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('ssemultiplex');">
       <span class="icon">📡</span> SSE Live Stream Multiplexer
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('graphqlshield');">
+      <span class="icon">🛡️</span> GraphQL Shield & AST Cost Analyzer
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('hlsrewriter');">
+      <span class="icon">🎞️</span> HLS/DASH Video Stream Rewriter
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('logpush');">
+      <span class="icon">📊</span> Logpush Pipeline & SIEM Integrator
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('typesgen');">
+      <span class="icon">📐</span> Edge Type Safety & Zod Schema Studio
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -3166,6 +3178,22 @@ async function loadTab() {
   } else if (currentTab === 'ssemultiplex') {
     if (typeof window.renderSseMultiplexerStudio === 'function') {
       window.renderSseMultiplexerStudio();
+    }
+  } else if (currentTab === 'graphqlshield') {
+    if (typeof window.renderGraphqlShieldStudio === 'function') {
+      window.renderGraphqlShieldStudio();
+    }
+  } else if (currentTab === 'hlsrewriter') {
+    if (typeof window.renderHlsRewriterStudio === 'function') {
+      window.renderHlsRewriterStudio();
+    }
+  } else if (currentTab === 'logpush') {
+    if (typeof window.renderLogpushStudio === 'function') {
+      window.renderLogpushStudio();
+    }
+  } else if (currentTab === 'typesgen') {
+    if (typeof window.renderTypesGenStudio === 'function') {
+      window.renderTypesGenStudio();
     }
   }
 }

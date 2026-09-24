@@ -13798,6 +13798,476 @@ export default {
       }
     }
 
+    // 53. GraphQL Edge Shield & Query Complexity Cost Analyzer
+    if (path === '/security/graphql-shield' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          query = `query GetUserFeed {
+  user(id: "usr_991") {
+    id
+    name
+    email
+    posts(first: 20) {
+      id
+      title
+      comments(first: 10) {
+        id
+        content
+        author {
+          id
+          name
+        }
+      }
+    }
+  }
+}`,
+          maxDepth = 5,
+          maxCost = 100,
+          allowIntrospection = false
+        } = body;
+
+        const safeQuery = String(query).trim();
+        const safeMaxDepth = Math.max(1, Math.min(20, Number(maxDepth) || 5));
+        const safeMaxCost = Math.max(10, Math.min(1000, Number(maxCost) || 100));
+
+        // 1. Check introspection queries
+        const isIntrospection = /__schema|__type|__typename/i.test(safeQuery);
+        let introspectionBlocked = false;
+        if (isIntrospection && !allowIntrospection) {
+          introspectionBlocked = true;
+        }
+
+        // 2. Measure nesting depth
+        let currentDepth = 0;
+        let maxObservedDepth = 0;
+        for (let i = 0; i < safeQuery.length; i++) {
+          const char = safeQuery[i];
+          if (char === '{') {
+            currentDepth++;
+            if (currentDepth > maxObservedDepth) maxObservedDepth = currentDepth;
+          } else if (char === '}') {
+            currentDepth = Math.max(0, currentDepth - 1);
+          }
+        }
+
+        // 3. Estimate complexity cost
+        // Every field = 1 cost. Fields with (first: N) multiply nested cost
+        const lines = safeQuery.split('\n');
+        let estimatedCost = 0;
+        const fieldMatches = safeQuery.match(/[a-zA-Z0-9_]+(?:\s*\([^)]*\))?\s*\{?/g) || [];
+
+        fieldMatches.forEach(f => {
+          const trimmed = f.trim();
+          if (['query', 'mutation', 'subscription', '{', '}'].includes(trimmed)) return;
+          const limitMatch = trimmed.match(/first:\s*(\d+)/i) || trimmed.match(/limit:\s*(\d+)/i);
+          if (limitMatch) {
+            const count = Math.min(100, parseInt(limitMatch[1], 10) || 10);
+            estimatedCost += count * 2;
+          } else {
+            estimatedCost += 1;
+          }
+        });
+
+        // 4. Cyclic recursion check
+        const hasCyclicDanger = /posts[\s\S]*comments[\s\S]*author[\s\S]*posts/i.test(safeQuery) ||
+                               /user[\s\S]*friends[\s\S]*friends[\s\S]*friends/i.test(safeQuery);
+
+        const violations = [];
+        if (introspectionBlocked) {
+          violations.push({ rule: 'INTROSPECTION_PROHIBITED', message: 'Schema introspection (__schema / __type) is disabled in production edge environments.' });
+        }
+        if (maxObservedDepth > safeMaxDepth) {
+          violations.push({ rule: 'DEPTH_LIMIT_EXCEEDED', message: `Query nesting depth of ${maxObservedDepth} exceeds maximum allowed depth of ${safeMaxDepth}.` });
+        }
+        if (estimatedCost > safeMaxCost) {
+          violations.push({ rule: 'COMPLEXITY_COST_EXCEEDED', message: `Calculated query cost of ${estimatedCost} exceeds maximum threshold of ${safeMaxCost}.` });
+        }
+        if (hasCyclicDanger) {
+          violations.push({ rule: 'CYCLIC_RECURSION_DETECTED', message: 'Query contains potentially dangerous recursive cyclic relationships that risk database exhaustion.' });
+        }
+
+        const isAllowed = violations.length === 0;
+
+        const workerGraphqlWafCode = `// Cloudflare Worker GraphQL Edge Shield & Query WAF
+const MAX_DEPTH = ${safeMaxDepth};
+const MAX_COST = ${safeMaxCost};
+const ALLOW_INTROSPECTION = ${allowIntrospection ? 'true' : 'false'};
+
+function calculateAstDepth(query) {
+  let depth = 0;
+  let max = 0;
+  for (let i = 0; i < query.length; i++) {
+    if (query[i] === '{') {
+      depth++;
+      if (depth > max) max = depth;
+    } else if (query[i] === '}') {
+      depth = Math.max(0, depth - 1);
+    }
+  }
+  return max;
+}
+
+export default {
+  async fetch(request, env) {
+    if (request.method === 'POST' && request.url.includes('/graphql')) {
+      try {
+        const body = await request.clone().json();
+        const query = body.query || '';
+
+        // 1. Introspection Guard
+        if (!ALLOW_INTROSPECTION && /__schema|__type/i.test(query)) {
+          return Response.json({
+            errors: [{ message: 'GraphQL Introspection is disabled at Cloudflare Edge.' }]
+          }, { status: 400 });
+        }
+
+        // 2. Depth Guard
+        const depth = calculateAstDepth(query);
+        if (depth > MAX_DEPTH) {
+          return Response.json({
+            errors: [{ message: \`Query depth \${depth} exceeds maximum limit of \${MAX_DEPTH}.\` }]
+          }, { status: 400 });
+        }
+
+        // Valid query: proceed to upstream GraphQL server
+        return fetch(request);
+      } catch (err) {
+        return Response.json({ errors: [{ message: 'Malformed GraphQL payload' }] }, { status: 400 });
+      }
+    }
+
+    return fetch(request);
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          isAllowed,
+          observedDepth: maxObservedDepth,
+          maxAllowedDepth: safeMaxDepth,
+          calculatedCost: estimatedCost,
+          maxAllowedCost: safeMaxCost,
+          isIntrospection,
+          violationsCount: violations.length,
+          violations,
+          workerGraphqlWafCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 54. Edge HLS/DASH Adaptive Video Stream Manifest Rewriter
+    if (path === '/cloudflare/hls-rewriter' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          manifestContent = `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:10
+#EXT-X-MEDIA-SEQUENCE:0
+#EXTINF:9.009,
+segment-000.ts
+#EXTINF:9.009,
+segment-001.ts
+#EXTINF:9.009,
+segment-002.ts
+#EXT-X-ENDLIST`,
+          cdnDomain = 'https://cdn-edge.vault-stream.internal',
+          tokenSecret = 'vault_media_stream_secret_2026',
+          expirationSeconds = 3600
+        } = body;
+
+        const safeCdn = String(cdnDomain).trim().replace(/\/$/, '');
+        const safeExp = Math.max(60, Math.min(86400, Number(expirationSeconds) || 3600));
+        const expiresAt = Math.floor(Date.now() / 1000) + safeExp;
+
+        // Generate HMAC signature token for expiring URLs
+        const enc = new TextEncoder();
+        const key = await crypto.subtle.importKey(
+          'raw',
+          enc.encode(tokenSecret),
+          { name: 'HMAC', hash: 'SHA-256' },
+          false,
+          ['sign']
+        );
+
+        const sigBuf = await crypto.subtle.sign('HMAC', key, enc.encode(`EXP:${expiresAt}`));
+        const tokenHex = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+
+        // Rewrite segment paths to CDN with signed expiring tokens
+        const lines = manifestContent.split('\n');
+        let segmentCount = 0;
+        const rewrittenLines = lines.map(line => {
+          const trimmed = line.trim();
+          if (trimmed.endsWith('.ts') || trimmed.endsWith('.m4s') || trimmed.endsWith('.mp4')) {
+            segmentCount++;
+            return `${safeCdn}/${trimmed}?exp=${expiresAt}&token=${tokenHex}`;
+          }
+          return line;
+        });
+
+        const rewrittenManifest = rewrittenLines.join('\n');
+
+        const workerHlsCode = `// Cloudflare Worker Dynamic HLS/DASH Manifest Rewriter
+const MEDIA_CDN = '${safeCdn}';
+const TOKEN_SECRET = '${tokenSecret}';
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    // Only intercept .m3u8 playlist manifests
+    if (url.pathname.endsWith('.m3u8')) {
+      const response = await fetch(request);
+      let manifest = await response.text();
+
+      const exp = Math.floor(Date.now() / 1000) + 3600;
+      
+      // Dynamically rewrite relative .ts segments to edge CDN with authenticated tokens
+      manifest = manifest.replace(/^(?!#)(\\S+\\.(ts|m4s))/gm, (match) => {
+        return \`\${MEDIA_CDN}/\${match}?exp=\${exp}&token=${tokenHex}\`;
+      });
+
+      return new Response(manifest, {
+        headers: {
+          'Content-Type': 'application/vnd.apple.mpegurl',
+          'Cache-Control': 'public, max-age=5', // Short cache for live HLS manifests
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
+    return fetch(request);
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          segmentsRewritten: segmentCount,
+          expiresAt: new Date(expiresAt * 1000).toISOString(),
+          tokenHex,
+          originalLength: manifestContent.length,
+          rewrittenLength: rewrittenManifest.length,
+          rewrittenManifest,
+          workerHlsCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 55. Logpush & Security SIEM Edge Pipeline
+    if (path === '/cloudflare/logpush-pipeline' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          dataset = 'http_requests',
+          destinationType = 'datadog',
+          samplingRate = 1.0,
+          redactPii = true
+        } = body;
+
+        const safeSample = Math.max(0.01, Math.min(1.0, Number(samplingRate) || 1.0));
+
+        // Sample raw Logpush event
+        const sampleLogEvent = {
+          ClientIP: redactPii ? '198.51.100.***' : '198.51.100.42',
+          ClientRequestHost: 'vault.corp.io',
+          ClientRequestMethod: 'POST',
+          ClientRequestURI: '/api/v1/checkout',
+          EdgeResponseStatus: 200,
+          EdgeStartTimestamp: new Date().toISOString(),
+          EdgeLatencyMs: 14,
+          ClientCountry: 'US',
+          ClientASN: 13335,
+          ClientASNDescription: 'CLOUDFLARENET',
+          WAFAction: 'ALLOW',
+          SecurityBotScore: 92,
+          SecurityAuthorizationHeader: redactPii ? '[REDACTED_BEARER_TOKEN]' : 'Bearer eyJhbGciOiJIUzI1Ni...'
+        };
+
+        const destinations = {
+          datadog: 'https://http-intake.logs.datadoghq.com/api/v2/logs?ddsource=cloudflare',
+          splunk: 'https://splunk-hec.internal.corp:8088/services/collector/raw',
+          s3_compatible: 's3://vault-security-logs-prod/edge-events?region=us-east-1',
+          r2: 'r2://vault-logpush-archive/http-requests'
+        };
+
+        const selectedDestUrl = destinations[destinationType] || destinations.datadog;
+
+        const logpushJobConfig = {
+          name: `vault-edge-${dataset}-to-${destinationType}`,
+          dataset,
+          destination_conf: selectedDestUrl,
+          filter: '{"where":{"and":[{"key":"EdgeResponseStatus","operator":"neq","value":304}]}}',
+          sampling_rate: safeSample,
+          output_options: {
+            field_delimiter: '\n',
+            record_delimiter: '\n',
+            timestamp_format: 'rfc3339',
+            compression: 'gzip'
+          }
+        };
+
+        const workerLogStreamingCode = `// Cloudflare Worker Edge Telemetry Batcher (Non-Blocking via ctx.waitUntil)
+const LOG_COLLECTOR_URL = '${selectedDestUrl}';
+
+export default {
+  async fetch(request, env, ctx) {
+    const start = Date.now();
+    const response = await fetch(request);
+    const latencyMs = Date.now() - start;
+
+    // Non-blocking log shipping to SIEM
+    ctx.waitUntil((async () => {
+      try {
+        const logPayload = {
+          timestamp: new Date().toISOString(),
+          ip: ${redactPii ? `request.headers.get('cf-connecting-ip')?.replace(/\\.\\d+$/, '.***')` : `request.headers.get('cf-connecting-ip')`},
+          colo: request.cf?.colo || 'UNKNOWN',
+          country: request.cf?.country || 'US',
+          method: request.method,
+          path: new URL(request.url).pathname,
+          status: response.status,
+          latencyMs
+        };
+
+        await fetch(LOG_COLLECTOR_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Cloudflare-Worker-Logpush/1.0'
+          },
+          body: JSON.stringify(logPayload)
+        });
+      } catch (err) {
+        console.error('Failed to ship SIEM telemetry:', err);
+      }
+    })());
+
+    return response;
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          dataset,
+          destinationType,
+          samplingRate: safeSample,
+          redactPii,
+          sampleLogEvent,
+          logpushJobConfig,
+          workerLogStreamingCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 56. Edge OpenAPI to TypeScript & Zod Type Generator
+    if (path === '/edge/types-generator' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          typeName = 'OrderPayload',
+          sampleJson = `{\n  "orderId": "ORD-4921",\n  "amount": 99.50,\n  "customer": {\n    "name": "Alex",\n    "email": "alex@corp.io",\n    "isVerified": true\n  },\n  "tags": ["express", "priority"],\n  "metadata": null\n}`
+        } = body;
+
+        let parsedObj = {};
+        try {
+          parsedObj = JSON.parse(sampleJson);
+        } catch (_) {
+          parsedObj = { id: 'sample-1', active: true };
+        }
+
+        // Infer TypeScript and Zod definitions recursively
+        function inferTs(obj, indent = '  ') {
+          if (typeof obj !== 'object' || obj === null) {
+            return typeof obj;
+          }
+          if (Array.isArray(obj)) {
+            const innerType = obj.length > 0 ? inferTs(obj[0], indent) : 'unknown';
+            return `${innerType}[]`;
+          }
+          let ts = '{\n';
+          for (const [k, v] of Object.entries(obj)) {
+            const isOptional = v === null || v === undefined;
+            const typeStr = v === null ? 'any | null' : inferTs(v, indent + '  ');
+            ts += `${indent}${k}${isOptional ? '?' : ''}: ${typeStr};\n`;
+          }
+          ts += indent.slice(2) + '}';
+          return ts;
+        }
+
+        function inferZod(obj, indent = '  ') {
+          if (obj === null) return 'z.any().nullable()';
+          if (typeof obj === 'string') return 'z.string()';
+          if (typeof obj === 'number') return 'z.number()';
+          if (typeof obj === 'boolean') return 'z.boolean()';
+          if (Array.isArray(obj)) {
+            const inner = obj.length > 0 ? inferZod(obj[0], indent) : 'z.unknown()';
+            return `z.array(${inner})`;
+          }
+          let zStr = 'z.object({\n';
+          for (const [k, v] of Object.entries(obj)) {
+            const fieldZ = inferZod(v, indent + '  ');
+            zStr += `${indent}${k}: ${fieldZ},\n`;
+          }
+          zStr += indent.slice(2) + '})';
+          return zStr;
+        }
+
+        const safeTypeName = String(typeName).replace(/[^a-zA-Z0-9_]/g, '') || 'CustomType';
+        const tsInterface = `export interface ${safeTypeName} ${inferTs(parsedObj)}`;
+        const zodSchema = `export const ${safeTypeName}Schema = ${inferZod(parsedObj)};\n\nexport type ${safeTypeName} = z.infer<typeof ${safeTypeName}Schema>;`;
+
+        const workerIntegrationCode = `// Cloudflare Worker with Runtime Zod Type Safety
+import { z } from 'zod';
+
+${zodSchema}
+
+export default {
+  async fetch(request, env) {
+    if (request.method !== 'POST') {
+      return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    try {
+      const rawJson = await request.json();
+      
+      // Strict runtime Zod schema validation
+      const parseResult = ${safeTypeName}Schema.safeParse(rawJson);
+      if (!parseResult.success) {
+        return Response.json({
+          error: 'Invalid Request Contract',
+          issues: parseResult.error.format()
+        }, { status: 422 });
+      }
+
+      const validatedData: ${safeTypeName} = parseResult.data;
+      console.log('Validated edge payload:', validatedData);
+
+      return Response.json({ success: true, processed: validatedData });
+    } catch (err) {
+      return Response.json({ error: 'Malformed JSON' }, { status: 400 });
+    }
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          typeName: safeTypeName,
+          tsInterface,
+          zodSchema,
+          workerIntegrationCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {

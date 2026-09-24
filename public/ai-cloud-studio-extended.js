@@ -1513,6 +1513,30 @@ function mergeObjects(target, source) {
       window.renderSseMultiplexerStudio();
       return;
     }
+    if (tab === 'graphqlshield') {
+      window.currentTab = 'graphqlshield';
+      updateNavHighlight('tab-graphqlshield');
+      window.renderGraphqlShieldStudio();
+      return;
+    }
+    if (tab === 'hlsrewriter') {
+      window.currentTab = 'hlsrewriter';
+      updateNavHighlight('tab-hlsrewriter');
+      window.renderHlsRewriterStudio();
+      return;
+    }
+    if (tab === 'logpush') {
+      window.currentTab = 'logpush';
+      updateNavHighlight('tab-logpush');
+      window.renderLogpushStudio();
+      return;
+    }
+    if (tab === 'typesgen') {
+      window.currentTab = 'typesgen';
+      updateNavHighlight('tab-typesgen');
+      window.renderTypesGenStudio();
+      return;
+    }
 
     if (typeof origSwitchTab === 'function') {
       origSwitchTab(tab);
@@ -8558,6 +8582,668 @@ tracking_id=trk_8829104; Path=/</textarea>
     }
   };
 
+  // =========================================================================
+  // 44. GRAPHQL EDGE SHIELD & QUERY COMPLEXITY COST ANALYZER STUDIO
+  // =========================================================================
+
+  window.renderGraphqlShieldStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🛡️</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">GraphQL Edge Shield & Complexity Analyzer</h1>
+              <span class="badge" style="background:rgba(236,72,153,0.15);color:#ec4899;border:1px solid rgba(236,72,153,0.3);font-size:11px;">Query WAF</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Inspect GraphQL AST query depth, compute complexity costs, block recursive cycles, and guard against schema introspection attacks at Cloudflare Edge.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <h3 style="font-size:16px;font-weight:700;margin:0;">📝 GraphQL Query Input</h3>
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-secondary" style="font-size:10px;padding:2px 6px;" onclick="window.applyGqlPreset('safe')">Safe Query</button>
+                <button class="btn btn-secondary" style="font-size:10px;padding:2px 6px;" onclick="window.applyGqlPreset('deep')">Deep Attack</button>
+                <button class="btn btn-secondary" style="font-size:10px;padding:2px 6px;" onclick="window.applyGqlPreset('introspect')">Introspect</button>
+              </div>
+            </div>
+
+            <div>
+              <textarea id="gqlQueryInput" class="form-input" rows="9" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">query GetUserFeed {
+  user(id: "usr_991") {
+    id
+    name
+    email
+    posts(first: 20) {
+      id
+      title
+      comments(first: 10) {
+        id
+        content
+        author {
+          id
+          name
+        }
+      }
+    }
+  }
+}</textarea>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Max AST Depth Allowed</label>
+                <input type="number" id="gqlMaxDepth" class="form-input" style="width:100%;font-size:13px;" value="5" min="1" max="15" />
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Max Complexity Cost</label>
+                <input type="number" id="gqlMaxCost" class="form-input" style="width:100%;font-size:13px;" value="100" min="10" max="500" />
+              </div>
+            </div>
+
+            <div style="padding:12px;background:var(--surface2,#242434);border-radius:8px;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" id="gqlAllowIntrospect" />
+                <span>Allow Introspection Queries (<code>__schema</code>, <code>__type</code>)</span>
+              </label>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.analyzeGraphqlShield()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🛡️</span> Analyze Query & Enforce Edge WAF
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="gqlResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🛡️</span>
+              Click <strong>"Analyze Query & Enforce Edge WAF"</strong> to inspect AST nesting depth and complexity cost.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.analyzeGraphqlShield();
+  };
+
+  window.applyGqlPreset = function(type) {
+    const q = document.getElementById('gqlQueryInput');
+    if (!q) return;
+
+    if (type === 'safe') {
+      q.value = `query GetProfile {\n  me {\n    id\n    username\n    profile {\n      avatarUrl\n      bio\n    }\n  }\n}`;
+    } else if (type === 'deep') {
+      q.value = `query MaliciousDepthAttack {\n  user {\n    posts {\n      comments {\n        author {\n          posts {\n            comments {\n              author {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}`;
+    } else if (type === 'introspect') {
+      q.value = `query IntrospectSchema {\n  __schema {\n    types {\n      name\n      fields {\n        name\n      }\n    }\n  }\n}`;
+    }
+    window.analyzeGraphqlShield();
+  };
+
+  window.analyzeGraphqlShield = async function () {
+    const panel = document.getElementById('gqlResultsPanel');
+    if (!panel) return;
+
+    const query = document.getElementById('gqlQueryInput')?.value || '';
+    const maxDepth = Number(document.getElementById('gqlMaxDepth')?.value) || 5;
+    const maxCost = Number(document.getElementById('gqlMaxCost')?.value) || 100;
+    const allowIntrospection = document.getElementById('gqlAllowIntrospect')?.checked ?? false;
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Parsing GraphQL AST and evaluating complexity cost...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/security/graphql-shield', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, maxDepth, maxCost, allowIntrospection })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'GraphQL Shield analysis failed');
+
+      panel.innerHTML = `
+        <!-- Decision Banner -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;border-top:4px solid ${data.isAllowed ? '#10b981' : '#ef4444'};">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="font-size:12px;color:var(--muted,#888);text-transform:uppercase;">Edge WAF Policy Decision</span>
+              <div style="font-size:22px;font-weight:900;color:${data.isAllowed ? '#10b981' : '#ef4444'};margin-top:2px;">
+                ${data.isAllowed ? 'QUERY ALLOWED (PASSED EDGE SHIELD)' : 'QUERY BLOCKED AT EDGE (SECURITY DEFENSE)'}
+              </div>
+            </div>
+            <span class="badge" style="background:${data.isAllowed ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'};color:${data.isAllowed ? '#10b981' : '#ef4444'};font-size:12px;">
+              ${data.violationsCount} Violations
+            </span>
+          </div>
+        </div>
+
+        <!-- Metrics Comparison Cards -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">AST Nesting Depth</div>
+            <div style="font-size:24px;font-weight:900;color:${data.observedDepth > data.maxAllowedDepth ? '#ef4444' : '#10b981'};margin-top:4px;">
+              ${data.observedDepth} / ${data.maxAllowedDepth} max
+            </div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Query Complexity Cost</div>
+            <div style="font-size:24px;font-weight:900;color:${data.calculatedCost > data.maxAllowedCost ? '#ef4444' : '#06b6d4'};margin-top:4px;">
+              ${data.calculatedCost} / ${data.maxAllowedCost} pts
+            </div>
+          </div>
+        </div>
+
+        <!-- Security Rule Violations -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">📋 Security Rule Evaluations</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;">
+            ${data.violations.length > 0 ? data.violations.map(v => `
+              <div style="background:var(--surface2,#242434);border-left:4px solid #ef4444;border-radius:6px;padding:8px 12px;font-size:12px;">
+                <span style="font-weight:800;color:#ef4444;">[${esc(v.rule)}]</span>
+                <span style="color:#e2e8f0;margin-left:6px;">${esc(v.message)}</span>
+              </div>
+            `).join('') : '<div style="color:#10b981;font-size:13px;">No schema depth, complexity cost, or introspection violations identified.</div>'}
+          </div>
+        </div>
+
+        <!-- Cloudflare Worker GraphQL WAF Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Worker GraphQL Query WAF</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyGqlWaf()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="gqlWafBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerGraphqlWafCode)}</pre>
+        </div>
+      `;
+
+      window._currentGqlWafCode = data.workerGraphqlWafCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">GraphQL Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyGqlWaf = function() {
+    if (window._currentGqlWafCode) {
+      navigator.clipboard.writeText(window._currentGqlWafCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied GraphQL WAF to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 45. EDGE HLS/DASH ADAPTIVE VIDEO STREAM MANIFEST REWRITER STUDIO
+  // =========================================================================
+
+  window.renderHlsRewriterStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🎬</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Edge HLS/DASH Adaptive Video Rewriter</h1>
+              <span class="badge" style="background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);font-size:11px;">Media Stream CDN</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Rewrite .m3u8 playlists dynamically at Cloudflare edge. Inforce tokenized HMAC expiring playback URLs and multi-CDN segment routing.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>📺</span> HLS Playlist & Media CDN
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Target Media Edge CDN Domain</label>
+              <input type="text" id="hlsCdnDomain" class="form-input" style="width:100%;font-family:monospace;font-size:13px;" value="https://cdn-edge.vault-stream.internal" />
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Token Secret Key</label>
+                <input type="text" id="hlsTokenSecret" class="form-input" style="width:100%;font-family:monospace;font-size:12px;" value="vault_stream_secret_2026" />
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Token TTL (Seconds)</label>
+                <input type="number" id="hlsExpSec" class="form-input" style="width:100%;font-size:13px;" value="3600" min="60" max="86400" />
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Master / Media Playlist (.m3u8)</label>
+              <textarea id="hlsManifestInput" class="form-input" rows="7" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:10
+#EXT-X-MEDIA-SEQUENCE:0
+#EXTINF:9.009,
+segment-000.ts
+#EXTINF:9.009,
+segment-001.ts
+#EXTINF:9.009,
+segment-002.ts
+#EXT-X-ENDLIST</textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.rewriteHlsManifest()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🎬</span> Rewrite Manifest & Sign Segment URLs
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="hlsResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🎬</span>
+              Click <strong>"Rewrite Manifest & Sign Segment URLs"</strong> to generate authenticated stream tokens.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.rewriteHlsManifest();
+  };
+
+  window.rewriteHlsManifest = async function () {
+    const panel = document.getElementById('hlsResultsPanel');
+    if (!panel) return;
+
+    const manifestContent = document.getElementById('hlsManifestInput')?.value || '';
+    const cdnDomain = document.getElementById('hlsCdnDomain')?.value || 'https://cdn-edge.vault-stream.internal';
+    const tokenSecret = document.getElementById('hlsTokenSecret')?.value || 'secret';
+    const expirationSeconds = Number(document.getElementById('hlsExpSec')?.value) || 3600;
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Computing HMAC token signatures and transforming segment paths...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/cloudflare/hls-rewriter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manifestContent, cdnDomain, tokenSecret, expirationSeconds })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'HLS rewriting failed');
+
+      panel.innerHTML = `
+        <!-- Metrics -->
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Rewritten Segments</div>
+            <div style="font-size:22px;font-weight:900;color:#3b82f6;margin-top:4px;">${data.segmentsRewritten} TS Files</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Token Valid Until</div>
+            <div style="font-size:13px;font-weight:700;color:#10b981;margin-top:6px;">${esc(data.expiresAt.split('T')[1].substring(0, 8))} UTC</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">HMAC Signature</div>
+            <div style="font-family:monospace;font-size:12px;font-weight:700;color:#f59e0b;margin-top:6px;">${esc(data.tokenHex)}</div>
+          </div>
+        </div>
+
+        <!-- Rewritten Manifest Output -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">📦 Transformed .m3u8 Media Manifest</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyHlsManifest()">
+              <span>📋</span> Copy Playlist
+            </button>
+          </div>
+          <pre id="hlsManifestBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#38bdf8;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.rewrittenManifest)}</pre>
+        </div>
+
+        <!-- Cloudflare Worker Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Worker HLS Rewriter</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyHlsWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="hlsWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerHlsCode)}</pre>
+        </div>
+      `;
+
+      window._currentHlsManifest = data.rewrittenManifest;
+      window._currentHlsWorkerCode = data.workerHlsCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">HLS Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyHlsManifest = function() {
+    if (window._currentHlsManifest) {
+      navigator.clipboard.writeText(window._currentHlsManifest);
+      if (typeof window.showToast === 'function') window.showToast('Copied HLS playlist to clipboard!');
+    }
+  };
+
+  window.copyHlsWorker = function() {
+    if (window._currentHlsWorkerCode) {
+      navigator.clipboard.writeText(window._currentHlsWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied HLS Worker to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 46. LOGPUSH & SECURITY SIEM EDGE PIPELINE STUDIO
+  // =========================================================================
+
+  window.renderLogpushStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">📊</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Logpush & Security SIEM Pipeline Studio</h1>
+              <span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);font-size:11px;">Zero-Cost Telemetry</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Configure real-time Cloudflare Logpush jobs and non-blocking Worker telemetry streaming with PII redaction for Datadog, Splunk, and S3/R2.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>⚙️</span> Dataset & SIEM Target
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Logpush Dataset</label>
+              <select id="logpushDataset" class="form-input" style="width:100%;font-size:13px;font-weight:600;">
+                <option value="http_requests" selected>HTTP Requests (Edge Access Logs)</option>
+                <option value="firewall_events">Firewall & WAF Events</option>
+                <option value="dns_logs">1.1.1.1 DNS Query Logs</option>
+                <option value="workers_trace">Workers Trace & Invocation Events</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">SIEM Destination Provider</label>
+              <select id="logpushDest" class="form-input" style="width:100%;font-size:13px;">
+                <option value="datadog" selected>Datadog Logs API</option>
+                <option value="splunk">Splunk HEC (HTTP Event Collector)</option>
+                <option value="r2">Cloudflare R2 Object Storage</option>
+                <option value="s3_compatible">Amazon S3 / Compatible Bucket</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Event Sampling Rate (0.01 - 1.0)</label>
+              <input type="number" id="logpushSample" class="form-input" style="width:100%;font-size:13px;" value="1.0" step="0.1" min="0.01" max="1.0" />
+            </div>
+
+            <div style="padding:12px;background:var(--surface2,#242434);border-radius:8px;">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" id="logpushRedact" checked />
+                <span>Mask PII & Redact Bearer Tokens / IP Octets</span>
+              </label>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.generateLogpushPipeline()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>📊</span> Generate Logpush Pipeline & Worker
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="logpushResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">📊</span>
+              Click <strong>"Generate Logpush Pipeline"</strong> to view structured SIEM events and non-blocking streaming scripts.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.generateLogpushPipeline();
+  };
+
+  window.generateLogpushPipeline = async function () {
+    const panel = document.getElementById('logpushResultsPanel');
+    if (!panel) return;
+
+    const dataset = document.getElementById('logpushDataset')?.value || 'http_requests';
+    const destinationType = document.getElementById('logpushDest')?.value || 'datadog';
+    const samplingRate = Number(document.getElementById('logpushSample')?.value) || 1.0;
+    const redactPii = document.getElementById('logpushRedact')?.checked ?? true;
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Formatting Logpush job config & sanitizing security schemas...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/cloudflare/logpush-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataset, destinationType, samplingRate, redactPii })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Logpush pipeline generation failed');
+
+      panel.innerHTML = `
+        <!-- Sanitized SIEM Event Preview -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">🛡️ Sanitized SIEM Event Payload</h3>
+            <span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981;font-size:11px;">PII Redacted</span>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#10b981;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(JSON.stringify(data.sampleLogEvent, null, 2))}</pre>
+        </div>
+
+        <!-- Logpush API Configuration -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚙️ Cloudflare Logpush Job Config</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="navigator.clipboard.writeText('${esc(JSON.stringify(data.logpushJobConfig, null, 2))}')">
+              <span>📋</span> Copy Config
+            </button>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#38bdf8;overflow-x:auto;max-height:200px;line-height:1.5;">${esc(JSON.stringify(data.logpushJobConfig, null, 2))}</pre>
+        </div>
+
+        <!-- Non-Blocking Worker Streaming Script -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Worker Async Telemetry (ctx.waitUntil)</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyLogpushWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="logpushWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerLogStreamingCode)}</pre>
+        </div>
+      `;
+
+      window._currentLogpushWorkerCode = data.workerLogStreamingCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Logpush Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyLogpushWorker = function() {
+    if (window._currentLogpushWorkerCode) {
+      navigator.clipboard.writeText(window._currentLogpushWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied Logpush Worker to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 47. EDGE OPENAPI TO TYPESCRIPT & ZOD TYPE GENERATOR STUDIO
+  // =========================================================================
+
+  window.renderTypesGenStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🔷</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">TypeScript & Zod Edge Contract Compiler</h1>
+              <span class="badge" style="background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);font-size:11px;">Type-Safe Edge</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Compile JSON schemas or payloads into static TypeScript interfaces, strict runtime Zod schemas, and type-safe Cloudflare Worker validation guards.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>📝</span> Payload / JSON Specification
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Target Type Name</label>
+              <input type="text" id="typeGenName" class="form-input" style="width:100%;font-family:monospace;font-size:13px;font-weight:700;" value="UserProfile" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Sample JSON Structure</label>
+              <textarea id="typeGenJson" class="form-input" rows="10" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">{
+  "userId": "usr_9941",
+  "username": "alex_developer",
+  "email": "alex@corp.io",
+  "isEnterprise": true,
+  "credits": 250.75,
+  "roles": ["admin", "developer"],
+  "preferences": {
+    "theme": "dark",
+    "twoFactorEnabled": true
+  }
+}</textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.compileEdgeTypes()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🔷</span> Compile TypeScript & Zod Schemas
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="typesResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🔷</span>
+              Click <strong>"Compile TypeScript & Zod Schemas"</strong> to generate type-safe interfaces and edge validation guards.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.compileEdgeTypes();
+  };
+
+  window.compileEdgeTypes = async function () {
+    const panel = document.getElementById('typesResultsPanel');
+    if (!panel) return;
+
+    const typeName = document.getElementById('typeGenName')?.value || 'CustomType';
+    const sampleJson = document.getElementById('typeGenJson')?.value || '{}';
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Inferring nested schema types & synthesizing Zod guards...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/edge/types-generator', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ typeName, sampleJson })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Type compilation failed');
+
+      panel.innerHTML = `
+        <!-- TypeScript Interface -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">🔷 Static TypeScript Interface</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="navigator.clipboard.writeText('${esc(data.tsInterface)}')">
+              <span>📋</span> Copy Interface
+            </button>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#38bdf8;overflow-x:auto;max-height:180px;line-height:1.5;">${esc(data.tsInterface)}</pre>
+        </div>
+
+        <!-- Zod Validation Schema -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">🛡️ Runtime Zod Validation Schema</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="navigator.clipboard.writeText('${esc(data.zodSchema)}')">
+              <span>📋</span> Copy Zod Schema
+            </button>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#10b981;overflow-x:auto;max-height:180px;line-height:1.5;">${esc(data.zodSchema)}</pre>
+        </div>
+
+        <!-- Cloudflare Worker Validation Handler -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Worker Type-Safe Handler</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyTypesWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="typesWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerIntegrationCode)}</pre>
+        </div>
+      `;
+
+      window._currentTypesWorkerCode = data.workerIntegrationCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Compilation Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyTypesWorker = function() {
+    if (window._currentTypesWorkerCode) {
+      navigator.clipboard.writeText(window._currentTypesWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied Type-Safe Worker to clipboard!');
+    }
+  };
+
 
 
 
@@ -8871,6 +9557,34 @@ tracking_id=trk_8829104; Path=/</textarea>
     sseBtn.innerHTML = '<span>📡</span> SSE Multiplex';
     sseBtn.onclick = () => window.switchTab('ssemultiplex');
 
+    // 44. GraphQL Edge Shield
+    const graphqlBtn = document.createElement('button');
+    graphqlBtn.className = 'tab';
+    graphqlBtn.id = 'tab-graphqlshield';
+    graphqlBtn.innerHTML = '<span>🛡️</span> GraphQL Shield';
+    graphqlBtn.onclick = () => window.switchTab('graphqlshield');
+
+    // 45. HLS Stream Rewriter
+    const hlsBtn = document.createElement('button');
+    hlsBtn.className = 'tab';
+    hlsBtn.id = 'tab-hlsrewriter';
+    hlsBtn.innerHTML = '<span>🎞️</span> HLS Rewriter';
+    hlsBtn.onclick = () => window.switchTab('hlsrewriter');
+
+    // 46. Logpush Pipeline & SIEM
+    const logpushBtn = document.createElement('button');
+    logpushBtn.className = 'tab';
+    logpushBtn.id = 'tab-logpush';
+    logpushBtn.innerHTML = '<span>📊</span> Logpush SIEM';
+    logpushBtn.onclick = () => window.switchTab('logpush');
+
+    // 47. Edge Types & Zod Generator
+    const typesBtn = document.createElement('button');
+    typesBtn.className = 'tab';
+    typesBtn.id = 'tab-typesgen';
+    typesBtn.innerHTML = '<span>📐</span> Type Safety & Zod';
+    typesBtn.onclick = () => window.switchTab('typesgen');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
@@ -8917,6 +9631,10 @@ tracking_id=trk_8829104; Path=/</textarea>
       tabsContainer.insertBefore(mtlsBtn, flagsBtn.nextSibling);
       tabsContainer.insertBefore(hintsBtn, mtlsBtn.nextSibling);
       tabsContainer.insertBefore(sseBtn, hintsBtn.nextSibling);
+      tabsContainer.insertBefore(graphqlBtn, sseBtn.nextSibling);
+      tabsContainer.insertBefore(hlsBtn, graphqlBtn.nextSibling);
+      tabsContainer.insertBefore(logpushBtn, hlsBtn.nextSibling);
+      tabsContainer.insertBefore(typesBtn, logpushBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
@@ -8961,6 +9679,10 @@ tracking_id=trk_8829104; Path=/</textarea>
       tabsContainer.appendChild(mtlsBtn);
       tabsContainer.appendChild(hintsBtn);
       tabsContainer.appendChild(sseBtn);
+      tabsContainer.appendChild(graphqlBtn);
+      tabsContainer.appendChild(hlsBtn);
+      tabsContainer.appendChild(logpushBtn);
+      tabsContainer.appendChild(typesBtn);
     }
   }
 
