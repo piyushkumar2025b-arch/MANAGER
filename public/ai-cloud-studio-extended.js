@@ -1489,6 +1489,30 @@ function mergeObjects(target, source) {
       window.renderImageResizerStudio();
       return;
     }
+    if (tab === 'featureflags') {
+      window.currentTab = 'featureflags';
+      updateNavHighlight('tab-featureflags');
+      window.renderFeatureFlagsStudio();
+      return;
+    }
+    if (tab === 'mtls') {
+      window.currentTab = 'mtls';
+      updateNavHighlight('tab-mtls');
+      window.renderMtlsArchitectStudio();
+      return;
+    }
+    if (tab === 'earlyhints') {
+      window.currentTab = 'earlyhints';
+      updateNavHighlight('tab-earlyhints');
+      window.renderEarlyHintsStudio();
+      return;
+    }
+    if (tab === 'ssemultiplex') {
+      window.currentTab = 'ssemultiplex';
+      updateNavHighlight('tab-ssemultiplex');
+      window.renderSseMultiplexerStudio();
+      return;
+    }
 
     if (typeof origSwitchTab === 'function') {
       origSwitchTab(tab);
@@ -7942,6 +7966,599 @@ tracking_id=trk_8829104; Path=/</textarea>
     }
   };
 
+  // =========================================================================
+  // 40. EDGE FEATURE FLAGS & REMOTE CONFIG STUDIO
+  // =========================================================================
+
+  window.renderFeatureFlagsStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🚩</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Edge Feature Flags & Remote Config Studio</h1>
+              <span class="badge" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);font-size:11px;">KV Dynamic Flags</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Evaluate user percentage rollouts, role overrides, and geo-targeting with sub-millisecond edge consistency via Cloudflare Workers and KV.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>⚙️</span> Flag Rules & Targeting
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Feature Flag Key</label>
+              <input type="text" id="flagKeyInput" class="form-input" style="width:100%;font-family:monospace;font-size:13px;" value="checkout_redesign_v2" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Target Rollout Percentage</label>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input type="range" id="flagPercentage" min="0" max="100" value="50" style="flex:1;" oninput="document.getElementById('flagPercentageVal').textContent = this.value + '%'" />
+                <span id="flagPercentageVal" style="font-size:13px;font-weight:700;color:#f59e0b;min-width:45px;">50%</span>
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Allowed Countries (ISO-2, comma separated)</label>
+              <input type="text" id="flagCountries" class="form-input" style="width:100%;font-size:13px;font-family:monospace;" value="US, CA, GB, SG, AU" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Override Roles (100% Guaranteed Active)</label>
+              <input type="text" id="flagRoles" class="form-input" style="width:100%;font-size:13px;font-family:monospace;" value="admin, beta_tester" />
+            </div>
+
+            <button class="btn btn-primary" onclick="window.evaluateFeatureFlags()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🚩</span> Evaluate Edge Feature Flags
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="flagResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🚩</span>
+              Click <strong>"Evaluate Edge Feature Flags"</strong> to test user cohort hashing and view edge KV configuration.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.evaluateFeatureFlags();
+  };
+
+  window.evaluateFeatureFlags = async function () {
+    const panel = document.getElementById('flagResultsPanel');
+    if (!panel) return;
+
+    const flagKey = document.getElementById('flagKeyInput')?.value || 'feature_flag';
+    const rolloutPercentage = Number(document.getElementById('flagPercentage')?.value) || 50;
+    const allowedCountries = (document.getElementById('flagCountries')?.value || '').split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+    const allowedRoles = (document.getElementById('flagRoles')?.value || '').split(',').map(r => r.trim().toLowerCase()).filter(Boolean);
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Computing deterministic FNV-1a user bucket evaluations...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/edge/feature-flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flagKey, rolloutPercentage, allowedCountries, allowedRoles })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Evaluation failed');
+
+      panel.innerHTML = `
+        <!-- Metrics Cards -->
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Flag Status</div>
+            <div style="font-size:18px;font-weight:900;color:#f59e0b;margin-top:4px;">${esc(data.flagKey)}</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Target Rollout</div>
+            <div style="font-size:22px;font-weight:900;color:#fff;margin-top:4px;">${data.rolloutPercentage}%</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Active Cohort</div>
+            <div style="font-size:22px;font-weight:900;color:#10b981;margin-top:4px;">${data.activeUsersCount} / ${data.totalUsersEvaluated} (${data.activePercentage})</div>
+          </div>
+        </div>
+
+        <!-- Evaluation Table -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">👥 Test User Cohort Evaluations</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;">
+            ${data.evaluations.map(u => `
+              <div style="background:var(--surface2,#242434);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <span style="font-weight:700;color:#fff;font-size:13px;">${esc(u.name)}</span>
+                  <span style="font-size:11px;color:var(--muted,#888);margin-left:6px;">(${esc(u.country)} • ${esc(u.role)})</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:11px;color:var(--muted,#888);">${esc(u.reason)}</span>
+                  <span class="badge" style="background:${u.enabled ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'};color:${u.enabled ? '#10b981' : '#ef4444'};font-size:11px;font-weight:800;">
+                    ${u.enabled ? 'ENABLED' : 'DISABLED'}
+                  </span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Cloudflare Worker Evaluator Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Edge Flag Middleware</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyFlagsWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="flagsWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerFlagsCode)}</pre>
+        </div>
+      `;
+
+      window._currentFlagsWorkerCode = data.workerFlagsCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Evaluation Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyFlagsWorker = function() {
+    if (window._currentFlagsWorkerCode) {
+      navigator.clipboard.writeText(window._currentFlagsWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied Feature Flags Worker to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 41. mTLS (MUTUAL TLS) & CLIENT CERTIFICATE ARCHITECT STUDIO
+  // =========================================================================
+
+  window.renderMtlsArchitectStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🔐</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">mTLS & Client Certificate Architect</h1>
+              <span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);font-size:11px;">Zero Trust Edge</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Architect Mutual TLS (mTLS) enforcement with Cloudflare API Shield. Generate simulated Root CAs, client certificates, and header validation gateways.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>📜</span> PKI Identity & CA Authority
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Root CA Common Name (CN)</label>
+              <input type="text" id="mtlsCaCn" class="form-input" style="width:100%;font-size:13px;" value="Vault Enterprise Root CA" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Organization (O)</label>
+              <input type="text" id="mtlsOrg" class="form-input" style="width:100%;font-size:13px;" value="Vault Corporation Inc" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Client Certificate Identity (CN / FQDN)</label>
+              <input type="text" id="mtlsClientCn" class="form-input" style="width:100%;font-family:monospace;font-size:13px;" value="terminal-pos-042.devices.vault.internal" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Enforced Organizational Unit (OU)</label>
+              <input type="text" id="mtlsOu" class="form-input" style="width:100%;font-size:13px;" value="SecurityOperations" />
+            </div>
+
+            <button class="btn btn-primary" onclick="window.generateMtlsPipeline()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🔐</span> Generate mTLS Architecture & Worker
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="mtlsResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🔐</span>
+              Click <strong>"Generate mTLS Architecture"</strong> to inspect certificate SHA-256 digests, edge headers, and gateway code.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.generateMtlsPipeline();
+  };
+
+  window.generateMtlsPipeline = async function () {
+    const panel = document.getElementById('mtlsResultsPanel');
+    if (!panel) return;
+
+    const caCommonName = document.getElementById('mtlsCaCn')?.value || 'Root CA';
+    const organization = document.getElementById('mtlsOrg')?.value || 'Corp';
+    const clientIdentity = document.getElementById('mtlsClientCn')?.value || 'client';
+    const enforceOrgUnit = document.getElementById('mtlsOu')?.value || 'Security';
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Synthesizing PKI hierarchy and generating edge mTLS headers...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/security/mtls-architect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caCommonName, organization, clientIdentity, enforceOrgUnit })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'mTLS generation failed');
+
+      panel.innerHTML = `
+        <!-- Certificate SHA-256 Digest Overview -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 12px 0;">🔑 Cryptographic Fingerprints</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="background:var(--surface2,#242434);padding:10px 14px;border-radius:8px;border:1px solid var(--border);">
+              <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Root CA SHA-256 Fingerprint</div>
+              <div style="font-family:monospace;font-size:12px;color:#38bdf8;font-weight:700;margin-top:2px;">${esc(data.rootCa.sha256Fingerprint)}</div>
+            </div>
+            <div style="background:var(--surface2,#242434);padding:10px 14px;border-radius:8px;border:1px solid var(--border);">
+              <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Client Certificate SHA-256 Fingerprint</div>
+              <div style="font-family:monospace;font-size:12px;color:#10b981;font-weight:700;margin-top:2px;">${esc(data.clientCertificate.sha256Fingerprint)}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Simulated Cloudflare Edge mTLS Headers -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <h3 style="font-size:15px;font-weight:700;margin:0 0 10px 0;">🌐 Edge Injected Request Headers</h3>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${Object.entries(data.simulatedHeaders).map(([k, v]) => `
+              <div style="display:flex;justify-content:space-between;background:#0d0d14;padding:6px 12px;border-radius:6px;font-family:monospace;font-size:12px;">
+                <span style="color:var(--muted,#888);">${esc(k)}:</span>
+                <span style="color:#10b981;font-weight:700;">${esc(v)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Cloudflare Worker Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Worker mTLS Enforcer</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyMtlsWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="mtlsWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerMtlsCode)}</pre>
+        </div>
+      `;
+
+      window._currentMtlsWorkerCode = data.workerMtlsCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">mTLS Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyMtlsWorker = function() {
+    if (window._currentMtlsWorkerCode) {
+      navigator.clipboard.writeText(window._currentMtlsWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied mTLS Worker to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 42. HTTP EARLY HINTS (103 EARLY HINTS) & PRELOAD PIPELINE STUDIO
+  // =========================================================================
+
+  window.renderEarlyHintsStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">🚀</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">HTTP 103 Early Hints & Preload Pipeline Studio</h1>
+              <span class="badge" style="background:rgba(6,182,212,0.15);color:#06b6d4;border:1px solid rgba(6,182,212,0.3);font-size:11px;">RFC 8297 Speed Boost</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Accelerate Largest Contentful Paint (LCP) and render-blocking resources by emitting HTTP 103 Early Hints ahead of origin server response times.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>⚡</span> Preload Resources & Waterfall
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Simulated Origin TTFB Latency</label>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input type="range" id="hintsLatency" min="50" max="1000" value="280" style="flex:1;" oninput="document.getElementById('hintsLatencyVal').textContent = this.value + ' ms'" />
+                <span id="hintsLatencyVal" style="font-size:13px;font-weight:700;color:#06b6d4;min-width:55px;">280 ms</span>
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Critical Preload Assets (JSON Array)</label>
+              <textarea id="hintsAssetsInput" class="form-input" rows="7" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">[
+  { "url": "/assets/theme.min.css", "type": "style", "crossorigin": false },
+  { "url": "/assets/vendor-framework.js", "type": "script", "crossorigin": false },
+  { "url": "https://fonts.gstatic.com/s/inter/v13/font.woff2", "type": "font", "crossorigin": true },
+  { "url": "/assets/hero-cover.avif", "type": "image", "crossorigin": false }
+]</textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.generateEarlyHints()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>🚀</span> Calculate Early Hints Waterfall
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="hintsResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">🚀</span>
+              Click <strong>"Calculate Early Hints Waterfall"</strong> to evaluate browser prefetch savings and Link headers.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.generateEarlyHints();
+  };
+
+  window.generateEarlyHints = async function () {
+    const panel = document.getElementById('hintsResultsPanel');
+    if (!panel) return;
+
+    const originLatencyMs = Number(document.getElementById('hintsLatency')?.value) || 280;
+    let resources = [];
+    try {
+      resources = JSON.parse(document.getElementById('hintsAssetsInput')?.value || '[]');
+    } catch (_) {
+      resources = [{ url: '/assets/app.css', type: 'style', crossorigin: false }];
+    }
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Simulating RFC 8297 103 Early Hints browser pre-connection...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/cloudflare/early-hints', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ originLatencyMs, resources })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Early Hints calculation failed');
+
+      panel.innerHTML = `
+        <!-- Savings Cards -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Estimated LCP Acceleration</div>
+            <div style="font-size:28px;font-weight:900;color:#10b981;margin-top:4px;">-${data.estimatedTimeSavedMs} ms</div>
+            <div style="font-size:11px;color:var(--muted,#888);margin-top:2px;">~72% of Origin TTFB retrieved in advance</div>
+          </div>
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
+            <div style="font-size:11px;color:var(--muted,#888);text-transform:uppercase;">Preloaded Assets</div>
+            <div style="font-size:28px;font-weight:900;color:#06b6d4;margin-top:4px;">${data.resourceCount} Resources</div>
+            <div style="font-size:11px;color:var(--muted,#888);margin-top:2px;">Styles, Scripts, Fonts, Images</div>
+          </div>
+        </div>
+
+        <!-- Formatted Link Preload Headers -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">🏷️ RFC 8297 Link Header Preloads</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="navigator.clipboard.writeText('${esc(data.singleLinkHeader)}')">
+              <span>📋</span> Copy Header
+            </button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${data.linkDirectives.map(d => `
+              <div style="background:#0d0d14;padding:8px 12px;border-radius:6px;font-family:monospace;font-size:12px;color:#38bdf8;">
+                Link: ${esc(d)}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Cloudflare Worker Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Early Hints Pipeline Worker</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copyHintsWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="hintsWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerEarlyHintsCode)}</pre>
+        </div>
+      `;
+
+      window._currentHintsWorkerCode = data.workerEarlyHintsCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">Early Hints Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copyHintsWorker = function() {
+    if (window._currentHintsWorkerCode) {
+      navigator.clipboard.writeText(window._currentHintsWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied Early Hints Worker to clipboard!');
+    }
+  };
+
+  // =========================================================================
+  // 43. EDGE SSE (SERVER-SENT EVENTS) & LIVE STREAM MULTIPLEXER STUDIO
+  // =========================================================================
+
+  window.renderSseMultiplexerStudio = function () {
+    const container = document.getElementById('mainContent');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div style="max-width:1240px;margin:0 auto;padding:24px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:28px;">📡</span>
+              <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--text,#fff);">Edge SSE (Server-Sent Events) Multiplexer</h1>
+              <span class="badge" style="background:rgba(124,106,247,0.15);color:var(--accent,#7c6af7);border:1px solid rgba(124,106,247,0.3);font-size:11px;">WHATWG EventStream</span>
+            </div>
+            <p style="color:var(--muted,#888);margin:4px 0 0 38px;font-size:13px;">
+              Stream real-time server metrics, telemetry, and live push notifications using Cloudflare Workers TransformStream and Last-Event-ID reconnection.
+            </p>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start;">
+          <!-- Left Column -->
+          <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px;">
+              <span>⚡</span> Event Stream Configuration
+            </h3>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Stream Channel / Topic</label>
+              <input type="text" id="sseStreamName" class="form-input" style="width:100%;font-family:monospace;font-size:13px;" value="edge-telemetry-feed" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Heartbeat Keep-Alive Interval (ms)</label>
+              <input type="number" id="sseHeartbeat" class="form-input" style="width:100%;font-size:13px;" value="3000" min="500" max="30000" />
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--muted,#888);display:block;margin-bottom:6px;">Sample Events Batch (JSON Array)</label>
+              <textarea id="sseEventsInput" class="form-input" rows="6" style="width:100%;font-family:monospace;font-size:12px;line-height:1.4;">[
+  { "event": "cluster.telemetry", "data": { "colo": "SIN", "activeWorkers": 182, "requestsPerSec": 4920 } },
+  { "event": "security.threat", "data": { "level": "LOW", "blockedWaf": 14, "rule": "WAF_1002" } },
+  { "event": "build.status", "data": { "release": "v2.6.4", "status": "DEPLOYED_OK" } }
+]</textarea>
+            </div>
+
+            <button class="btn btn-primary" onclick="window.simulateSseMultiplex()" style="padding:10px 16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span>📡</span> Generate SSE Stream & Formatter
+            </button>
+          </div>
+
+          <!-- Right Column -->
+          <div id="sseResultsPanel" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;color:var(--muted,#888);">
+              <span style="font-size:42px;display:block;margin-bottom:12px;">📡</span>
+              Click <strong>"Generate SSE Stream"</strong> to inspect raw event-stream buffers and export the Worker.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    window.simulateSseMultiplex();
+  };
+
+  window.simulateSseMultiplex = async function () {
+    const panel = document.getElementById('sseResultsPanel');
+    if (!panel) return;
+
+    const streamName = document.getElementById('sseStreamName')?.value || 'live-feed';
+    const heartbeatIntervalMs = Number(document.getElementById('sseHeartbeat')?.value) || 3000;
+    let sampleEvents = [];
+    try {
+      sampleEvents = JSON.parse(document.getElementById('sseEventsInput')?.value || '[]');
+    } catch (_) {
+      sampleEvents = [{ event: 'telemetry', data: { status: 'OK' } }];
+    }
+
+    panel.innerHTML = `
+      <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:32px;text-align:center;">
+        <span class="loading-spinner" style="display:inline-block;font-size:24px;margin-bottom:8px;">⏳</span>
+        <div style="color:var(--muted,#888);font-size:13px;">Formatting WHATWG text/event-stream chunks...</div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/edge/sse-multiplexer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamName, heartbeatIntervalMs, sampleEvents })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'SSE simulation failed');
+
+      panel.innerHTML = `
+        <!-- Raw EventStream Buffer -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">📦 Formatted WHATWG EventStream Chunks</h3>
+            <span class="badge" style="background:rgba(124,106,247,0.15);color:var(--accent,#7c6af7);font-size:11px;">text/event-stream</span>
+          </div>
+          <pre style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#10b981;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.events.map(e => e.rawPayload).join(''))}</pre>
+        </div>
+
+        <!-- Cloudflare Worker Code -->
+        <div style="background:var(--surface,#1a1a24);border:1px solid var(--border);border-radius:12px;padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:700;margin:0;">⚡ Cloudflare Worker TransformStream SSE Producer</h3>
+            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="window.copySseWorker()">
+              <span>📋</span> Copy Code
+            </button>
+          </div>
+          <pre id="sseWorkerBlock" style="margin:0;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;color:#cbd5e1;overflow-x:auto;max-height:220px;line-height:1.5;">${esc(data.workerSseCode)}</pre>
+        </div>
+      `;
+
+      window._currentSseWorkerCode = data.workerSseCode;
+    } catch (err) {
+      panel.innerHTML = `<div style="color:#ef4444;padding:20px;text-align:center;">SSE Error: ${esc(err.message)}</div>`;
+    }
+  };
+
+  window.copySseWorker = function() {
+    if (window._currentSseWorkerCode) {
+      navigator.clipboard.writeText(window._currentSseWorkerCode);
+      if (typeof window.showToast === 'function') window.showToast('Copied SSE Worker to clipboard!');
+    }
+  };
+
+
 
 
 
@@ -8226,6 +8843,34 @@ tracking_id=trk_8829104; Path=/</textarea>
     imgBtn.innerHTML = '<span>🖼️</span> Image Resizing';
     imgBtn.onclick = () => window.switchTab('imageresize');
 
+    // 40. Feature Flags & Remote Config
+    const flagsBtn = document.createElement('button');
+    flagsBtn.className = 'tab';
+    flagsBtn.id = 'tab-featureflags';
+    flagsBtn.innerHTML = '<span>🚩</span> Feature Flags';
+    flagsBtn.onclick = () => window.switchTab('featureflags');
+
+    // 41. mTLS & Client Certs
+    const mtlsBtn = document.createElement('button');
+    mtlsBtn.className = 'tab';
+    mtlsBtn.id = 'tab-mtls';
+    mtlsBtn.innerHTML = '<span>🔐</span> mTLS Architect';
+    mtlsBtn.onclick = () => window.switchTab('mtls');
+
+    // 42. 103 Early Hints
+    const hintsBtn = document.createElement('button');
+    hintsBtn.className = 'tab';
+    hintsBtn.id = 'tab-earlyhints';
+    hintsBtn.innerHTML = '<span>🚀</span> 103 Early Hints';
+    hintsBtn.onclick = () => window.switchTab('earlyhints');
+
+    // 43. SSE Live Multiplexer
+    const sseBtn = document.createElement('button');
+    sseBtn.className = 'tab';
+    sseBtn.id = 'tab-ssemultiplex';
+    sseBtn.innerHTML = '<span>📡</span> SSE Multiplex';
+    sseBtn.onclick = () => window.switchTab('ssemultiplex');
+
     // Insert after cloudflare tab
     const cfTab = document.getElementById('tab-cloudflare');
     if (cfTab && cfTab.nextSibling) {
@@ -8268,6 +8913,10 @@ tracking_id=trk_8829104; Path=/</textarea>
       tabsContainer.insertBefore(botBtn, wsBtn.nextSibling);
       tabsContainer.insertBefore(apiBtn, botBtn.nextSibling);
       tabsContainer.insertBefore(imgBtn, apiBtn.nextSibling);
+      tabsContainer.insertBefore(flagsBtn, imgBtn.nextSibling);
+      tabsContainer.insertBefore(mtlsBtn, flagsBtn.nextSibling);
+      tabsContainer.insertBefore(hintsBtn, mtlsBtn.nextSibling);
+      tabsContainer.insertBefore(sseBtn, hintsBtn.nextSibling);
     } else {
       tabsContainer.appendChild(docBtn);
       tabsContainer.appendChild(edgeBtn);
@@ -8308,6 +8957,10 @@ tracking_id=trk_8829104; Path=/</textarea>
       tabsContainer.appendChild(botBtn);
       tabsContainer.appendChild(apiBtn);
       tabsContainer.appendChild(imgBtn);
+      tabsContainer.appendChild(flagsBtn);
+      tabsContainer.appendChild(mtlsBtn);
+      tabsContainer.appendChild(hintsBtn);
+      tabsContainer.appendChild(sseBtn);
     }
   }
 

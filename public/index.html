@@ -2818,6 +2818,18 @@ function toggleQuickMenu(event) {
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('imageresize');">
       <span class="icon">🖼️</span> Edge Image Resizing & Polish
     </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('featureflags');">
+      <span class="icon">🚩</span> Edge Feature Flags & Rollout
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('mtls');">
+      <span class="icon">🔐</span> mTLS & Client Cert Architect
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('earlyhints');">
+      <span class="icon">🚀</span> 103 Early Hints Preload Pipeline
+    </button>
+    <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('ssemultiplex');">
+      <span class="icon">📡</span> SSE Live Stream Multiplexer
+    </button>
     <div style="height:1px;background:var(--border);margin:4px 0;"></div>
     <button class="quick-menu-item" onclick="document.getElementById('quickMenuOverlay').remove();switchTab('webvideos');">
       <span class="icon">📹</span> Stream Web Videos
@@ -3138,6 +3150,22 @@ async function loadTab() {
   } else if (currentTab === 'imageresize') {
     if (typeof window.renderImageResizerStudio === 'function') {
       window.renderImageResizerStudio();
+    }
+  } else if (currentTab === 'featureflags') {
+    if (typeof window.renderFeatureFlagsStudio === 'function') {
+      window.renderFeatureFlagsStudio();
+    }
+  } else if (currentTab === 'mtls') {
+    if (typeof window.renderMtlsArchitectStudio === 'function') {
+      window.renderMtlsArchitectStudio();
+    }
+  } else if (currentTab === 'earlyhints') {
+    if (typeof window.renderEarlyHintsStudio === 'function') {
+      window.renderEarlyHintsStudio();
+    }
+  } else if (currentTab === 'ssemultiplex') {
+    if (typeof window.renderSseMultiplexerStudio === 'function') {
+      window.renderSseMultiplexerStudio();
     }
   }
 }

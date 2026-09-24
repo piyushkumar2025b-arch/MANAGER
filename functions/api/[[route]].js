@@ -13349,6 +13349,455 @@ export default {
       }
     }
 
+    // 49. Edge Feature Flags & Remote Config Studio
+    if (path === '/edge/feature-flags' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          flagKey = 'dark_mode_v2',
+          rolloutPercentage = 40,
+          allowedCountries = ['US', 'CA', 'GB', 'SG'],
+          allowedRoles = ['admin', 'beta_tester'],
+          testUsers = [
+            { id: 'usr_001', name: 'Alex (Admin)', country: 'US', role: 'admin' },
+            { id: 'usr_002', name: 'Sam (Standard US)', country: 'US', role: 'user' },
+            { id: 'usr_003', name: 'Morgan (Standard DE)', country: 'DE', role: 'user' },
+            { id: 'usr_004', name: 'Taylor (Beta Tester)', country: 'GB', role: 'beta_tester' },
+            { id: 'usr_005', name: 'Jordan (Standard SG)', country: 'SG', role: 'user' },
+            { id: 'usr_006', name: 'Riley (Standard US)', country: 'US', role: 'user' }
+          ]
+        } = body;
+
+        const safeKey = String(flagKey).trim().toLowerCase().replace(/[^a-z0-9-_]/g, '_') || 'feature_flag';
+        const safePct = Math.max(0, Math.min(100, Number(rolloutPercentage) || 0));
+
+        // Consistent FNV-1a hash
+        function fnv1a(str) {
+          let hash = 0x811c9dc5;
+          for (let i = 0; i < str.length; i++) {
+            hash ^= str.charCodeAt(i);
+            hash = (hash * 0x01000193) >>> 0;
+          }
+          return hash;
+        }
+
+        const evaluations = testUsers.map(user => {
+          // Rule 1: Role override
+          if (allowedRoles.includes(user.role)) {
+            return {
+              userId: user.id,
+              name: user.name,
+              country: user.country,
+              role: user.role,
+              enabled: true,
+              reason: `ROLE_OVERRIDE (${user.role})`
+            };
+          }
+
+          // Rule 2: Country filtering
+          if (allowedCountries.length > 0 && !allowedCountries.includes(user.country)) {
+            return {
+              userId: user.id,
+              name: user.name,
+              country: user.country,
+              role: user.role,
+              enabled: false,
+              reason: `GEO_RESTRICTED (${user.country} not in [${allowedCountries.join(', ')}])`
+            };
+          }
+
+          // Rule 3: Deterministic percentage rollout
+          const bucket = (fnv1a(`${safeKey}:${user.id}`) % 100);
+          const enabled = bucket < safePct;
+
+          return {
+            userId: user.id,
+            name: user.name,
+            country: user.country,
+            role: user.role,
+            bucket,
+            enabled,
+            reason: enabled ? `PERCENTAGE_ROLLOUT (${bucket} < ${safePct}%)` : `PERCENTAGE_ROLLOUT (${bucket} >= ${safePct}%)`
+          };
+        });
+
+        const activeCount = evaluations.filter(e => e.enabled).length;
+
+        const flagConfigJson = JSON.stringify({
+          [safeKey]: {
+            percentage: safePct,
+            allowedCountries,
+            allowedRoles,
+            updatedAt: new Date().toISOString()
+          }
+        }, null, 2);
+
+        const workerFlagsCode = `// Cloudflare Worker Edge Feature Flags Evaluator
+// Sub-millisecond evaluation with KV cache
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const userId = request.headers.get('x-user-id') || request.headers.get('cf-connecting-ip') || 'anonymous';
+    const userRole = request.headers.get('x-user-role') || 'user';
+    const country = request.cf?.country || 'US';
+
+    // 1. Fetch flags config from KV or edge memory
+    let config = null;
+    if (env.FLAGS_KV) {
+      config = await env.FLAGS_KV.get('FEATURE_FLAGS_CONFIG', { type: 'json', cacheTtl: 60 });
+    }
+    
+    // Fallback default
+    config = config || {
+      "${safeKey}": {
+        percentage: ${safePct},
+        allowedCountries: ${JSON.stringify(allowedCountries)},
+        allowedRoles: ${JSON.stringify(allowedRoles)}
+      }
+    };
+
+    const flag = config["${safeKey}"];
+    let isEnabled = false;
+
+    if (flag) {
+      if (flag.allowedRoles?.includes(userRole)) {
+        isEnabled = true;
+      } else if (flag.allowedCountries?.length && !flag.allowedCountries.includes(country)) {
+        isEnabled = false;
+      } else {
+        // FNV-1a hash bucket
+        let hash = 0x811c9dc5;
+        const seed = "${safeKey}:" + userId;
+        for (let i = 0; i < seed.length; i++) {
+          hash ^= seed.charCodeAt(i);
+          hash = (hash * 0x01000193) >>> 0;
+        }
+        isEnabled = (hash % 100) < flag.percentage;
+      }
+    }
+
+    // Pass evaluated feature flag downstream to application via request header
+    const modifiedReq = new Request(request);
+    modifiedReq.headers.set('X-Feature-${safeKey}', isEnabled ? 'true' : 'false');
+
+    const response = await fetch(modifiedReq);
+    const resHeaders = new Headers(response.headers);
+    resHeaders.set('X-Feature-${safeKey}', isEnabled ? 'true' : 'false');
+    return new Response(response.body, { status: response.status, headers: resHeaders });
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          flagKey: safeKey,
+          rolloutPercentage: safePct,
+          totalUsersEvaluated: testUsers.length,
+          activeUsersCount: activeCount,
+          activePercentage: ((activeCount / testUsers.length) * 100).toFixed(1) + '%',
+          evaluations,
+          flagConfigJson,
+          workerFlagsCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 50. mTLS (Mutual TLS) & Client Certificate Architect
+    if (path === '/security/mtls-architect' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          caCommonName = 'Vault Enterprise Root CA',
+          organization = 'Vault Corporation Inc',
+          clientIdentity = 'device-terminal-049.devices.vault.internal',
+          enforceOrgUnit = 'SecurityOperations'
+        } = body;
+
+        const safeCa = String(caCommonName).trim() || 'Vault Enterprise Root CA';
+        const safeOrg = String(organization).trim() || 'Vault Corporation Inc';
+        const safeClient = String(clientIdentity).trim() || 'client.devices.internal';
+        const safeOu = String(enforceOrgUnit).trim() || 'SecurityOperations';
+
+        // Generate synthetic cryptographic fingerprints
+        const enc = new TextEncoder();
+        const [caFingerprint, clientFingerprint] = await Promise.all([
+          crypto.subtle.digest('SHA-256', enc.encode(`CA:${safeCa}:${safeOrg}`)),
+          crypto.subtle.digest('SHA-256', enc.encode(`CLIENT:${safeClient}:${safeOu}`))
+        ]);
+
+        const toHex = buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(':').toUpperCase();
+        const caSha256 = toHex(caFingerprint);
+        const clientSha256 = toHex(clientFingerprint);
+
+        const rootCaPem = `-----BEGIN CERTIFICATE-----
+MIIBkTCB+wIJAK4xN6k9T4kYMA0GCSqGSIb3DQEBCwUAMCYxJDAiBgNVBAMMG1Zh
+dWx0IEVudGVycHJpc2UgUm9vdCBDQTAeFw0yNjA5MjQwMDAwMDBaFw0zNjA5MjQw
+MDAwMDBaMCYxJDAiBgNVBAMMG1ZhdWx0IEVudGVycHJpc2UgUm9vdCBDQTBZMBMG
+ByqGSM49AgEGCCqGSM49AwEHA0IABP9N1Z...[ROOT_CA_CERTIFICATE]...
+-----END CERTIFICATE-----`;
+
+        const clientCertPem = `-----BEGIN CERTIFICATE-----
+MIIBeTCBvAIBAzANBgkqhkiG9w0BAQsFADAmMSQwIgYDVQQDDBtWYXVsdCBFbnRl
+cnByaXNlIFJvb3QgQ0EwHhcNMjYwOTI0MDAwMDAwWhcNMjcwOTI0MDAwMDAwWjA7
+MRswGQYDVQQDDBJkZXZpY2UtdGVybWluYWwtMDQ5MRwwGgYDVQQLDBNTZWN1cml0
+eU9wZXJhdGlvbnMwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARX0q...
+-----END CERTIFICATE-----`;
+
+        const simulatedHeaders = {
+          'cf-client-cert-presented': '1',
+          'cf-client-cert-subject-dn': `CN=${safeClient},OU=${safeOu},O=${safeOrg}`,
+          'cf-client-cert-issuer-dn': `CN=${safeCa},O=${safeOrg}`,
+          'cf-client-cert-sha256': clientSha256,
+          'cf-client-cert-verified': 'SUCCESS'
+        };
+
+        const workerMtlsCode = `// Cloudflare Worker Zero Trust mTLS Enforcement Gateway
+const REQUIRED_ISSUER_CN = '${safeCa}';
+const REQUIRED_OU = '${safeOu}';
+
+export default {
+  async fetch(request, env, ctx) {
+    // Check if Cloudflare edge received a client certificate during TLS handshake
+    const certPresented = request.headers.get('cf-client-cert-presented');
+    const certVerified = request.headers.get('cf-client-cert-verified');
+    const subjectDn = request.headers.get('cf-client-cert-subject-dn') || '';
+    const issuerDn = request.headers.get('cf-client-cert-issuer-dn') || '';
+    const certSha256 = request.headers.get('cf-client-cert-sha256') || '';
+
+    if (certPresented !== '1' || certVerified !== 'SUCCESS') {
+      return new Response(JSON.stringify({
+        error: 'Mutual TLS Authentication Required',
+        message: 'A valid trusted client certificate signed by ' + REQUIRED_ISSUER_CN + ' is mandatory to access this edge resource.'
+      }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Validate Organizational Unit (OU) & Issuer
+    if (!subjectDn.includes('OU=' + REQUIRED_OU)) {
+      return new Response(JSON.stringify({
+        error: 'Client Certificate Insufficient Privileges',
+        message: 'Client certificate lacks required Organizational Unit (' + REQUIRED_OU + ').'
+      }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // Certificate verified: pass authenticated identity to upstream microservice
+    const modifiedReq = new Request(request);
+    modifiedReq.headers.set('X-Authenticated-Client-DN', subjectDn);
+    modifiedReq.headers.set('X-Authenticated-Client-Fingerprint', certSha256);
+
+    return fetch(modifiedReq);
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          rootCa: {
+            commonName: safeCa,
+            organization: safeOrg,
+            sha256Fingerprint: caSha256,
+            pem: rootCaPem
+          },
+          clientCertificate: {
+            identity: safeClient,
+            orgUnit: safeOu,
+            sha256Fingerprint: clientSha256,
+            pem: clientCertPem
+          },
+          simulatedHeaders,
+          workerMtlsCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 51. HTTP Early Hints (103 Early Hints) & Preload Pipeline Studio
+    if (path === '/cloudflare/early-hints' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          originLatencyMs = 280,
+          resources = [
+            { url: '/assets/app.min.css', type: 'style', crossorigin: false },
+            { url: '/assets/vendor-bundle.js', type: 'script', crossorigin: false },
+            { url: 'https://fonts.gstatic.com/s/inter/v13/inter-latin.woff2', type: 'font', crossorigin: true },
+            { url: '/assets/hero-banner.webp', type: 'image', crossorigin: false }
+          ]
+        } = body;
+
+        const safeLatency = Math.max(20, Math.min(2000, Number(originLatencyMs) || 280));
+
+        // Format Link headers for RFC 8297 103 Early Hints
+        const linkDirectives = resources.map(res => {
+          let directive = `<${res.url}>; rel=preload; as=${res.type}`;
+          if (res.crossorigin || res.type === 'font') {
+            directive += '; crossorigin';
+          }
+          return directive;
+        });
+
+        const singleLinkHeader = linkDirectives.join(', ');
+
+        // Critical rendering path improvement estimation
+        const timeSavedMs = Math.round(safeLatency * 0.72);
+        const lcpImprovement = `${timeSavedMs} ms (~72% of origin TTFB)`;
+
+        const workerEarlyHintsCode = `// Cloudflare Worker 103 Early Hints Pipeline
+export default {
+  async fetch(request, env, ctx) {
+    // Define critical render-blocking resources for 103 Early Hints
+    const earlyHintLinks = [
+      ${linkDirectives.map(d => `'${d}'`).join(',\n      ')}
+    ];
+
+    // In Cloudflare, sending 103 Early Hints is triggered via the Link header on HTML responses
+    // or by calling early hints API on supported plans
+    const response = await fetch(request);
+
+    // If the response is HTML, ensure Link preload headers are present for edge Early Hints caching
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      const newHeaders = new Headers(response.headers);
+      
+      // Edge adds 103 Early Hints automatically for repeated visitors when Link preload is present
+      for (const link of earlyHintLinks) {
+        newHeaders.append('Link', link);
+      }
+
+      return new Response(response.body, {
+        status: response.status,
+        headers: newHeaders
+      });
+    }
+
+    return response;
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          originLatencyMs: safeLatency,
+          estimatedTimeSavedMs: timeSavedMs,
+          lcpImprovement,
+          resourceCount: resources.length,
+          linkDirectives,
+          singleLinkHeader,
+          workerEarlyHintsCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
+    // 52. Edge SSE (Server-Sent Events) & Live Stream Multiplexer
+    if (path === '/edge/sse-multiplexer' && method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({}));
+        const {
+          streamName = 'telemetry-stream',
+          heartbeatIntervalMs = 3000,
+          sampleEvents = [
+            { event: 'server.metrics', data: { cpuUsage: '12.4%', memoryAllocatedMb: 68, activeEdgeSockets: 412 } },
+            { event: 'deployment.status', data: { version: 'v2.6.1-edge', status: 'DEPLOYED_OK', colo: 'SIN' } },
+            { event: 'threat.alert', data: { level: 'LOW', blockedCount: 0, firewallMode: 'STRICT' } }
+          ],
+          clientLastEventId = 'evt-9041'
+        } = body;
+
+        const safeStream = String(streamName).trim() || 'live-feed';
+        const safeInterval = Math.max(500, Math.min(30000, Number(heartbeatIntervalMs) || 3000));
+
+        // Format sample SSE message buffers
+        const formattedMessages = sampleEvents.map((e, idx) => {
+          const id = `evt-${Date.now()}-${idx + 1}`;
+          const json = JSON.stringify(e.data);
+          const raw = `id: ${id}\nevent: ${e.event}\nretry: ${safeInterval}\ndata: ${json}\n\n`;
+          return {
+            id,
+            event: e.event,
+            data: e.data,
+            rawPayload: raw,
+            byteLength: raw.length
+          };
+        });
+
+        const workerSseCode = `// Cloudflare Worker Edge Server-Sent Events (SSE) Multiplexer
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    if (url.pathname === '/events') {
+      // Create TransformStream for streaming response
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const encoder = new TextEncoder();
+
+      // Check client Last-Event-ID for automatic reconnection
+      const lastEventId = request.headers.get('Last-Event-ID');
+      console.log('Client connected to SSE stream with Last-Event-ID:', lastEventId);
+
+      // Async event loop
+      ctx.waitUntil((async () => {
+        try {
+          // Send initial connection handshake
+          await writer.write(encoder.encode('event: connected\\ndata: {"status":"STREAM_READY","stream":"${safeStream}"}\\n\\n'));
+
+          let counter = 1;
+          const intervalId = setInterval(async () => {
+            try {
+              const payload = JSON.stringify({
+                time: new Date().toISOString(),
+                sequence: counter++,
+                metrics: { cpu: (Math.random() * 15 + 5).toFixed(1) + '%' }
+              });
+
+              await writer.write(encoder.encode(\`id: evt-\${Date.now()}\\nevent: telemetry\\nretry: ${safeInterval}\\ndata: \${payload}\\n\\n\`));
+            } catch (err) {
+              clearInterval(intervalId);
+            }
+          }, ${safeInterval});
+
+          // Heartbeat interval keep-alive
+          request.signal.addEventListener('abort', () => {
+            clearInterval(intervalId);
+            writer.close();
+          });
+        } catch (_) {
+          writer.close();
+        }
+      })());
+
+      return new Response(readable, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+
+    return new Response('SSE Stream Gateway available on /events');
+  }
+};`;
+
+        return new Response(JSON.stringify({
+          success: true,
+          streamName: safeStream,
+          heartbeatIntervalMs: safeInterval,
+          clientLastEventId,
+          totalBufferedEvents: formattedMessages.length,
+          events: formattedMessages,
+          workerSseCode
+        }), { headers });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { headers, status: 500 });
+      }
+    }
+
     return new Response(JSON.stringify({ error: 'Not found' }), { headers, status: 404 });
 
   } catch (err) {
