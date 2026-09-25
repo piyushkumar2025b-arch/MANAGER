@@ -19,7 +19,8 @@ const TOOLBOX_SUBTABS = [
   { id: 'epoch', icon: '⏳', label: 'Epoch & Time' },
   { id: 'diff', icon: '📑', label: 'Diff & Case' },
   { id: 'color', icon: '🎨', label: 'Color & WCAG' },
-  { id: 'network', icon: '🌐', label: 'Subnet & HTTP' }
+  { id: 'network', icon: '🌐', label: 'Subnet & HTTP' },
+  { id: 'extratools', icon: '⚡', label: 'Extra Tools (51)' }
 ];
 
 // ---- MAIN TOOLBOX ENTRY POINT ----
@@ -105,9 +106,59 @@ function renderActiveToolboxSubtab() {
     case 'diff': renderDiffAndCase(container); break;
     case 'color': renderColorAndWcag(container); break;
     case 'network': renderNetworkAndHttp(container); break;
+    case 'extratools': renderExtraToolsDirectory(container); break;
     default: renderJsonStudio(container);
   }
 }
+
+function renderExtraToolsDirectory(container) {
+  const tools = window.EXTENDED_SECONDARY_TOOLS || [];
+  container.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;color:#fff;">
+            <span>⚡</span> Secondary Edge Tools & Studios Directory (51 Tools)
+          </div>
+          <div style="font-size:13px;color:var(--muted);margin-top:3px;">
+            Specialized developer utilities and Cloudflare Edge microservices kept accessible as secondary tools.
+          </div>
+        </div>
+        <button onclick="toggleExtraToolsSidebar()" class="btn-sm primary" style="background:#7c3aed;border-color:#7c3aed;">
+          <span>🧰</span> Open Quick Sidebar Drawer
+        </button>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="tbExtraToolsSearch" placeholder="Filter 51 secondary tools..." oninput="filterToolboxExtraTools(this.value)" style="flex:1;min-width:240px;padding:9px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;outline:none;" />
+      </div>
+
+      <div id="tbExtraToolsGrid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:10px;margin-top:6px;">
+        ${tools.map(t => `
+          <div class="tb-extra-tool-card" data-text="${t.name.toLowerCase()} ${t.desc.toLowerCase()} ${t.cat.toLowerCase()}" onclick="switchTab('${t.id}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;cursor:pointer;transition:all 0.15s ease;display:flex;align-items:flex-start;gap:10px;">
+            <div style="font-size:22px;line-height:1;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.05);border-radius:8px;flex-shrink:0;">${t.icon}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                <span style="font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.name}</span>
+                <span style="font-size:9.5px;font-weight:700;text-transform:uppercase;padding:2px 5px;background:rgba(124,58,237,0.2);color:#c4b5fd;border-radius:4px;">${t.cat}</span>
+              </div>
+              <div style="font-size:11.5px;color:var(--text-secondary);margin-top:3px;line-height:1.4;">${t.desc}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+window.filterToolboxExtraTools = function(query) {
+  const q = (query || '').toLowerCase().trim();
+  const cards = document.querySelectorAll('.tb-extra-tool-card');
+  cards.forEach(c => {
+    const text = c.getAttribute('data-text') || '';
+    c.style.display = (!q || text.includes(q)) ? 'flex' : 'none';
+  });
+};
 
 function copyToolboxRestInfo() {
   const info = `Vault Developer REST API Endpoints:

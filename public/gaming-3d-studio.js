@@ -9,6 +9,59 @@
 // ============================================================================
 
 (function () {
+  // Defensive validation wrappers for Three.js geometry constructors to prevent NaN vertices & radii
+  if (typeof THREE !== 'undefined') {
+    if (THREE.ConeGeometry) {
+      const OriginalCone = THREE.ConeGeometry;
+      THREE.ConeGeometry = function (radius = 1, height = 1, radialSegments = 16, heightSegments = 1, openEnded = false, thetaStart = 0, thetaLength = Math.PI * 2) {
+        const safeRadius = Math.max(0.001, Math.abs(Number(radius) || 0.5));
+        const safeHeight = Math.max(0.001, Math.abs(Number(height) || 1));
+        const safeRadial = (typeof radialSegments === 'number' && Number.isInteger(radialSegments) && radialSegments >= 3) ? Math.min(128, radialSegments) : 16;
+        const safeHeightSegs = (typeof heightSegments === 'number' && Number.isInteger(heightSegments) && heightSegments >= 1) ? Math.min(64, heightSegments) : 1;
+        return new OriginalCone(safeRadius, safeHeight, safeRadial, safeHeightSegs, !!openEnded, thetaStart, thetaLength);
+      };
+      THREE.ConeGeometry.prototype = OriginalCone.prototype;
+    }
+
+    if (THREE.SphereGeometry) {
+      const OriginalSphere = THREE.SphereGeometry;
+      THREE.SphereGeometry = function (radius = 1, widthSegments = 16, heightSegments = 16, phiStart = 0, phiLength = Math.PI * 2, thetaStart = 0, thetaLength = Math.PI) {
+        const safeRadius = Math.max(0.001, Math.abs(Number(radius) || 0.5));
+        const safeWidth = (typeof widthSegments === 'number' && Number.isInteger(widthSegments) && widthSegments >= 3) ? Math.min(128, widthSegments) : 16;
+        const safeHeight = (typeof heightSegments === 'number' && Number.isInteger(heightSegments) && heightSegments >= 2) ? Math.min(128, heightSegments) : 16;
+        return new OriginalSphere(safeRadius, safeWidth, safeHeight, phiStart, phiLength, thetaStart, thetaLength);
+      };
+      THREE.SphereGeometry.prototype = OriginalSphere.prototype;
+    }
+
+    if (THREE.BufferGeometry && THREE.BufferGeometry.prototype.computeBoundingSphere) {
+      const origComputeBoundingSphere = THREE.BufferGeometry.prototype.computeBoundingSphere;
+      THREE.BufferGeometry.prototype.computeBoundingSphere = function () {
+        const pos = this.attributes?.position;
+        if (pos && pos.array) {
+          let hasBadVal = false;
+          for (let i = 0; i < pos.array.length; i++) {
+            if (Number.isNaN(pos.array[i]) || !Number.isFinite(pos.array[i])) {
+              pos.array[i] = 0;
+              hasBadVal = true;
+            }
+          }
+          if (hasBadVal) {
+            pos.needsUpdate = true;
+          }
+        }
+        try {
+          origComputeBoundingSphere.call(this);
+          if (!this.boundingSphere || Number.isNaN(this.boundingSphere.radius) || !Number.isFinite(this.boundingSphere.radius)) {
+            this.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
+          }
+        } catch (_) {
+          this.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
+        }
+      };
+    }
+  }
+
   let activeGamingSubtab = '3dgen'; // '3dgen' | 'arcade' | 'forge' | 'library'
   let current3DRecipe = null;
   let threeScene = null;
@@ -581,29 +634,84 @@
     // Construct meshes for all parts in the recipe
     recipe.parts.forEach((part, idx) => {
       let geo = null;
-      const s = part.size || [1, 1, 1];
+      const s = Array.isArray(part.size) ? part.size : [1, 1, 1];
 
       switch (part.shape) {
-        case 'box':
-          geo = new THREE.BoxGeometry(s[0] || 1, s[1] || 1, s[2] || 1);
+        case 'box': {
+          const w = Math.max(0.01, Math.abs(Number(s[0]) || 1));
+          const h = Math.max(0.01, Math.abs(Number(s[1]) || 1));
+          const d = Math.max(0.01, Math.abs(Number(s[2]) || 1));
+          geo = new THREE.BoxGeometry(w, h, d);
           break;
-        case 'cylinder':
-          geo = new THREE.CylinderGeometry(s[0] || 0.5, s[1] || 0.5, s[2] || 1, s[3] || 16);
+        }
+        case 'cylinder': {
+          const rTop = Math.max(0, Math.abs(Number(s[0]) || 0.5));
+          const rBottom = Math.max(0, Math.abs(Number(s[1]) !== undefined ? Number(s[1]) : rTop));
+          const h = Math.max(0.01, Math.abs(Number(s[2]) || 1));
+          const radSegs = (typeof s[3] === 'number' && Number.isInteger(s[3]) && s[3] >= 3) ? Math.min(64, s[3]) : 16;
+          geo = new THREE.CylinderGeometry(rTop, rBottom, h, radSegs);
           break;
-        case 'sphere':
-          geo = new THREE.SphereGeometry(s[0] || 0.5, s[1] || 16, s[2] || 16);
+        }
+        case 'sphere': {
+          const radius = Math.max(0.01, Math.abs(Number(s[0]) || 0.5));
+          const widthSegs = (typeof s[1] === 'number' && Number.isInteger(s[1]) && s[1] >= 3) ? Math.min(64, s[1]) : 16;
+          const heightSegs = (typeof s[2] === 'number' && Number.isInteger(s[2]) && s[2] >= 2) ? Math.min(64, s[2]) : 16;
+          geo = new THREE.SphereGeometry(radius, widthSegs, heightSegs);
           break;
-        case 'cone':
-          geo = new THREE.ConeGeometry(s[0] || 0.5, s[1] || 1, s[2] || 16);
+        }
+        case 'cone': {
+          const radius = Math.max(0.01, Math.abs(Number(s[0]) || 0.5));
+          const height = Math.max(0.01, Math.abs(Number(s[1]) || 1));
+          let radSegs = 16;
+          if (typeof s[3] === 'number' && !Number.isNaN(s[3])) {
+            const val = Math.round(s[3]);
+            if (val >= 3) radSegs = Math.min(64, val);
+          } else if (typeof s[2] === 'number' && !Number.isNaN(s[2])) {
+            const val = Math.round(s[2]);
+            if (val >= 3) radSegs = Math.min(64, val);
+          }
+          geo = new THREE.ConeGeometry(radius, height, radSegs);
           break;
-        case 'torus':
-          geo = new THREE.TorusGeometry(s[0] || 0.6, s[1] || 0.15, 12, 24);
+        }
+        case 'torus': {
+          const radius = Math.max(0.01, Math.abs(Number(s[0]) || 0.6));
+          const tube = Math.max(0.001, Math.abs(Number(s[1]) || 0.15));
+          const radSegs = (typeof s[2] === 'number' && Number.isInteger(s[2]) && s[2] >= 3) ? Math.min(64, s[2]) : 12;
+          const tubSegs = (typeof s[3] === 'number' && Number.isInteger(s[3]) && s[3] >= 3) ? Math.min(64, s[3]) : 24;
+          geo = new THREE.TorusGeometry(radius, tube, radSegs, tubSegs);
           break;
-        case 'dodecahedron':
-          geo = new THREE.DodecahedronGeometry(s[0] || 0.5, 0);
+        }
+        case 'dodecahedron': {
+          const radius = Math.max(0.01, Math.abs(Number(s[0]) || 0.5));
+          const detail = (typeof s[1] === 'number' && Number.isInteger(s[1]) && s[1] >= 0) ? Math.min(3, s[1]) : 0;
+          geo = new THREE.DodecahedronGeometry(radius, detail);
           break;
-        default:
-          geo = new THREE.BoxGeometry(s[0] || 1, s[1] || 1, s[2] || 1);
+        }
+        default: {
+          const w = Math.max(0.01, Math.abs(Number(s[0]) || 1));
+          const h = Math.max(0.01, Math.abs(Number(s[1]) || 1));
+          const d = Math.max(0.01, Math.abs(Number(s[2]) || 1));
+          geo = new THREE.BoxGeometry(w, h, d);
+        }
+      }
+
+      if (geo) {
+        // Ensure no NaNs in vertex buffer attributes
+        const pos = geo.attributes?.position;
+        if (pos && pos.array) {
+          let hasNaN = false;
+          for (let i = 0; i < pos.array.length; i++) {
+            if (Number.isNaN(pos.array[i]) || !Number.isFinite(pos.array[i])) {
+              pos.array[i] = 0;
+              hasNaN = true;
+            }
+          }
+          if (hasNaN) pos.needsUpdate = true;
+        }
+        try {
+          geo.computeBoundingSphere();
+          geo.computeBoundingBox();
+        } catch (_) {}
       }
 
       const mat = new THREE.MeshStandardMaterial({

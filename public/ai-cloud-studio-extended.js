@@ -10157,478 +10157,95 @@ Your invoice #INV-9284 for $49.00 USD has been successfully processed. Thank you
 
 
 
+    // =========================================================================
+  // SECONDARY TOOLS SIDEBAR REGISTRY & INJECTION (51 TOOLS)
+  // Kept separated as secondary utilities so primary apps remain clean
   // =========================================================================
-  // TAB BUTTON INJECTION
-  // =========================================================================
+
+  const EXTENDED_SECONDARY_TOOLS = [
+    { id: 'docintel', name: 'Cloudflare Doc Intel & API Spec', short: 'Doc Intel', icon: '📑', cat: 'dev', desc: 'Real-time interactive documentation explorer & OpenAPI query lab' },
+    { id: 'edgebench', name: 'Edge Latency & DoH Speed Benchmark', short: 'Edge Speed', icon: '⚡', cat: 'network', desc: 'Global Anycast benchmark and DNS-over-HTTPS resolver' },
+    { id: 'codesandbox', name: 'Edge Code & Wasm Sandbox', short: 'Code Sandbox', icon: '🧪', cat: 'compute', desc: 'Isolated V8/Wasm execution environment for Workers' },
+    { id: 'totp', name: 'Edge 2FA & TOTP Authenticator', short: '2FA Vault', icon: '🔑', cat: 'security', desc: 'Cryptographic RFC 6238 TOTP generator with QR code import' },
+    { id: 'd1studio', name: 'D1 SQL Studio & Migration Runner', short: 'D1 SQL', icon: '🗄️', cat: 'compute', desc: 'Serverless SQLite queries, schema visualizer & JSON export' },
+    { id: 'certmonitor', name: 'SSL/TLS Certificate Monitor', short: 'Cert Monitor', icon: '📜', cat: 'security', desc: 'Certificate transparency log auditor & SAN validation' },
+    { id: 'ipintel', name: 'IP Intel, ASN & Threat Score', short: 'Threat & IP', icon: '🛰️', cat: 'network', desc: 'MaxMind GeoIP, ASN routing & threat intelligence radar' },
+    { id: 'semanticsearch', name: 'Semantic Search & Vector RAG', short: 'Semantic RAG', icon: '🧠', cat: 'compute', desc: 'Vectorize embeddings generator & cosine similarity match' },
+    { id: 'wafsim', name: 'WAF Ruleset & Firewall Simulator', short: 'WAF & Rules', icon: '🛡️', cat: 'security', desc: 'OWASP Core Ruleset evaluator & payload attack simulator' },
+    { id: 'webhooks', name: 'Edge Webhook Dispatcher', short: 'Webhooks', icon: '📡', cat: 'dev', desc: 'HTTP delivery tester, retry backoff & header signing' },
+    { id: 'tlsinspect', name: 'TLS Handshake & Cipher Inspector', short: 'TLS Handshake', icon: '🔒', cat: 'security', desc: 'ALPN negotiation, TLS 1.3 ciphers & 0-RTT inspection' },
+    { id: 'secstudio', name: 'Security Headers & CSP Builder', short: 'Sec Headers', icon: '🛡️', cat: 'security', desc: 'Content-Security-Policy generator & HSTS preloader' },
+    { id: 'cronstudio', name: 'Cron Triggers & Scheduled Jobs', short: 'Cron Triggers', icon: '⏰', cat: 'compute', desc: 'Worker cron schedule simulator & event dispatcher' },
+    { id: 'kvstudio', name: 'KV Namespace Live Explorer', short: 'KV Storage', icon: '🗄️', cat: 'compute', desc: 'Key-value read/write simulator with TTL & metadata' },
+    { id: 'keygen', name: 'SSH Keypair & Crypto Studio', short: 'SSH & Keys', icon: '🔑', cat: 'security', desc: 'Ed25519/RSA-4096 keypair generator & fingerprint calculator' },
+    { id: 'dohbench', name: 'DNS-over-HTTPS Benchmark', short: 'DoH Benchmark', icon: '🌐', cat: 'network', desc: '1.1.1.1 vs Quad9 vs Google DNS latency comparison' },
+    { id: 'ratelimit', name: 'Edge Rate Limiting Architect', short: 'Rate Limiter', icon: '🚦', cat: 'security', desc: 'Leaky bucket & sliding window rate limiter simulator' },
+    { id: 'cachestudio', name: 'CDN Cache & Purge Studio', short: 'Cache Studio', icon: '⚡', cat: 'perf', desc: 'Cache-Control header tester & tiered cache optimizer' },
+    { id: 'wirefilter', name: 'Wirefilter & WAF Expressions', short: 'Wirefilter', icon: '📐', cat: 'security', desc: 'Cloudflare firewall expression syntax evaluator' },
+    { id: 'jwtstudio', name: 'JWT Edge Signer & Verifier', short: 'JWT Studio', icon: '🎟️', cat: 'security', desc: 'RS256/HS256 token verification & claim validator' },
+    { id: 'transformrules', name: 'URL Rewrite & Transform Rules', short: 'Transform Rules', icon: '🔄', cat: 'network', desc: 'HTTP request/response header modification engine' },
+    { id: 'cidrcalc', name: 'Subnet & CIDR Network Calculator', short: 'CIDR Calc', icon: '🔢', cat: 'network', desc: 'IPv4/IPv6 subnet mask, broadcast & host range generator' },
+    { id: 'sectxt', name: 'Security.txt RFC 9116 Auditor', short: 'Security.txt', icon: '📄', cat: 'dev', desc: 'Vulnerability disclosure policy checker & validator' },
+    { id: 'emailsec', name: 'Email SPF, DKIM & DMARC Inspector', short: 'Email Sec', icon: '📧', cat: 'security', desc: 'DNS security record audit & spoofing prevention' },
+    { id: 'zerotrust', name: 'Zero Trust Access Policy Architect', short: 'Zero Trust', icon: '🛡️', cat: 'security', desc: 'Identity-aware proxy rules & device posture simulator' },
+    { id: 'httpprobe', name: 'HTTP/3 & ALPN Protocol Prober', short: 'HTTP/3 Prober', icon: '⚡', cat: 'network', desc: 'QUIC transport prober & 0-RTT connection test' },
+    { id: 'regexbench', name: 'Regex & ReDoS Edge Benchmark', short: 'Regex Studio', icon: '🧩', cat: 'dev', desc: 'Catastrophic backtracking detector & PCRE tester' },
+    { id: 'errorpages', name: 'Edge Custom Error Pages Designer', short: 'Custom Errors', icon: '🛑', cat: 'dev', desc: 'Cloudflare 1000-series error page previewer & builder' },
+    { id: 'corsaudit', name: 'CORS Policy & Preflight Auditor', short: 'CORS Policy', icon: '🌐', cat: 'dev', desc: 'Cross-origin resource sharing & header validator' },
+    { id: 'cachetags', name: 'Cache-Tag & Surrogate Key Lab', short: 'Cache-Tags', icon: '🏷️', cat: 'perf', desc: 'Purge-by-tag simulation & stale-while-revalidate' },
+    { id: 'bgproute', name: 'Anycast & BGP PoP Inspector', short: 'Anycast BGP', icon: '🗺️', cat: 'network', desc: 'Autonomous system path & Edge colo routing monitor' },
+    { id: 'queuesdlq', name: 'Queues & DLQ Message Pipeline', short: 'Queues DLQ', icon: '📬', cat: 'compute', desc: 'Cloudflare Queues producer, consumer & dead-letter queue' },
+    { id: 'cookiehardener', name: 'HTTP Cookie Security Hardener', short: 'Cookie Hardener', icon: '🍪', cat: 'security', desc: 'SameSite, Secure, HttpOnly & Partitioned CHIPS audit' },
+    { id: 'canarysplit', name: 'Multi-Origin Canary Splitter', short: 'Canary Split', icon: '🚦', cat: 'network', desc: 'A/B traffic weights & sticky cookie session routing' },
+    { id: 'srilocker', name: 'SRI & Edge Script Locker', short: 'SRI Locker', icon: '🔒', cat: 'security', desc: 'Subresource integrity hash generator & tamper alert' },
+    { id: 'websockets', name: 'Edge WebSocket & Presence Server', short: 'WebSockets', icon: '⚡', cat: 'perf', desc: 'Durable Objects stateful WebSocket room simulator' },
+    { id: 'botanalyzer', name: 'Bot Management & JA4 Analyzer', short: 'Bot Shield', icon: '🤖', cat: 'security', desc: 'JA4 TLS fingerprinting & bot likelihood scoring' },
+    { id: 'openapigateway', name: 'OpenAPI Edge Schema Gateway', short: 'API Gateway', icon: '📐', cat: 'dev', desc: 'Payload validation against OpenAPI 3.0 schema' },
+    { id: 'imageresize', name: 'Edge Image Resizing & Polish', short: 'Image Resize', icon: '🖼️', cat: 'perf', desc: 'Cloudflare Images AVIF/WebP on-the-fly transforms' },
+    { id: 'featureflags', name: 'Edge Feature Flags & Rollouts', short: 'Feature Flags', icon: '🚩', cat: 'dev', desc: 'Percentage-based rollouts & user segment targeting' },
+    { id: 'mtls', name: 'Mutual TLS (mTLS) Client Cert Studio', short: 'mTLS Architect', icon: '🔐', cat: 'security', desc: 'Zero-trust client certificate authentication setup' },
+    { id: 'earlyhints', name: '103 Early Hints Link Studio', short: '103 Early Hints', icon: '🚀', cat: 'perf', desc: 'Preload CSS/JS headers during server think time' },
+    { id: 'ssemultiplex', name: 'SSE Live Multiplexer & Broadcaster', short: 'SSE Multiplex', icon: '📡', cat: 'perf', desc: 'Server-Sent Events streaming channel hub' },
+    { id: 'graphqlshield', name: 'GraphQL Edge Shield & Query Cost', short: 'GraphQL Shield', icon: '🛡️', cat: 'dev', desc: 'Query depth limiter & circular reference protector' },
+    { id: 'hlsrewriter', name: 'HLS Video Stream Rewriter & DRM', short: 'HLS Rewriter', icon: '🎞️', cat: 'perf', desc: 'Dynamic m3u8 playlist manifest rewriting at the edge' },
+    { id: 'logpush', name: 'Cloudflare Logpush & SIEM Studio', short: 'Logpush SIEM', icon: '📊', cat: 'dev', desc: 'Edge log filtering, batching & Datadog/S3 export' },
+    { id: 'typesgen', name: 'Edge Type Safety & Zod Generator', short: 'Types & Zod', icon: '📐', cat: 'dev', desc: 'Infer TypeScript interfaces and Zod schemas from JSON' },
+    { id: 'webhookverify', name: 'Webhook Verifier & HMAC Studio', short: 'Webhook Verifier', icon: '🔐', cat: 'security', desc: 'HMAC-SHA256 signature verification for Stripe, GitHub, Slack' },
+    { id: 'emailrouting', name: 'Email Routing & MIME Parser', short: 'Email Routing', icon: '📧', cat: 'network', desc: 'MIME multipart parser, spam SPF check & edge forwarder' },
+    { id: 'reverseproxy', name: 'Edge Reverse Proxy & Gateway', short: 'Reverse Proxy', icon: '🔄', cat: 'network', desc: 'Dynamic path rewrite, header injection & origin fallback' },
+    { id: 'geopersonalize', name: 'Edge Geolocation & Geo-Fencing', short: 'Geo Personalize', icon: '🌍', cat: 'network', desc: 'Cloudflare request.cf simulation, geo-blocking & currency' }
+  ];
+
+  window.EXTENDED_SECONDARY_TOOLS = EXTENDED_SECONDARY_TOOLS;
 
   function injectExtendedNavButtons() {
-    const tabsContainer = document.querySelector('.tabs');
-    if (!tabsContainer || document.getElementById('tab-docintel')) return;
+    const listEl = document.getElementById('extraToolsSidebarList');
+    if (!listEl) return;
 
-    // 1. Doc Intel
-    const docBtn = document.createElement('button');
-    docBtn.className = 'tab';
-    docBtn.id = 'tab-docintel';
-    docBtn.innerHTML = '<span>📑</span> Doc Intel';
-    docBtn.onclick = () => window.switchTab('docintel');
+    listEl.innerHTML = '';
+    EXTENDED_SECONDARY_TOOLS.forEach(tool => {
+      const card = document.createElement('div');
+      card.className = 'extra-tool-card';
+      card.id = 'sec-card-' + tool.id;
+      card.setAttribute('data-id', tool.id);
+      card.setAttribute('data-category', tool.cat);
+      card.onclick = () => {
+        if (typeof window.switchTab === 'function') {
+          window.switchTab(tool.id);
+        }
+        if (typeof window.closeExtraToolsSidebar === 'function') {
+          window.closeExtraToolsSidebar();
+        }
+      };
+      card.innerHTML = '<div class="extra-tool-icon">' + tool.icon + '</div>' +
+        '<div class="extra-tool-body">' +
+        '<div class="extra-tool-top"><span class="extra-tool-title">' + tool.name + '</span><span class="extra-tool-tag">' + tool.cat + '</span></div>' +
+        '<div class="extra-tool-desc">' + tool.desc + '</div>' +
+        '</div>';
+      listEl.appendChild(card);
+    });
 
-    // 2. Edge Speed & DoH
-    const edgeBtn = document.createElement('button');
-    edgeBtn.className = 'tab';
-    edgeBtn.id = 'tab-edgebench';
-    edgeBtn.innerHTML = '<span>⚡</span> Edge Speed & DoH';
-    edgeBtn.onclick = () => window.switchTab('edgebench');
-
-    // 3. Code Sandbox
-    const codeBtn = document.createElement('button');
-    codeBtn.className = 'tab';
-    codeBtn.id = 'tab-codesandbox';
-    codeBtn.innerHTML = '<span>🧪</span> Code Sandbox';
-    codeBtn.onclick = () => window.switchTab('codesandbox');
-
-    // 4. 2FA Authenticator
-    const totpBtn = document.createElement('button');
-    totpBtn.className = 'tab';
-    totpBtn.id = 'tab-totp';
-    totpBtn.innerHTML = '<span>🔑</span> 2FA Vault';
-    totpBtn.onclick = () => window.switchTab('totp');
-
-    // 5. D1 SQL Studio
-    const d1Btn = document.createElement('button');
-    d1Btn.className = 'tab';
-    d1Btn.id = 'tab-d1studio';
-    d1Btn.innerHTML = '<span>🗄️</span> D1 SQL Studio';
-    d1Btn.onclick = () => window.switchTab('d1studio');
-
-    // 6. Cert Transparency
-    const certBtn = document.createElement('button');
-    certBtn.className = 'tab';
-    certBtn.id = 'tab-certmonitor';
-    certBtn.innerHTML = '<span>📜</span> Cert Monitor';
-    certBtn.onclick = () => window.switchTab('certmonitor');
-
-    // 7. IP Intel
-    const ipBtn = document.createElement('button');
-    ipBtn.className = 'tab';
-    ipBtn.id = 'tab-ipintel';
-    ipBtn.innerHTML = '<span>🛰️</span> Threat & IP Intel';
-    ipBtn.onclick = () => window.switchTab('ipintel');
-
-    // 8. Semantic Search
-    const searchBtn = document.createElement('button');
-    searchBtn.className = 'tab';
-    searchBtn.id = 'tab-semanticsearch';
-    searchBtn.innerHTML = '<span>🧠</span> Semantic RAG';
-    searchBtn.onclick = () => window.switchTab('semanticsearch');
-
-    // 9. WAF Simulator
-    const wafBtn = document.createElement('button');
-    wafBtn.className = 'tab';
-    wafBtn.id = 'tab-wafsim';
-    wafBtn.innerHTML = '<span>🛡️</span> WAF & Edge Rules';
-    wafBtn.onclick = () => window.switchTab('wafsim');
-
-    // 10. Webhook Dispatcher
-    const whBtn = document.createElement('button');
-    whBtn.className = 'tab';
-    whBtn.id = 'tab-webhooks';
-    whBtn.innerHTML = '<span>📡</span> Webhooks';
-    whBtn.onclick = () => window.switchTab('webhooks');
-
-    // 11. TLS Inspector
-    const tlsBtn = document.createElement('button');
-    tlsBtn.className = 'tab';
-    tlsBtn.id = 'tab-tlsinspect';
-    tlsBtn.innerHTML = '<span>🔒</span> TLS Handshake';
-    tlsBtn.onclick = () => window.switchTab('tlsinspect');
-
-    // 12. Security Headers
-    const secBtn = document.createElement('button');
-    secBtn.className = 'tab';
-    secBtn.id = 'tab-secstudio';
-    secBtn.innerHTML = '<span>🛡️</span> Sec Headers';
-    secBtn.onclick = () => window.switchTab('secstudio');
-
-    // 13. Cron Triggers
-    const cronBtn = document.createElement('button');
-    cronBtn.className = 'tab';
-    cronBtn.id = 'tab-cronstudio';
-    cronBtn.innerHTML = '<span>⏰</span> Cron Triggers';
-    cronBtn.onclick = () => window.switchTab('cronstudio');
-
-    // 14. KV Storage
-    const kvBtn = document.createElement('button');
-    kvBtn.className = 'tab';
-    kvBtn.id = 'tab-kvstudio';
-    kvBtn.innerHTML = '<span>🗄️</span> KV Storage';
-    kvBtn.onclick = () => window.switchTab('kvstudio');
-
-    // 15. Keypair Generator
-    const keyBtn = document.createElement('button');
-    keyBtn.className = 'tab';
-    keyBtn.id = 'tab-keygen';
-    keyBtn.innerHTML = '<span>🔑</span> SSH & Keypair';
-    keyBtn.onclick = () => window.switchTab('keygen');
-
-    // 16. DoH Benchmark
-    const dohBtn = document.createElement('button');
-    dohBtn.className = 'tab';
-    dohBtn.id = 'tab-dohbench';
-    dohBtn.innerHTML = '<span>🌐</span> DoH Resolvers';
-    dohBtn.onclick = () => window.switchTab('dohbench');
-
-    // 17. Rate Limiting
-    const rateBtn = document.createElement('button');
-    rateBtn.className = 'tab';
-    rateBtn.id = 'tab-ratelimit';
-    rateBtn.innerHTML = '<span>🚦</span> Rate Limiting';
-    rateBtn.onclick = () => window.switchTab('ratelimit');
-
-    // 18. CDN Cache & Purge
-    const cacheBtn = document.createElement('button');
-    cacheBtn.className = 'tab';
-    cacheBtn.id = 'tab-cachestudio';
-    cacheBtn.innerHTML = '<span>⚡</span> CDN Cache';
-    cacheBtn.onclick = () => window.switchTab('cachestudio');
-
-    // 19. Wirefilter Tester
-    const wireBtn = document.createElement('button');
-    wireBtn.className = 'tab';
-    wireBtn.id = 'tab-wirefilter';
-    wireBtn.innerHTML = '<span>📐</span> Wirefilter';
-    wireBtn.onclick = () => window.switchTab('wirefilter');
-
-    // 20. JWT Inspector
-    const jwtBtn = document.createElement('button');
-    jwtBtn.className = 'tab';
-    jwtBtn.id = 'tab-jwtstudio';
-    jwtBtn.innerHTML = '<span>🎟️</span> JWT Inspector';
-    jwtBtn.onclick = () => window.switchTab('jwtstudio');
-
-    // 21. Transform Rules
-    const transBtn = document.createElement('button');
-    transBtn.className = 'tab';
-    transBtn.id = 'tab-transformrules';
-    transBtn.innerHTML = '<span>🔄</span> Transform Rules';
-    transBtn.onclick = () => window.switchTab('transformrules');
-
-    // 22. CIDR Calculator
-    const cidrBtn = document.createElement('button');
-    cidrBtn.className = 'tab';
-    cidrBtn.id = 'tab-cidrcalc';
-    cidrBtn.innerHTML = '<span>🔢</span> CIDR & Subnet';
-    cidrBtn.onclick = () => window.switchTab('cidrcalc');
-
-    // 23. Security.txt Auditor
-    const secTxtBtn = document.createElement('button');
-    secTxtBtn.className = 'tab';
-    secTxtBtn.id = 'tab-sectxt';
-    secTxtBtn.innerHTML = '<span>📄</span> security.txt';
-    secTxtBtn.onclick = () => window.switchTab('sectxt');
-
-    // 24. Email Security (SPF & DMARC)
-    const emailBtn = document.createElement('button');
-    emailBtn.className = 'tab';
-    emailBtn.id = 'tab-emailsec';
-    emailBtn.innerHTML = '<span>📧</span> Email SPF/DMARC';
-    emailBtn.onclick = () => window.switchTab('emailsec');
-
-    // 25. Zero Trust Access
-    const ztBtn = document.createElement('button');
-    ztBtn.className = 'tab';
-    ztBtn.id = 'tab-zerotrust';
-    ztBtn.innerHTML = '<span>🛡️</span> Zero Trust';
-    ztBtn.onclick = () => window.switchTab('zerotrust');
-
-    // 26. HTTP/3 & ALPN Probe
-    const httpBtn = document.createElement('button');
-    httpBtn.className = 'tab';
-    httpBtn.id = 'tab-httpprobe';
-    httpBtn.innerHTML = '<span>⚡</span> HTTP/3 & ALPN';
-    httpBtn.onclick = () => window.switchTab('httpprobe');
-
-    // 27. Regex & ReDoS Benchmark
-    const regBtn = document.createElement('button');
-    regBtn.className = 'tab';
-    regBtn.id = 'tab-regexbench';
-    regBtn.innerHTML = '<span>🧩</span> Regex & ReDoS';
-    regBtn.onclick = () => window.switchTab('regexbench');
-
-    // 28. Custom Error Pages
-    const errBtn = document.createElement('button');
-    errBtn.className = 'tab';
-    errBtn.id = 'tab-errorpages';
-    errBtn.innerHTML = '<span>🛑</span> Custom Error Pages';
-    errBtn.onclick = () => window.switchTab('errorpages');
-
-    // 29. CORS Policy Auditor
-    const corsBtn = document.createElement('button');
-    corsBtn.className = 'tab';
-    corsBtn.id = 'tab-corsaudit';
-    corsBtn.innerHTML = '<span>🌐</span> CORS Auditor';
-    corsBtn.onclick = () => window.switchTab('corsaudit');
-
-    // 30. Cache-Tags & Purge
-    const tagBtn = document.createElement('button');
-    tagBtn.className = 'tab';
-    tagBtn.id = 'tab-cachetags';
-    tagBtn.innerHTML = '<span>🏷️</span> Cache-Tags';
-    tagBtn.onclick = () => window.switchTab('cachetags');
-
-    // 31. Anycast & BGP PoP
-    const bgpBtn = document.createElement('button');
-    bgpBtn.className = 'tab';
-    bgpBtn.id = 'tab-bgproute';
-    bgpBtn.innerHTML = '<span>🗺️</span> Anycast & BGP PoP';
-    bgpBtn.onclick = () => window.switchTab('bgproute');
-
-    // 32. Queues & DLQ Pipeline
-    const qBtn = document.createElement('button');
-    qBtn.className = 'tab';
-    qBtn.id = 'tab-queuesdlq';
-    qBtn.innerHTML = '<span>📬</span> Queues & DLQ';
-    qBtn.onclick = () => window.switchTab('queuesdlq');
-
-    // 33. Cookie Security & Hardener
-    const cookieBtn = document.createElement('button');
-    cookieBtn.className = 'tab';
-    cookieBtn.id = 'tab-cookiehardener';
-    cookieBtn.innerHTML = '<span>🍪</span> Cookie Hardener';
-    cookieBtn.onclick = () => window.switchTab('cookiehardener');
-
-    // 34. Canary Traffic Splitter
-    const canaryBtn = document.createElement('button');
-    canaryBtn.className = 'tab';
-    canaryBtn.id = 'tab-canarysplit';
-    canaryBtn.innerHTML = '<span>🚦</span> Canary Splitter';
-    canaryBtn.onclick = () => window.switchTab('canarysplit');
-
-    // 35. SRI Edge Locker
-    const sriBtn = document.createElement('button');
-    sriBtn.className = 'tab';
-    sriBtn.id = 'tab-srilocker';
-    sriBtn.innerHTML = '<span>🔒</span> SRI Edge Locker';
-    sriBtn.onclick = () => window.switchTab('srilocker');
-
-    // 36. Edge WebSockets
-    const wsBtn = document.createElement('button');
-    wsBtn.className = 'tab';
-    wsBtn.id = 'tab-websockets';
-    wsBtn.innerHTML = '<span>⚡</span> Edge WebSockets';
-    wsBtn.onclick = () => window.switchTab('websockets');
-
-    // 37. Bot & JA4 Analyzer
-    const botBtn = document.createElement('button');
-    botBtn.className = 'tab';
-    botBtn.id = 'tab-botanalyzer';
-    botBtn.innerHTML = '<span>🤖</span> Bot & JA4';
-    botBtn.onclick = () => window.switchTab('botanalyzer');
-
-    // 38. OpenAPI Gateway
-    const apiBtn = document.createElement('button');
-    apiBtn.className = 'tab';
-    apiBtn.id = 'tab-openapigateway';
-    apiBtn.innerHTML = '<span>📐</span> OpenAPI Gateway';
-    apiBtn.onclick = () => window.switchTab('openapigateway');
-
-    // 39. Image Resizing & Polish
-    const imgBtn = document.createElement('button');
-    imgBtn.className = 'tab';
-    imgBtn.id = 'tab-imageresize';
-    imgBtn.innerHTML = '<span>🖼️</span> Image Resizing';
-    imgBtn.onclick = () => window.switchTab('imageresize');
-
-    // 40. Feature Flags & Remote Config
-    const flagsBtn = document.createElement('button');
-    flagsBtn.className = 'tab';
-    flagsBtn.id = 'tab-featureflags';
-    flagsBtn.innerHTML = '<span>🚩</span> Feature Flags';
-    flagsBtn.onclick = () => window.switchTab('featureflags');
-
-    // 41. mTLS & Client Certs
-    const mtlsBtn = document.createElement('button');
-    mtlsBtn.className = 'tab';
-    mtlsBtn.id = 'tab-mtls';
-    mtlsBtn.innerHTML = '<span>🔐</span> mTLS Architect';
-    mtlsBtn.onclick = () => window.switchTab('mtls');
-
-    // 42. 103 Early Hints
-    const hintsBtn = document.createElement('button');
-    hintsBtn.className = 'tab';
-    hintsBtn.id = 'tab-earlyhints';
-    hintsBtn.innerHTML = '<span>🚀</span> 103 Early Hints';
-    hintsBtn.onclick = () => window.switchTab('earlyhints');
-
-    // 43. SSE Live Multiplexer
-    const sseBtn = document.createElement('button');
-    sseBtn.className = 'tab';
-    sseBtn.id = 'tab-ssemultiplex';
-    sseBtn.innerHTML = '<span>📡</span> SSE Multiplex';
-    sseBtn.onclick = () => window.switchTab('ssemultiplex');
-
-    // 44. GraphQL Edge Shield
-    const graphqlBtn = document.createElement('button');
-    graphqlBtn.className = 'tab';
-    graphqlBtn.id = 'tab-graphqlshield';
-    graphqlBtn.innerHTML = '<span>🛡️</span> GraphQL Shield';
-    graphqlBtn.onclick = () => window.switchTab('graphqlshield');
-
-    // 45. HLS Stream Rewriter
-    const hlsBtn = document.createElement('button');
-    hlsBtn.className = 'tab';
-    hlsBtn.id = 'tab-hlsrewriter';
-    hlsBtn.innerHTML = '<span>🎞️</span> HLS Rewriter';
-    hlsBtn.onclick = () => window.switchTab('hlsrewriter');
-
-    // 46. Logpush Pipeline & SIEM
-    const logpushBtn = document.createElement('button');
-    logpushBtn.className = 'tab';
-    logpushBtn.id = 'tab-logpush';
-    logpushBtn.innerHTML = '<span>📊</span> Logpush SIEM';
-    logpushBtn.onclick = () => window.switchTab('logpush');
-
-    // 47. Edge Types & Zod Generator
-    const typesBtn = document.createElement('button');
-    typesBtn.className = 'tab';
-    typesBtn.id = 'tab-typesgen';
-    typesBtn.innerHTML = '<span>📐</span> Type Safety & Zod';
-    typesBtn.onclick = () => window.switchTab('typesgen');
-
-    // 48. Webhook Verifier
-    const whVerifyBtn = document.createElement('button');
-    whVerifyBtn.className = 'tab';
-    whVerifyBtn.id = 'tab-webhookverify';
-    whVerifyBtn.innerHTML = '<span>🔐</span> Webhook Verifier';
-    whVerifyBtn.onclick = () => window.switchTab('webhookverify');
-
-    // 49. Email Routing & MIME Parser
-    const emailRouteBtn = document.createElement('button');
-    emailRouteBtn.className = 'tab';
-    emailRouteBtn.id = 'tab-emailrouting';
-    emailRouteBtn.innerHTML = '<span>📧</span> Email Routing';
-    emailRouteBtn.onclick = () => window.switchTab('emailrouting');
-
-    // 50. Reverse Proxy Gateway
-    const revProxyBtn = document.createElement('button');
-    revProxyBtn.className = 'tab';
-    revProxyBtn.id = 'tab-reverseproxy';
-    revProxyBtn.innerHTML = '<span>🔄</span> Reverse Proxy';
-    revProxyBtn.onclick = () => window.switchTab('reverseproxy');
-
-    // 51. Geo Personalize
-    const geoBtn = document.createElement('button');
-    geoBtn.className = 'tab';
-    geoBtn.id = 'tab-geopersonalize';
-    geoBtn.innerHTML = '<span>🌍</span> Geo Personalize';
-    geoBtn.onclick = () => window.switchTab('geopersonalize');
-
-    // Insert after cloudflare tab
-    const cfTab = document.getElementById('tab-cloudflare');
-    if (cfTab && cfTab.nextSibling) {
-      tabsContainer.insertBefore(docBtn, cfTab.nextSibling);
-      tabsContainer.insertBefore(edgeBtn, docBtn.nextSibling);
-      tabsContainer.insertBefore(codeBtn, edgeBtn.nextSibling);
-      tabsContainer.insertBefore(totpBtn, codeBtn.nextSibling);
-      tabsContainer.insertBefore(d1Btn, totpBtn.nextSibling);
-      tabsContainer.insertBefore(certBtn, d1Btn.nextSibling);
-      tabsContainer.insertBefore(ipBtn, certBtn.nextSibling);
-      tabsContainer.insertBefore(searchBtn, ipBtn.nextSibling);
-      tabsContainer.insertBefore(wafBtn, searchBtn.nextSibling);
-      tabsContainer.insertBefore(whBtn, wafBtn.nextSibling);
-      tabsContainer.insertBefore(tlsBtn, whBtn.nextSibling);
-      tabsContainer.insertBefore(secBtn, tlsBtn.nextSibling);
-      tabsContainer.insertBefore(cronBtn, secBtn.nextSibling);
-      tabsContainer.insertBefore(kvBtn, cronBtn.nextSibling);
-      tabsContainer.insertBefore(keyBtn, kvBtn.nextSibling);
-      tabsContainer.insertBefore(dohBtn, keyBtn.nextSibling);
-      tabsContainer.insertBefore(rateBtn, dohBtn.nextSibling);
-      tabsContainer.insertBefore(cacheBtn, rateBtn.nextSibling);
-      tabsContainer.insertBefore(wireBtn, cacheBtn.nextSibling);
-      tabsContainer.insertBefore(jwtBtn, wireBtn.nextSibling);
-      tabsContainer.insertBefore(transBtn, jwtBtn.nextSibling);
-      tabsContainer.insertBefore(cidrBtn, transBtn.nextSibling);
-      tabsContainer.insertBefore(secTxtBtn, cidrBtn.nextSibling);
-      tabsContainer.insertBefore(emailBtn, secTxtBtn.nextSibling);
-      tabsContainer.insertBefore(ztBtn, emailBtn.nextSibling);
-      tabsContainer.insertBefore(httpBtn, ztBtn.nextSibling);
-      tabsContainer.insertBefore(regBtn, httpBtn.nextSibling);
-      tabsContainer.insertBefore(errBtn, regBtn.nextSibling);
-      tabsContainer.insertBefore(corsBtn, errBtn.nextSibling);
-      tabsContainer.insertBefore(tagBtn, corsBtn.nextSibling);
-      tabsContainer.insertBefore(bgpBtn, tagBtn.nextSibling);
-      tabsContainer.insertBefore(qBtn, bgpBtn.nextSibling);
-      tabsContainer.insertBefore(cookieBtn, qBtn.nextSibling);
-      tabsContainer.insertBefore(canaryBtn, cookieBtn.nextSibling);
-      tabsContainer.insertBefore(sriBtn, canaryBtn.nextSibling);
-      tabsContainer.insertBefore(wsBtn, sriBtn.nextSibling);
-      tabsContainer.insertBefore(botBtn, wsBtn.nextSibling);
-      tabsContainer.insertBefore(apiBtn, botBtn.nextSibling);
-      tabsContainer.insertBefore(imgBtn, apiBtn.nextSibling);
-      tabsContainer.insertBefore(flagsBtn, imgBtn.nextSibling);
-      tabsContainer.insertBefore(mtlsBtn, flagsBtn.nextSibling);
-      tabsContainer.insertBefore(hintsBtn, mtlsBtn.nextSibling);
-      tabsContainer.insertBefore(sseBtn, hintsBtn.nextSibling);
-      tabsContainer.insertBefore(graphqlBtn, sseBtn.nextSibling);
-      tabsContainer.insertBefore(hlsBtn, graphqlBtn.nextSibling);
-      tabsContainer.insertBefore(logpushBtn, hlsBtn.nextSibling);
-      tabsContainer.insertBefore(typesBtn, logpushBtn.nextSibling);
-      tabsContainer.insertBefore(whVerifyBtn, typesBtn.nextSibling);
-      tabsContainer.insertBefore(emailRouteBtn, whVerifyBtn.nextSibling);
-      tabsContainer.insertBefore(revProxyBtn, emailRouteBtn.nextSibling);
-      tabsContainer.insertBefore(geoBtn, revProxyBtn.nextSibling);
-    } else {
-      tabsContainer.appendChild(docBtn);
-      tabsContainer.appendChild(edgeBtn);
-      tabsContainer.appendChild(codeBtn);
-      tabsContainer.appendChild(totpBtn);
-      tabsContainer.appendChild(d1Btn);
-      tabsContainer.appendChild(certBtn);
-      tabsContainer.appendChild(ipBtn);
-      tabsContainer.appendChild(searchBtn);
-      tabsContainer.appendChild(wafBtn);
-      tabsContainer.appendChild(whBtn);
-      tabsContainer.appendChild(tlsBtn);
-      tabsContainer.appendChild(secBtn);
-      tabsContainer.appendChild(cronBtn);
-      tabsContainer.appendChild(kvBtn);
-      tabsContainer.appendChild(keyBtn);
-      tabsContainer.appendChild(dohBtn);
-      tabsContainer.appendChild(rateBtn);
-      tabsContainer.appendChild(cacheBtn);
-      tabsContainer.appendChild(wireBtn);
-      tabsContainer.appendChild(jwtBtn);
-      tabsContainer.appendChild(transBtn);
-      tabsContainer.appendChild(cidrBtn);
-      tabsContainer.appendChild(secTxtBtn);
-      tabsContainer.appendChild(emailBtn);
-      tabsContainer.appendChild(ztBtn);
-      tabsContainer.appendChild(httpBtn);
-      tabsContainer.appendChild(regBtn);
-      tabsContainer.appendChild(errBtn);
-      tabsContainer.appendChild(corsBtn);
-      tabsContainer.appendChild(tagBtn);
-      tabsContainer.appendChild(bgpBtn);
-      tabsContainer.appendChild(qBtn);
-      tabsContainer.appendChild(cookieBtn);
-      tabsContainer.appendChild(canaryBtn);
-      tabsContainer.appendChild(sriBtn);
-      tabsContainer.appendChild(wsBtn);
-      tabsContainer.appendChild(botBtn);
-      tabsContainer.appendChild(apiBtn);
-      tabsContainer.appendChild(imgBtn);
-      tabsContainer.appendChild(flagsBtn);
-      tabsContainer.appendChild(mtlsBtn);
-      tabsContainer.appendChild(hintsBtn);
-      tabsContainer.appendChild(sseBtn);
-      tabsContainer.appendChild(graphqlBtn);
-      tabsContainer.appendChild(hlsBtn);
-      tabsContainer.appendChild(logpushBtn);
-      tabsContainer.appendChild(typesBtn);
-      tabsContainer.appendChild(whVerifyBtn);
-      tabsContainer.appendChild(emailRouteBtn);
-      tabsContainer.appendChild(revProxyBtn);
-      tabsContainer.appendChild(geoBtn);
-    }
+    console.log('[AI-Cloud-Studio-Extended] Populated ' + EXTENDED_SECONDARY_TOOLS.length + ' secondary tools into Extra Tools Sidebar.');
   }
 
   if (document.readyState === 'loading') {
