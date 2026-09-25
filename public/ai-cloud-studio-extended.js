@@ -1793,7 +1793,8 @@ function mergeObjects(target, source) {
 
         if (valBox) {
           valBox.onclick = () => window.copyTotpCode(otp, item.id);
-          valBox.querySelector('div:first-child').textContent = formattedOtp;
+          const firstChild = valBox.querySelector('div:first-child') || valBox.firstElementChild;
+          if (firstChild) firstChild.textContent = formattedOtp;
         }
         if (ring) {
           ring.setAttribute('stroke', strokeColor);
@@ -1890,9 +1891,9 @@ function mergeObjects(target, source) {
   };
 
   window.saveNewTotpAccount = async function () {
-    const issuer = document.getElementById('totpIssuer')?.value.trim();
-    const account = document.getElementById('totpAccount')?.value.trim();
-    const secret = document.getElementById('totpSecret')?.value.trim();
+    const issuer = document.getElementById('totpIssuer')?.value?.trim();
+    const account = document.getElementById('totpAccount')?.value?.trim();
+    const secret = document.getElementById('totpSecret')?.value?.trim();
 
     if (!issuer || !account || !secret) {
       if (typeof window.toast === 'function') window.toast('Please fill in Issuer, Account, and Secret Key.');
@@ -3908,7 +3909,7 @@ function mergeObjects(target, source) {
   };
 
   window.submitKvKey = async function() {
-    const key = document.getElementById('modalKvKey')?.value.trim();
+    const key = document.getElementById('modalKvKey')?.value?.trim();
     const value = document.getElementById('modalKvValue')?.value;
     const ttl = document.getElementById('modalKvTtl')?.value;
 
@@ -4202,7 +4203,7 @@ function mergeObjects(target, source) {
   };
 
   window.runDohBenchmark = async function() {
-    const domain = document.getElementById('dohDomainInput')?.value.trim() || 'cloudflare.com';
+    const domain = document.getElementById('dohDomainInput')?.value?.trim() || 'cloudflare.com';
     const recordType = document.getElementById('dohRecordType')?.value || 'A';
     const container = document.getElementById('dohBenchmarkResults');
     if (!container) return;
@@ -4381,7 +4382,7 @@ function mergeObjects(target, source) {
   };
 
   window.simulateRateLimiting = async function() {
-    const pathPattern = document.getElementById('rlPath')?.value.trim() || '/api/login';
+    const pathPattern = document.getElementById('rlPath')?.value?.trim() || '/api/login';
     const threshold = document.getElementById('rlThreshold')?.value || 5;
     const period = document.getElementById('rlPeriod')?.value || 60;
     const action = document.getElementById('rlAction')?.value || 'managed_challenge';
@@ -4489,7 +4490,7 @@ function mergeObjects(target, source) {
   };
 
   window.inspectCacheability = async function() {
-    const targetUrl = document.getElementById('cacheTargetUrl')?.value.trim() || 'https://cloudflare.com';
+    const targetUrl = document.getElementById('cacheTargetUrl')?.value?.trim() || 'https://cloudflare.com';
     const purgeType = document.getElementById('cachePurgeType')?.value || 'single_file';
     const container = document.getElementById('cacheInspectResults');
     if (!container) return;
@@ -4817,8 +4818,8 @@ function mergeObjects(target, source) {
   };
 
   window.inspectJwt = async function() {
-    const token = document.getElementById('jwtInput')?.value.trim();
-    const secret = document.getElementById('jwtSecret')?.value.trim();
+    const token = document.getElementById('jwtInput')?.value?.trim();
+    const secret = document.getElementById('jwtSecret')?.value?.trim();
     const container = document.getElementById('jwtResultsContainer');
     if (!container) return;
 
@@ -5094,8 +5095,8 @@ function mergeObjects(target, source) {
   };
 
   window.calculateCidr = async function() {
-    const cidr = document.getElementById('cidrInput')?.value.trim() || '192.168.10.0/24';
-    const testIp = document.getElementById('cidrTestIp')?.value.trim() || '';
+    const cidr = document.getElementById('cidrInput')?.value?.trim() || '192.168.10.0/24';
+    const testIp = document.getElementById('cidrTestIp')?.value?.trim() || '';
     const container = document.getElementById('cidrResultsContainer');
     if (!container) return;
 
@@ -5235,7 +5236,7 @@ function mergeObjects(target, source) {
   };
 
   window.auditSecurityTxt = async function() {
-    const domain = document.getElementById('secTxtDomain')?.value.trim() || 'cloudflare.com';
+    const domain = document.getElementById('secTxtDomain')?.value?.trim() || 'cloudflare.com';
     const container = document.getElementById('secTxtResultsContainer');
     if (!container) return;
 
@@ -5365,7 +5366,7 @@ function mergeObjects(target, source) {
   };
 
   window.auditEmailSecurity = async function() {
-    const domain = document.getElementById('emailSecDomain')?.value.trim() || 'cloudflare.com';
+    const domain = document.getElementById('emailSecDomain')?.value?.trim() || 'cloudflare.com';
     const container = document.getElementById('emailSecResultsContainer');
     if (!container) return;
 
@@ -5685,7 +5686,7 @@ function mergeObjects(target, source) {
   };
 
   window.probeHttpProtocols = async function() {
-    const domain = document.getElementById('httpProbeDomain')?.value.trim() || 'cloudflare.com';
+    const domain = document.getElementById('httpProbeDomain')?.value?.trim() || 'cloudflare.com';
     const container = document.getElementById('httpProbeResultsContainer');
     if (!container) return;
 
@@ -6116,8 +6117,8 @@ function mergeObjects(target, source) {
   };
 
   window.auditCorsSecurity = async function() {
-    const targetUrl = document.getElementById('corsTargetUrl')?.value.trim() || '';
-    const testOrigin = document.getElementById('corsTestOrigin')?.value.trim() || 'https://malicious-attacker.com';
+    const targetUrl = document.getElementById('corsTargetUrl')?.value?.trim() || '';
+    const testOrigin = document.getElementById('corsTestOrigin')?.value?.trim() || 'https://malicious-attacker.com';
     const allowedOrigins = (document.getElementById('corsAllowedOrigins')?.value || '')
       .split(',').map(s => s.trim()).filter(Boolean);
     const allowCredentials = document.getElementById('corsCredentials')?.checked ?? true;
@@ -6358,7 +6359,7 @@ function mergeObjects(target, source) {
   };
 
   window.inspectBgpRoute = async function() {
-    const host = document.getElementById('bgpHostInput')?.value.trim() || 'cloudflare.com';
+    const host = document.getElementById('bgpHostInput')?.value?.trim() || 'cloudflare.com';
     const container = document.getElementById('bgpRouteOutputContainer');
     if (!container) return;
 
