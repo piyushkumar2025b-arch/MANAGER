@@ -10248,6 +10248,8 @@ Your invoice #INV-9284 for $49.00 USD has been successfully processed. Thank you
     console.log('[AI-Cloud-Studio-Extended] Populated ' + EXTENDED_SECONDARY_TOOLS.length + ' secondary tools into Extra Tools Sidebar.');
   }
 
+  window.injectExtendedNavButtons = injectExtendedNavButtons;
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectExtendedNavButtons);
   } else {

@@ -2520,6 +2520,10 @@ function openExtraToolsSidebar() {
   const backdrop = document.getElementById('extraToolsBackdrop');
   if (sidebar) sidebar.classList.add('open');
   if (backdrop) backdrop.classList.add('open');
+  const listEl = document.getElementById('extraToolsSidebarList');
+  if (listEl && listEl.children.length === 0 && typeof window.injectExtendedNavButtons === 'function') {
+    window.injectExtendedNavButtons();
+  }
   const input = document.getElementById('extraToolsSearchInput');
   if (input) {
     setTimeout(() => input.focus(), 150);
@@ -2839,6 +2843,8 @@ async function filterCommandPalette(q) {
 
   const matchingActions = quickActions.filter(a => !q || a.title.toLowerCase().includes(q) || a.sub.toLowerCase().includes(q));
   const matchingNav = navigation.filter(n => !q || n.title.toLowerCase().includes(q) || n.sub.toLowerCase().includes(q));
+  const extraTools = window.EXTENDED_SECONDARY_TOOLS || [];
+  const matchingExtraTools = q ? extraTools.filter(t => t.name.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q) || t.cat.toLowerCase().includes(q)).slice(0, 6) : [];
   const matchingTodos = q ? todos.filter(t => (t.title||'').toLowerCase().includes(q) || (t.category||'').toLowerCase().includes(q)).slice(0, 5) : [];
   const matchingPw = q ? passwords.filter(p => (p.title||'').toLowerCase().includes(q) || (p.username||'').toLowerCase().includes(q) || (p.item_type||'').toLowerCase().includes(q)).slice(0, 5) : [];
 
@@ -2942,6 +2948,30 @@ async function filterCommandPalette(q) {
             <span class="cmd-item-sub">${esc(n.sub)}</span>
           </div>
           <span class="cmd-item-badge">Tab</span>
+        </div>
+      `;
+    });
+  }
+
+  if (matchingExtraTools.length > 0) {
+    html += `<div class="cmd-group-title">⚡ Extra Tools (${matchingExtraTools.length})</div>`;
+    matchingExtraTools.forEach(t => {
+      const idx = cmdCurrentItems.length;
+      cmdCurrentItems.push({
+        type: 'extratool',
+        run: () => {
+          closeCommandPalette({ force: true });
+          switchTab(t.id);
+        }
+      });
+      html += `
+        <div class="cmd-item ${idx === cmdSelectedIdx ? 'selected' : ''}" id="cmd-item-${idx}" onclick="runCmdItem(${idx})">
+          <div class="cmd-item-left">
+            <span class="cmd-item-icon">${t.icon}</span>
+            <span class="cmd-item-title">${esc(t.name)}</span>
+            <span class="cmd-item-sub">${esc(t.desc)}</span>
+          </div>
+          <span class="cmd-item-badge" style="background:rgba(124,58,237,0.25);color:#c4b5fd;">${esc(t.cat.toUpperCase())}</span>
         </div>
       `;
     });
